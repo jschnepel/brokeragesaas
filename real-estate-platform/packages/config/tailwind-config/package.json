@@ -1,0 +1,8 @@
+{
+  "name": "@platform/tailwind-config",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "tailwindcss": "^3.4.0"
+  }
+}
