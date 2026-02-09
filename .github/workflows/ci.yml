@@ -1,0 +1,100 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, testing, dev]
+  pull_request:
+    branches: [main, testing, dev]
+
+jobs:
+  lint-typecheck-build:
+    name: Lint, Type Check & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: prototypes/yong
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: prototypes/yong/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npx eslint .
+
+      - name: Build
+        run: npx vite build
+
+      - name: Upload build artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ github.sha }}
+          path: prototypes/yong/dist
+          retention-days: 7
+
+  deploy-preview:
+    name: Deploy to Preview
+    needs: lint-typecheck-build
+    if: github.ref == 'refs/heads/testing' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ github.sha }}
+          path: dist
+
+      # Configure your hosting provider here.
+      # Example for Vercel:
+      # - name: Deploy to Vercel (Preview)
+      #   run: npx vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
+      #   env:
+      #     VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      #     VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy placeholder
+        run: echo "Deploy to staging/preview environment. Configure hosting provider secrets to enable."
+
+  deploy-production:
+    name: Deploy to Production
+    needs: lint-typecheck-build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ github.sha }}
+          path: dist
+
+      # Configure your hosting provider here.
+      # Example for Vercel:
+      # - name: Deploy to Vercel (Production)
+      #   run: npx vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+      #   env:
+      #     VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      #     VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy placeholder
+        run: echo "Deploy to production environment. Configure hosting provider secrets to enable."
