@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
+import SEOHead from '../components/shared/SEOHead';
 import AnimatedCounter from '../components/shared/AnimatedCounter';
 import { FEATURED_LISTINGS, LIFESTYLE_COLLECTIONS } from '../data/homePage';
 
@@ -26,6 +27,10 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F9F8F6] text-[#111] font-sans selection:bg-[#0C1C2E] selection:text-white page-zoom-85">
+      <SEOHead
+        title="Yong Choi | Scottsdale Luxury Real Estate | Sotheby's"
+        description="Discover extraordinary properties in the most coveted addresses of the Phoenix Metro. $1.2B in career sales."
+      />
 
       {/* Navigation */}
       <Navigation variant="transparent" />

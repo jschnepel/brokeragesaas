@@ -2,6 +2,7 @@ import { useParams, Navigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { MarketRegistry } from '../../models';
 import Footer from '../../components/Footer';
+import SEOHead from '../../components/shared/SEOHead';
 import MarketReportHero from '../../components/market-report/MarketReportHero';
 import KpiCardStrip from '../../components/market-report/KpiCardStrip';
 import NarrativeBlock from '../../components/market-report/NarrativeBlock';
@@ -48,6 +49,10 @@ const ZipcodeReportPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white text-[#111] font-sans selection:bg-[#0C1C2E] selection:text-white antialiased overflow-x-hidden">
+      <SEOHead
+        title={`${zipcodeCode} Market Report | ${MarketRegistry.getRegion(region!)?.name ?? 'Real Estate Intelligence'}`}
+        description={`Detailed real estate analytics for ${zipcodeCode}`}
+      />
       <MarketReportHero
         title={`${zipcodeCode}: ${zipcode.name}`}
         subtitle={zipcode.description}

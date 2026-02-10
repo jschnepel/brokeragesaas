@@ -2,6 +2,7 @@ import { useParams, Navigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { MarketRegistry } from '../../models';
 import Footer from '../../components/Footer';
+import SEOHead from '../../components/shared/SEOHead';
 import MarketReportHero from '../../components/market-report/MarketReportHero';
 import KpiCardStrip from '../../components/market-report/KpiCardStrip';
 import NarrativeBlock from '../../components/market-report/NarrativeBlock';
@@ -39,6 +40,10 @@ const CommunityReportPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white text-[#111] font-sans selection:bg-[#0C1C2E] selection:text-white antialiased overflow-x-hidden">
+      <SEOHead
+        title={`${community.name} Market Report`}
+        description={`Market intelligence for ${community.name}`}
+      />
       <MarketReportHero
         title={`${community.name}: Market Report`}
         subtitle={community.type}

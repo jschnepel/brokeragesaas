@@ -2,47 +2,32 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   MapPin,
-  TrendingUp,
   ChevronRight,
   Phone,
   Mail,
   ArrowRight,
   ArrowUpRight,
-  Home,
-  Users,
   Mountain,
-  Play,
   Compass,
   Star,
   Calendar,
-  Building,
-  Sun,
   Shield,
-  TreePine,
+  Sun,
   Search,
   X,
 } from 'lucide-react';
-import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
+import PageHero from '../components/shared/PageHero';
+import SEOHead from '../components/shared/SEOHead';
 import AnimatedCounter from '../components/shared/AnimatedCounter';
 import { useScrollAnimation } from '../components/shared/useScrollAnimation';
 import { REGIONS_DATA, fuzzyMatch, type SearchResult } from '../data/communitiesPage';
 
 const Communities: React.FC = () => {
-  const [scrollY, setScrollY] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
-
-  // Animation hooks
-  const heroAnim = useScrollAnimation();
-
-  useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   // Handle click outside to close search
   useEffect(() => {
@@ -96,52 +81,26 @@ const Communities: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F9F8F6] text-[#111] font-sans selection:bg-[#0C1C2E] selection:text-white antialiased overflow-x-hidden">
-      <Navigation variant="transparent" />
+      <SEOHead
+        title="Scottsdale Communities | Luxury Neighborhoods | Yong Choi"
+        description="Discover the most prestigious neighborhoods across Scottsdale, Paradise Valley, and the surrounding desert communities."
+      />
 
-      {/* Hero Section */}
-      <section className="relative h-[70vh] min-h-[500px] w-full overflow-hidden flex items-end">
-        <div
-          className="absolute inset-0 w-full h-[120%]"
-          style={{ transform: `translateY(${scrollY * 0.2}px)` }}
-        >
-          <img
-            src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=2400"
-            className="w-full h-full object-cover"
-            alt="Scottsdale Communities"
-          />
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0C1C2E]/95 via-[#0C1C2E]/40 to-transparent" />
-
-        {/* Video Play Button */}
-        <button className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 group">
-          <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 transition-all duration-300 group-hover:scale-110 group-hover:bg-white/30">
-            <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center">
-              <Play size={24} className="text-[#0C1C2E] ml-1" fill="#0C1C2E" />
-            </div>
-          </div>
-          <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-white text-[10px] uppercase tracking-[0.2em] font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-            Discover Arizona
-          </span>
-        </button>
-
-        <div className="relative z-10 w-full max-w-[1600px] mx-auto px-8 pb-16">
-          <nav className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-bold mb-4">
-            <Link to="/" className="text-white/40 hover:text-white transition-colors">Home</Link>
-            <span className="text-white/20">/</span>
-            <span className="text-[#Bfa67a]">Communities</span>
-          </nav>
-
-          <span className="block text-[#Bfa67a] text-[11px] uppercase tracking-[0.4em] font-bold mb-4 pl-1">Explore Arizona</span>
-          <h1 className="text-5xl md:text-7xl lg:text-8xl font-serif leading-[0.9] tracking-tight mb-6 text-white">
-            Scottsdale <br/>
-            <span className="italic font-light">Communities</span>
-          </h1>
-          <p className="text-white/70 text-lg max-w-xl font-light mb-8">
-            Discover the most prestigious neighborhoods across Scottsdale, Paradise Valley, and the surrounding desert communities.
-          </p>
-
-          {/* Search Bar */}
-          <div ref={searchRef} className="relative max-w-2xl">
+      <PageHero
+        title="Scottsdale Communities"
+        subtitle="Discover the most prestigious neighborhoods across Scottsdale, Paradise Valley, and the surrounding desert communities."
+        image="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=2400"
+        height="70vh"
+        minHeight="500px"
+        badge="Explore Arizona"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Communities' },
+        ]}
+        gradient="bg-gradient-to-t from-[#0C1C2E]/95 via-[#0C1C2E]/40 to-transparent"
+      >
+        {/* Search Bar */}
+        <div ref={searchRef} className="relative max-w-2xl mt-8">
             <div className={`relative flex items-center transition-all duration-500 ${isSearchFocused ? 'bg-white shadow-2xl' : 'bg-white/95 shadow-xl'}`}>
               <div className="flex items-center gap-3 pl-6 pr-2 border-r border-gray-200">
                 <Search size={16} className={`transition-colors ${isSearchFocused ? 'text-[#Bfa67a]' : 'text-gray-400'}`} />
@@ -230,8 +189,7 @@ const Communities: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
-      </section>
+      </PageHero>
 
       {/* Region Bento Boxes */}
       {REGIONS_DATA.map((region, regionIndex) => (

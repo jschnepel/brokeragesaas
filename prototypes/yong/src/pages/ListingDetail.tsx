@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
+import SEOHead from '../components/shared/SEOHead';
 import { useScrollAnimation } from '../components/shared/useScrollAnimation';
 import { useSparkListing, useSparkListings } from '../hooks/useSparkListings';
 import { formatPrice, formatSqft, getPrimaryPhoto, getAllPhotos } from '../lib/sparkApi';
@@ -384,6 +385,10 @@ const ListingDetail: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F9F8F6] text-[#111] page-zoom-90 font-sans selection:bg-[#0C1C2E] selection:text-white antialiased">
+      <SEOHead
+        title={`${listingData.Address} | ${listingData.ListPrice} | Scottsdale Real Estate`}
+        description={`${listingData.BedroomsTotal} bed, ${listingData.BathroomsTotalInteger} bath luxury home at ${listingData.Address}, ${listingData.City}, ${listingData.StateOrProvince}. Listed at ${listingData.ListPrice}.`}
+      />
 
       {/* Navigation */}
       <Navigation variant="transparent" />

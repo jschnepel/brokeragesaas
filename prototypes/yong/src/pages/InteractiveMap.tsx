@@ -30,6 +30,7 @@ import {
   Hash,
 } from 'lucide-react';
 import Navigation from '../components/Navigation';
+import SEOHead from '../components/shared/SEOHead';
 
 import {
   marketZonesGeoJSON,
@@ -1041,6 +1042,10 @@ const InteractiveMap: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F9F8F6] text-[#111] page-zoom-90 font-sans flex flex-col h-screen overflow-hidden">
+      <SEOHead
+        title="Interactive Market Map | Scottsdale Real Estate"
+        description="Explore communities, view pricing data, and discover available properties across the Phoenix metro area."
+      />
 
       {/* Navigation */}
       <Navigation variant="solid" />

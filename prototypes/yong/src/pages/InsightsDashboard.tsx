@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   TrendingUp,
@@ -26,8 +26,9 @@ import {
   LineChart,
   PieChart,
 } from 'lucide-react';
-import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
+import PageHero from '../components/shared/PageHero';
+import SEOHead from '../components/shared/SEOHead';
 import AnimatedCounter from '../components/shared/AnimatedCounter';
 import { useScrollAnimation } from '../components/shared/useScrollAnimation';
 import { MARKET_DATA } from '../data/insightsConfig';
@@ -38,7 +39,6 @@ type IntelPerspective = 'buyers' | 'sellers' | 'homeowners';
 type IntelDrilldown = 'region' | 'zipcode' | 'community';
 
 const InsightsDashboard: React.FC = () => {
-  const [scrollY, setScrollY] = useState(0);
   const [activeRegion, setActiveRegion] = useState(0);
   const [activeMetricTab, setActiveMetricTab] = useState<MetricTab>('overview');
   const [intelPerspective, setIntelPerspective] = useState<IntelPerspective>('buyers');
@@ -47,12 +47,6 @@ const InsightsDashboard: React.FC = () => {
   const metricsAnim = useScrollAnimation(0.2);
   const trendsAnim = useScrollAnimation(0.2);
   const regionsAnim = useScrollAnimation(0.2);
-
-  useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   const getMarketLabel = (condition: string) => {
     switch (condition) {
@@ -68,45 +62,25 @@ const InsightsDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F9F8F6] text-[#111] font-sans">
-      <Navigation variant="transparent" />
+      <SEOHead
+        title="Market Intelligence Dashboard | Scottsdale Real Estate"
+        description="Real-time analytics powering informed decisions in Scottsdale's luxury real estate market."
+      />
 
-      {/* Hero Section - Immersive with Parallax */}
-      <section className="relative h-[70vh] min-h-[600px] w-full overflow-hidden flex items-end">
-        <div
-          className="absolute inset-0 w-full h-[110%]"
-          style={{ transform: `translateY(${scrollY * 0.2}px)` }}
-        >
-          <img
-            src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=2000"
-            alt="Market Insights"
-            className="w-full h-full object-cover"
-          />
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0C1C2E] via-[#0C1C2E]/50 to-[#0C1C2E]/20" />
-
-        {/* Hero Content */}
-        <div className="relative z-10 w-full max-w-[1600px] mx-auto px-8 lg:px-20 pb-32">
-          <div className="text-white">
-            {/* Breadcrumb */}
-            <nav className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-bold mb-4">
-              <Link to="/" className="text-white/40 hover:text-white transition-colors">Home</Link>
-              <span className="text-white/20">/</span>
-              <span className="text-[#Bfa67a]">Market Insights</span>
-            </nav>
-
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-              <span className="text-[#Bfa67a] text-[11px] uppercase tracking-[0.4em] font-bold">Live Market Data</span>
-            </div>
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-serif leading-[0.95] tracking-tight mb-6">
-              Market<br /><span className="italic font-light">Intelligence</span>
-            </h1>
-            <p className="text-xl text-white/70 font-light italic max-w-lg">
-              Real-time analytics powering informed decisions in Scottsdale's luxury real estate market.
-            </p>
-          </div>
-        </div>
-      </section>
+      <PageHero
+        title="Market Intelligence"
+        subtitle="Real-time analytics powering informed decisions in Scottsdale's luxury real estate market."
+        image="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=2000"
+        height="70vh"
+        minHeight="600px"
+        badge="Live Market Data"
+        badgeIcon={<div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />}
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Market Insights' },
+        ]}
+        gradient="bg-gradient-to-t from-[#0C1C2E] via-[#0C1C2E]/50 to-[#0C1C2E]/20"
+      />
 
       {/* Overlapping Stats Cards */}
       <section className="relative z-20 -mt-24 max-w-[1600px] mx-auto px-8 lg:px-20">

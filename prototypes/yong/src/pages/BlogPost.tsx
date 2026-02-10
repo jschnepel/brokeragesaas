@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
+import SEOHead from '../components/shared/SEOHead';
 
 // Blog post interface
 interface BlogPost {
@@ -80,6 +81,10 @@ const BlogPost: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F9F8F6] text-[#111] page-zoom-90 font-sans antialiased">
+      <SEOHead
+        title="5 Essential Financial Steps Before Investing In Real Estate | Blog"
+        description="Understanding your financial position is crucial before making one of the largest investments of your life. Here are the key steps every buyer should take."
+      />
       <Navigation variant="transparent" />
 
       {/* Hero Section */}

@@ -20,18 +20,14 @@ import {
   Activity,
   Users,
   Calendar,
-  DollarSign,
-  BarChart3,
-  Clock,
   Star,
-  Compass,
   Download,
-  Play,
   Minus,
   Camera,
 } from 'lucide-react';
-import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
+import PageHero from '../components/shared/PageHero';
+import SEOHead from '../components/shared/SEOHead';
 import AnimatedCounter from '../components/shared/AnimatedCounter';
 import { useScrollAnimation } from '../components/shared/useScrollAnimation';
 import { REGIONS } from '../data/regions';
@@ -56,7 +52,6 @@ const RegionPage: React.FC = () => {
   const { regionId } = useParams<{ regionId: string }>();
   const region = regionId ? REGIONS[regionId] : null;
 
-  const [scrollY, setScrollY] = useState(0);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [activeLifestyle, setActiveLifestyle] = useState(0);
@@ -65,13 +60,6 @@ const RegionPage: React.FC = () => {
 
   const communitiesPerPage = 4;
   const totalSlides = region ? Math.ceil(region.communities.length / communitiesPerPage) : 0;
-
-  // Parallax scroll effect
-  useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   // Auto-rotate gallery
   useEffect(() => {
@@ -107,100 +95,58 @@ const RegionPage: React.FC = () => {
 
   if (!region) {
     return (
-      <div className="min-h-screen bg-[#F9F8F6] flex flex-col">
-        <Navigation variant="solid" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-4xl font-serif text-[#0C1C2E] mb-4">Region Not Found</h1>
-            <p className="text-gray-500 mb-8">The region you're looking for doesn't exist.</p>
-            <Link
-              to="/communities"
-              className="bg-[#0C1C2E] text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-[#Bfa67a] transition-all"
-            >
-              View All Communities
-            </Link>
-          </div>
+      <PageHero title="Region Not Found" image="" height="50vh">
+        <div className="text-center mt-8">
+          <p className="text-white/70 mb-8">The region you're looking for doesn't exist.</p>
+          <Link
+            to="/communities"
+            className="bg-[#Bfa67a] text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-[#0C1C2E] transition-all"
+          >
+            View All Communities
+          </Link>
         </div>
-        <Footer />
-      </div>
+      </PageHero>
     );
   }
 
   return (
     <div className="min-h-screen bg-[#F9F8F6] text-[#111] page-zoom-90 font-sans selection:bg-[#0C1C2E] selection:text-white antialiased overflow-x-hidden">
-      <Navigation variant="transparent" />
+      <SEOHead
+        title={`${region.name} Real Estate | Luxury Homes in Phoenix`}
+        description={region.tagline}
+      />
 
-      {/* Hero Section - Immersive with Parallax */}
-      <section className="relative h-[85vh] w-full overflow-hidden flex items-end">
-        <div
-          className="absolute inset-0 w-full h-[110%]"
-          style={{ transform: `translateY(${scrollY * 0.2}px)` }}
-        >
-          <img
-            src={region.heroImage}
-            alt={region.name}
-            className="w-full h-full object-cover"
-          />
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0C1C2E]/90 via-[#0C1C2E]/30 to-transparent" />
-
-        {/* Video Play Button */}
-        <button className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 group">
-          <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 transition-all duration-300 group-hover:scale-110 group-hover:bg-white/30">
-            <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center">
-              <Play size={24} className="text-[#0C1C2E] ml-1" fill="#0C1C2E" />
-            </div>
-          </div>
-          <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-white text-[10px] uppercase tracking-[0.2em] font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-            Explore Region
-          </span>
-        </button>
-
-        {/* Hero Content */}
-        <div className="relative z-10 w-full max-w-[1600px] mx-auto px-8 lg:px-20 pb-20">
-          <div className="flex flex-col md:flex-row items-end justify-between gap-12">
-            <div className="text-white">
-              {/* Breadcrumb */}
-              <nav className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-bold mb-4">
-                <Link to="/" className="text-white/40 hover:text-white transition-colors">Home</Link>
-                <span className="text-white/20">/</span>
-                <Link to="/communities" className="text-white/40 hover:text-white transition-colors">Communities</Link>
-                <span className="text-white/20">/</span>
-                <span className="text-[#Bfa67a]">{region.name}</span>
-              </nav>
-
-              <span className="block text-[#Bfa67a] text-[11px] uppercase tracking-[0.4em] font-bold mb-4 pl-1">Region Profile</span>
-              <h1 className="text-6xl md:text-8xl font-serif leading-[0.9] tracking-tight mb-6">
-                {region.name.split(' ').map((word, i, arr) => (
-                  i === arr.length - 1 && arr.length > 1
-                    ? <span key={i}><br/><span className="italic font-light">{word}</span></span>
-                    : <span key={i}>{word} </span>
-                ))}
-              </h1>
-              <p className="text-xl text-white/70 font-light italic max-w-lg">{region.tagline}</p>
-            </div>
-
-            {/* Hero CTA */}
-            <div className="hidden lg:flex flex-col sm:flex-row gap-3">
-              <Link
-                to="/map"
-                className="bg-[#Bfa67a] text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-[#0C1C2E] transition-all flex items-center gap-2 group shadow-xl"
-              >
-                <MapPin size={14} />
-                View on Map
-                <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
-              </Link>
-              <Link
-                to={`/report?region=${regionId}`}
-                className="bg-[#0C1C2E] text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-[#0C1C2E] transition-all flex items-center gap-2 shadow-xl"
-              >
-                <Download size={14} />
-                Market Report
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
+      <PageHero
+        title={region.name}
+        subtitle={region.tagline}
+        image={region.heroImage}
+        height="85vh"
+        badge="Region Profile"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Communities', href: '/communities' },
+          { label: region.name },
+        ]}
+        actions={
+          <>
+            <Link
+              to="/map"
+              className="bg-[#Bfa67a] text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-[#0C1C2E] transition-all flex items-center gap-2 group shadow-xl"
+            >
+              <MapPin size={14} />
+              View on Map
+              <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
+            </Link>
+            <Link
+              to={`/report?region=${regionId}`}
+              className="bg-[#0C1C2E] text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-[#0C1C2E] transition-all flex items-center gap-2 shadow-xl"
+            >
+              <Download size={14} />
+              Market Report
+            </Link>
+          </>
+        }
+      />
 
       {/* Market Intelligence Dashboard - Overlapping Hero */}
       <section ref={metricsAnim.ref} className="relative z-20 -mt-16 max-w-[1600px] mx-auto px-8 lg:px-20">
