@@ -247,6 +247,11 @@ const ListingDetail: React.FC = () => {
   const [isLiked, setIsLiked] = useState(false);
   const [scrollY, setScrollY] = useState(0);
   const [activeTab, setActiveTab] = useState<'all' | 'interior' | 'exterior'>('all');
+
+  // Scroll to top on route change
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [id, address]);
   const [matchedListing, setMatchedListing] = useState<typeof sparkListing>(null);
 
   // Fetch listing from Spark API - by ID or search by address

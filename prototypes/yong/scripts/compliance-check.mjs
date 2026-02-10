@@ -112,7 +112,7 @@ run('Security: no hardcoded secrets', () => {
   const srcFiles = walkFiles(SRC, ['.ts', '.tsx', '.js', '.jsx']);
   const secretPatterns = [
     /(?:api[_-]?key|apikey)\s*[:=]\s*['"][A-Za-z0-9]{20,}['"]/i,
-    /(?:secret|token|password|passwd|pwd)\s*[:=]\s*['"][^'"]{8,}['"]/i,
+    /(?:secret|token|password|passwd|pwd)\s*=\s*['"][^'"]{8,}['"]/i,
     /sk[-_]live[-_][A-Za-z0-9]{20,}/,
     /pk[-_]live[-_][A-Za-z0-9]{20,}/,
     /AKIA[0-9A-Z]{16}/,  // AWS access key

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, Navigate } from 'react-router-dom';
 import {
   Calendar,
   Clock,
@@ -72,6 +72,10 @@ const BlogPost: React.FC = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [id]);
+
+  if (!id) {
+    return <Navigate to="/blog" replace />;
+  }
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
