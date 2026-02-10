@@ -30,6 +30,7 @@ import SEOHead from '../components/shared/SEOHead';
 import HeroKpiCards from '../components/shared/HeroKpiCards';
 import { useScrollAnimation } from '../components/shared/useScrollAnimation';
 import { REGIONS } from '../data/regions';
+import { agentSchema, breadcrumbSchema, placeSchema } from '../utils/structuredData';
 
 // Icon mapping
 const ICON_MAP: Record<string, React.FC<{ size?: number; className?: string }>> = {
@@ -112,6 +113,15 @@ const RegionPage: React.FC = () => {
       <SEOHead
         title={`${region.name} Real Estate | Luxury Homes in Phoenix`}
         description={region.tagline}
+        structuredData={[
+          agentSchema(),
+          breadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Communities', path: '/communities' },
+            { name: region.name, path: `/phoenix/${regionId}` },
+          ]),
+          placeSchema(region.name, region.tagline),
+        ]}
       />
 
       <PageHero

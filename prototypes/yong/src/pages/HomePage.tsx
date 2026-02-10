@@ -18,6 +18,7 @@ import Footer from '../components/Footer';
 import SEOHead from '../components/shared/SEOHead';
 import AnimatedCounter from '../components/shared/AnimatedCounter';
 import { FEATURED_LISTINGS, LIFESTYLE_COLLECTIONS } from '../data/homePage';
+import { agentSchema } from '../utils/structuredData';
 
 const ICON_MAP: Record<string, React.FC<{ size?: number }>> = { Mountain, Palmtree, Building2 };
 
@@ -30,6 +31,7 @@ const HomePage: React.FC = () => {
       <SEOHead
         title="Yong Choi | Scottsdale Luxury Real Estate | Sotheby's"
         description="Discover extraordinary properties in the most coveted addresses of the Phoenix Metro. $1.2B in career sales."
+        structuredData={agentSchema()}
       />
 
       {/* Navigation */}

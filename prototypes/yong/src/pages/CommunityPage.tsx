@@ -40,6 +40,7 @@ import SEOHead from '../components/shared/SEOHead';
 import HeroKpiCards from '../components/shared/HeroKpiCards';
 import { useScrollAnimation } from '../components/shared/useScrollAnimation';
 import { getCommunityById, getAllCommunities, type CommunityData } from '../data/communities';
+import { agentSchema, breadcrumbSchema, placeSchema } from '../utils/structuredData';
 import { useSparkListings } from '../hooks/useSparkListings';
 import { formatPrice, formatSqft } from '../lib/sparkApi';
 
@@ -213,6 +214,15 @@ const CommunityPage: React.FC = () => {
       <SEOHead
         title={`${community.name} Homes for Sale | ${community.city}, Phoenix`}
         description={community.tagline}
+        structuredData={[
+          agentSchema(),
+          breadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Communities', path: '/communities' },
+            { name: community.name, path: `/phoenix/${community.region}/${community.id}` },
+          ]),
+          placeSchema(community.name, community.tagline, community.city),
+        ]}
       />
 
       <PageHero
