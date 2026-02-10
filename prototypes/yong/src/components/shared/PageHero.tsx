@@ -53,25 +53,25 @@ const PageHero: React.FC<PageHeroProps> = ({
     <>
       <Navigation variant="transparent" />
       <section
-        className={`relative w-full overflow-hidden flex items-end`}
+        className={`relative z-20 w-full flex items-end`}
         style={{ height, minHeight }}
       >
-        {/* Parallax Background */}
-        <div
-          className="absolute inset-0 w-full h-[120%]"
-          style={{ transform: `translateY(${scrollY * parallaxSpeed}px)` }}
-        >
-          <img
-            src={image}
-            className="w-full h-full object-cover"
-            alt={title}
-          />
+        {/* Background wrapper — clips parallax but not content */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div
+            className="absolute inset-0 w-full h-[120%]"
+            style={{ transform: `translateY(${scrollY * parallaxSpeed}px)` }}
+          >
+            <img
+              src={image}
+              className="w-full h-full object-cover"
+              alt={title}
+            />
+          </div>
+          <div className={`absolute inset-0 ${gradient}`} />
         </div>
 
-        {/* Gradient Overlay */}
-        <div className={`absolute inset-0 ${gradient}`} />
-
-        {/* Content */}
+        {/* Content — sits outside the overflow-hidden wrapper */}
         <div className="relative z-10 w-full max-w-[1600px] mx-auto px-8 pb-20">
           <div className="flex flex-col md:flex-row items-end justify-between gap-12">
             <div className="text-white">
