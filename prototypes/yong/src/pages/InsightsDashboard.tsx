@@ -83,7 +83,7 @@ const InsightsDashboard: React.FC = () => {
       />
 
       {/* Overlapping Stats Cards */}
-      <section className="relative z-20 -mt-24 max-w-[1600px] mx-auto px-8 lg:px-20">
+      <section className="relative z-20 -mt-16 max-w-[1600px] mx-auto px-8 lg:px-20">
         <div
           ref={metricsAnim.ref}
           className={`grid grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-700 ${metricsAnim.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}

@@ -128,7 +128,8 @@ const RegionPage: React.FC = () => {
         title={region.name}
         subtitle={region.tagline}
         image={region.heroImage}
-        height="85vh"
+        height="70vh"
+        minHeight="600px"
         badge="Region Profile"
         breadcrumbs={[
           { label: 'Home', href: '/' },

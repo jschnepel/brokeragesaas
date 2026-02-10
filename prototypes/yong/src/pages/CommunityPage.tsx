@@ -228,7 +228,8 @@ const CommunityPage: React.FC = () => {
       <PageHero
         title={community.name}
         image={community.heroImage}
-        height="85vh"
+        height="70vh"
+        minHeight="600px"
         badge="Community Profile"
         breadcrumbs={[
           { label: 'Home', href: '/' },

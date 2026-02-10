@@ -24,18 +24,21 @@ const MarketReportHero: React.FC<MarketReportHeroProps> = ({ title, subtitle, im
   return (
     <>
       <Navigation variant="transparent" />
-      <section className="relative h-[55vh] w-full overflow-hidden flex items-end">
-        <div
-          className="absolute inset-0 w-full h-[120%]"
-          style={{ transform: `translateY(${scrollY * 0.15}px)` }}
-        >
-          <img
-            src={image}
-            className="w-full h-full object-cover transition-all duration-700"
-            alt={title}
-          />
+      <section className="relative z-20 h-[70vh] min-h-[600px] w-full flex items-end">
+        {/* Background wrapper — clips parallax but not content */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div
+            className="absolute inset-0 w-full h-[120%]"
+            style={{ transform: `translateY(${scrollY * 0.15}px)` }}
+          >
+            <img
+              src={image}
+              className="w-full h-full object-cover transition-all duration-700"
+              alt={title}
+            />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0C1C2E]/90 via-[#0C1C2E]/30 to-transparent" />
         </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0C1C2E]/90 via-[#0C1C2E]/30 to-transparent" />
 
         <div className="relative z-10 w-full max-w-[1600px] mx-auto px-8 pb-20">
           <div className="flex flex-col md:flex-row items-end justify-between gap-12">
@@ -47,7 +50,7 @@ const MarketReportHero: React.FC<MarketReportHeroProps> = ({ title, subtitle, im
                   <span className="px-3 py-1 bg-[#Bfa67a] text-white text-[9px] uppercase tracking-widest font-bold">{badge}</span>
                 )}
               </div>
-              <h1 className="text-5xl md:text-7xl lg:text-8xl font-serif leading-[0.9] tracking-tight mb-4">
+              <h1 className="text-6xl md:text-8xl font-serif leading-[0.9] tracking-tight mb-6">
                 {title.includes(':') ? (
                   <>
                     {title.split(':')[0]}: <br/>
@@ -60,7 +63,7 @@ const MarketReportHero: React.FC<MarketReportHeroProps> = ({ title, subtitle, im
                 )}
               </h1>
               {subtitle && (
-                <p className="text-white/60 text-sm max-w-lg">{subtitle}</p>
+                <p className="text-xl text-white/70 font-light italic max-w-lg">{subtitle}</p>
               )}
             </div>
 
