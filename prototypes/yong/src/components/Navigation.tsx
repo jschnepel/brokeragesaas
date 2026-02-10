@@ -15,7 +15,6 @@ import {
   BarChart3,
   Bell,
   Clock,
-  CheckCircle,
   ArrowRight,
   Target,
   Building2,
@@ -73,42 +72,42 @@ const Navigation: React.FC<NavigationProps> = ({ variant = 'transparent' }) => {
   const regions = [
     {
       name: 'North Scottsdale',
-      href: '/region/north-scottsdale',
+      href: '/phoenix/north-scottsdale',
       communities: ['Desert Mountain', 'Silverleaf', 'DC Ranch', 'Estancia', 'Whisper Rock', 'Troon North', 'Pinnacle Peak', 'Terravita', 'Legend Trail', 'Winfield'],
     },
     {
       name: 'Paradise Valley',
-      href: '/region/paradise-valley',
+      href: '/phoenix/paradise-valley',
       communities: ['Paradise Valley Estates', 'Clearwater Hills', 'Mummy Mountain', 'Camelback Country Estates', 'Paradise Reserve', 'Cheney Estates'],
     },
     {
       name: 'Carefree & Cave Creek',
-      href: '/region/carefree-cave-creek',
+      href: '/phoenix/carefree-cave-creek',
       communities: ['Carefree', 'Cave Creek', 'The Boulders', 'Rancho Mañana', 'Black Mountain', 'Lone Mountain'],
     },
     {
       name: 'Central Scottsdale',
-      href: '/region/central-scottsdale',
+      href: '/phoenix/central-scottsdale',
       communities: ['Kierland', 'Old Town', 'Gainey Ranch', 'McCormick Ranch', 'Stonegate', 'Grayhawk'],
     },
     {
       name: 'South Scottsdale',
-      href: '/region/south-scottsdale',
+      href: '/phoenix/south-scottsdale',
       communities: ['Papago Park', 'Old Town South', 'Vista del Camino', 'Continental Golf'],
     },
     {
       name: 'Arcadia',
-      href: '/region/arcadia',
+      href: '/phoenix/arcadia',
       communities: ['Arcadia Proper', 'Arcadia Lite', 'Arcadia Estates', 'Camelback Corridor'],
     },
     {
       name: 'Fountain Hills',
-      href: '/region/fountain-hills',
+      href: '/phoenix/fountain-hills',
       communities: ['Fountain Hills', 'Eagle Mountain', 'FireRock', 'SunRidge Canyon', 'CopperWynd'],
     },
     {
       name: 'Rio Verde',
-      href: '/region/rio-verde',
+      href: '/phoenix/rio-verde',
       communities: ['Rio Verde', 'Rio Verde Foothills', 'Tonto Verde'],
     },
   ];
@@ -260,16 +259,6 @@ const Navigation: React.FC<NavigationProps> = ({ variant = 'transparent' }) => {
                   <Link to="/listings?status=coming-soon" className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
                     <Bell size={16} className="text-gray-400 group-hover:text-[#Bfa67a] transition-colors" />
                     <span className="text-[#0C1C2E] text-[14px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>Coming Soon</span>
-                  </Link>
-                  <div className="my-2 border-t border-gray-100" />
-                  <Link to="/sold" className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
-                    <CheckCircle size={16} className="text-gray-400 group-hover:text-[#Bfa67a] transition-colors" />
-                    <span className="text-[#0C1C2E] text-[14px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>Recently Sold</span>
-                  </Link>
-                  <div className="my-2 border-t border-gray-100" />
-                  <Link to="/alerts" className="flex items-center gap-3 px-5 py-3.5 bg-[#Bfa67a]/10 hover:bg-[#Bfa67a]/20 transition-colors group">
-                    <Bell size={16} className="text-[#Bfa67a]" />
-                    <span className="text-[#0C1C2E] text-[14px]" style={{ fontFamily: 'var(--font-serif)' }}>Get Property Alerts</span>
                   </Link>
                 </div>
               )}
@@ -607,14 +596,6 @@ const Navigation: React.FC<NavigationProps> = ({ variant = 'transparent' }) => {
                     <Link to="/listings?status=coming-soon" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
                       <Bell size={16} className="text-gray-500" />
                       Coming Soon
-                    </Link>
-                    <Link to="/sold" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
-                      <CheckCircle size={16} className="text-gray-500" />
-                      Recently Sold
-                    </Link>
-                    <Link to="/alerts" className="flex items-center gap-3 py-3 text-[#Bfa67a] font-medium">
-                      <Bell size={16} />
-                      Get Property Alerts
                     </Link>
                   </div>
                 )}

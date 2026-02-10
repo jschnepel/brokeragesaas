@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   TrendingUp,
@@ -26,249 +26,19 @@ import {
   LineChart,
   PieChart,
 } from 'lucide-react';
-import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
+import PageHero from '../components/shared/PageHero';
+import SEOHead from '../components/shared/SEOHead';
+import AnimatedCounter from '../components/shared/AnimatedCounter';
+import { useScrollAnimation } from '../components/shared/useScrollAnimation';
+import { MARKET_DATA } from '../data/insightsConfig';
 
-// Animated Counter Component
-const AnimatedCounter: React.FC<{ value: number; suffix: string; prefix?: string; decimals?: number }> = ({
-  value, suffix, prefix = "", decimals = 0
-}) => {
-  const [count, setCount] = useState(0);
-  const [isVisible, setIsVisible] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) setIsVisible(true);
-      },
-      { threshold: 0.5 }
-    );
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!isVisible) return;
-    let startTime: number;
-    const animate = (timestamp: number) => {
-      if (!startTime) startTime = timestamp;
-      const progress = Math.min((timestamp - startTime) / 2000, 1);
-      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
-      setCount(easeOutQuart * value);
-      if (progress < 1) requestAnimationFrame(animate);
-    };
-    requestAnimationFrame(animate);
-  }, [isVisible, value]);
-
-  const displayValue = decimals > 0 ? count.toFixed(decimals) : Math.round(count).toLocaleString();
-
-  return <span ref={ref}>{prefix}{displayValue}{suffix}</span>;
-};
-
-// Scroll Animation Hook
-const useScrollAnimation = (threshold = 0.2) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) setIsVisible(true);
-      },
-      { threshold }
-    );
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, [threshold]);
-
-  return { ref, isVisible };
-};
-
-// Extended market data
-const MARKET_DATA = {
-  overallCondition: 'seller' as const,
-  conditionScore: 72,
-  lastUpdated: 'February 2026',
-
-  // Primary metrics
-  primaryMetrics: {
-    medianPrice: { value: 1850000, change: 6.2, trend: 'up' as const },
-    avgDaysOnMarket: { value: 42, change: -8, trend: 'down' as const },
-    inventoryMonths: { value: 3.2, change: -0.5, trend: 'down' as const },
-    listToSaleRatio: { value: 97.2, change: 1.1, trend: 'up' as const },
-  },
-
-  // Monthly trends (last 6 months)
-  monthlyTrends: [
-    { month: 'Sep', medianPrice: 1720000, sales: 165, inventory: 4.1 },
-    { month: 'Oct', medianPrice: 1755000, sales: 178, inventory: 3.8 },
-    { month: 'Nov', medianPrice: 1780000, sales: 156, inventory: 3.6 },
-    { month: 'Dec', medianPrice: 1795000, sales: 142, inventory: 3.4 },
-    { month: 'Jan', medianPrice: 1820000, sales: 185, inventory: 3.3 },
-    { month: 'Feb', medianPrice: 1850000, sales: 198, inventory: 3.2 },
-  ],
-
-  // Price tier breakdown
-  priceTiers: [
-    { tier: '$500K - $1M', percentage: 28, count: 156, avgDOM: 35 },
-    { tier: '$1M - $2M', percentage: 35, count: 195, avgDOM: 42 },
-    { tier: '$2M - $3M', percentage: 20, count: 112, avgDOM: 48 },
-    { tier: '$3M - $5M', percentage: 12, count: 67, avgDOM: 58 },
-    { tier: '$5M+', percentage: 5, count: 28, avgDOM: 72 },
-  ],
-
-  // Regional data
-  regions: [
-    { name: 'North Scottsdale', medianPrice: 2800000, dom: 38, inventory: 2.8, sales: 45, trend: 'up' as const, change: 8.2, pricePerSqFt: 525, listToSale: 98.2 },
-    { name: 'Paradise Valley', medianPrice: 4500000, dom: 52, inventory: 4.1, sales: 18, trend: 'up' as const, change: 12.0, pricePerSqFt: 685, listToSale: 96.5 },
-    { name: 'Central Scottsdale', medianPrice: 1200000, dom: 35, inventory: 2.5, sales: 62, trend: 'up' as const, change: 5.4, pricePerSqFt: 385, listToSale: 97.8 },
-    { name: 'South Scottsdale', medianPrice: 650000, dom: 32, inventory: 2.9, sales: 78, trend: 'up' as const, change: 4.8, pricePerSqFt: 320, listToSale: 98.5 },
-    { name: 'Arcadia', medianPrice: 1800000, dom: 28, inventory: 2.2, sales: 38, trend: 'up' as const, change: 7.8, pricePerSqFt: 465, listToSale: 99.1 },
-    { name: 'Carefree/Cave Creek', medianPrice: 1650000, dom: 45, inventory: 3.8, sales: 24, trend: 'neutral' as const, change: 2.1, pricePerSqFt: 420, listToSale: 95.8 },
-    { name: 'Fountain Hills', medianPrice: 750000, dom: 48, inventory: 4.2, sales: 35, trend: 'neutral' as const, change: 1.8, pricePerSqFt: 295, listToSale: 94.2 },
-    { name: 'Rio Verde', medianPrice: 875000, dom: 55, inventory: 4.8, sales: 22, trend: 'neutral' as const, change: 1.2, pricePerSqFt: 275, listToSale: 93.5 },
-  ],
-
-  // Community-level metrics for bento box
-  communityMetrics: {
-    fastestSelling: [
-      { name: 'Arcadia Proper', dom: 18, region: 'Arcadia' },
-      { name: 'DC Ranch', dom: 21, region: 'North Scottsdale' },
-      { name: 'Gainey Ranch', dom: 24, region: 'Central Scottsdale' },
-      { name: 'Silverleaf', dom: 26, region: 'North Scottsdale' },
-      { name: 'McCormick Ranch', dom: 28, region: 'Central Scottsdale' },
-    ],
-    highestPricePerSqFt: [
-      { name: 'Paradise Valley Estates', pricePerSqFt: 845, region: 'Paradise Valley' },
-      { name: 'Silverleaf', pricePerSqFt: 725, region: 'North Scottsdale' },
-      { name: 'Mummy Mountain', pricePerSqFt: 695, region: 'Paradise Valley' },
-      { name: 'Estancia', pricePerSqFt: 615, region: 'North Scottsdale' },
-      { name: 'Arcadia Proper', pricePerSqFt: 585, region: 'Arcadia' },
-    ],
-    mostActive: [
-      { name: 'DC Ranch', sales: 28, region: 'North Scottsdale' },
-      { name: 'McCormick Ranch', sales: 24, region: 'Central Scottsdale' },
-      { name: 'Gainey Ranch', sales: 22, region: 'Central Scottsdale' },
-      { name: 'Grayhawk', sales: 19, region: 'Central Scottsdale' },
-      { name: 'Desert Mountain', sales: 16, region: 'North Scottsdale' },
-    ],
-    highestAppreciation: [
-      { name: 'Paradise Valley Estates', change: 14.2, region: 'Paradise Valley' },
-      { name: 'Silverleaf', change: 12.8, region: 'North Scottsdale' },
-      { name: 'Arcadia Proper', change: 11.5, region: 'Arcadia' },
-      { name: 'Estancia', change: 10.2, region: 'North Scottsdale' },
-      { name: 'DC Ranch', change: 9.8, region: 'North Scottsdale' },
-    ],
-    lowestInventory: [
-      { name: 'Arcadia Proper', inventory: 1.8, region: 'Arcadia' },
-      { name: 'Gainey Ranch', inventory: 2.1, region: 'Central Scottsdale' },
-      { name: 'DC Ranch', inventory: 2.4, region: 'North Scottsdale' },
-      { name: 'McCormick Ranch', inventory: 2.6, region: 'Central Scottsdale' },
-      { name: 'Silverleaf', inventory: 2.9, region: 'North Scottsdale' },
-    ],
-    bestListToSale: [
-      { name: 'Arcadia Proper', ratio: 101.2, region: 'Arcadia' },
-      { name: 'DC Ranch', ratio: 99.5, region: 'North Scottsdale' },
-      { name: 'Gainey Ranch', ratio: 98.8, region: 'Central Scottsdale' },
-      { name: 'Silverleaf', ratio: 98.2, region: 'North Scottsdale' },
-      { name: 'McCormick Ranch', ratio: 97.5, region: 'Central Scottsdale' },
-    ],
-  },
-
-  // Recent notable sales
-  recentSales: [
-    { address: '9820 E Thompson Peak Pkwy', community: 'DC Ranch', price: 4250000, dom: 21, date: 'Feb 5' },
-    { address: '24200 N Alma School Rd', community: 'Silverleaf', price: 8750000, dom: 45, date: 'Feb 3' },
-    { address: '10040 E Happy Valley Rd', community: 'Desert Mountain', price: 3100000, dom: 18, date: 'Feb 1' },
-    { address: '6001 E Naumann Dr', community: 'Paradise Valley', price: 5600000, dom: 32, date: 'Jan 28' },
-  ],
-
-  // Market indicators
-  indicators: {
-    buyerDemand: 'High',
-    sellerConfidence: 'Strong',
-    investorActivity: 'Moderate',
-    luxurySegmentHealth: 'Excellent',
-    priceNegotiability: 'Low',
-    multipleOfferFrequency: '45%',
-  },
-
-  // Market Intelligence Data
-  marketIntelligence: {
-    // Buyer migration sources
-    buyerMigration: [
-      { state: 'California', percentage: 34, change: 12, buyers: 245 },
-      { state: 'New York', percentage: 18, change: 8, buyers: 130 },
-      { state: 'Illinois', percentage: 14, change: 15, buyers: 101 },
-      { state: 'Washington', percentage: 9, change: 5, buyers: 65 },
-      { state: 'Texas', percentage: 8, change: -3, buyers: 58 },
-      { state: 'Other', percentage: 17, change: 2, buyers: 123 },
-    ],
-    // Buyer insights
-    buyerMetrics: {
-      avgSearchTime: 4.2, // months
-      avgOffersBeforeAccepted: 2.8,
-      cashBuyerPercentage: 42,
-      firstTimeBuyerPercentage: 18,
-      investorPercentage: 24,
-      avgDownPayment: 28, // percentage
-      competitionIndex: 78, // 0-100 scale
-      preApprovalRate: 89,
-    },
-    // Seller insights
-    sellerMetrics: {
-      avgTimeToSell: 38, // days
-      avgPriceReduction: 2.4, // percentage
-      firstWeekShowings: 12,
-      offersPerListing: 3.2,
-      aboveAskingPercentage: 35,
-      withdrawnRate: 4.8,
-      avgPhotosTopListings: 42,
-      virtualTourImpact: 28, // percentage more views
-    },
-    // Homeowner equity insights
-    homeownerMetrics: {
-      avgEquityGain1Yr: 86500,
-      avgEquityGain5Yr: 425000,
-      refinanceOpportunity: 34, // percentage
-      helocUsage: 18, // percentage
-      avgHomeAge: 12, // years
-      avgRenovationROI: 72, // percentage
-    },
-    // Zipcode level data
-    zipcodes: [
-      { code: '85255', name: 'North Scottsdale', medianPrice: 2450000, priceChange: 9.2, dom: 35, inventory: 2.4, appreciation5Yr: 58 },
-      { code: '85253', name: 'Paradise Valley', medianPrice: 4200000, priceChange: 14.5, dom: 48, inventory: 3.8, appreciation5Yr: 72 },
-      { code: '85258', name: 'Central Scottsdale', medianPrice: 1150000, priceChange: 6.8, dom: 32, inventory: 2.1, appreciation5Yr: 45 },
-      { code: '85251', name: 'Old Town', medianPrice: 875000, priceChange: 5.2, dom: 28, inventory: 2.8, appreciation5Yr: 38 },
-      { code: '85254', name: 'Kierland Area', medianPrice: 1350000, priceChange: 7.5, dom: 30, inventory: 2.0, appreciation5Yr: 52 },
-      { code: '85262', name: 'Carefree/Cave Creek', medianPrice: 1580000, priceChange: 4.2, dom: 52, inventory: 4.1, appreciation5Yr: 41 },
-    ],
-    // Luxury tier insights
-    luxuryTiers: {
-      tier1M: { sales: 312, yoyChange: 8, avgDOM: 42, inventory: 3.2 },
-      tier2M: { sales: 145, yoyChange: 12, avgDOM: 48, inventory: 3.8 },
-      tier5M: { sales: 42, yoyChange: 24, avgDOM: 68, inventory: 4.5 },
-      tier10M: { sales: 12, yoyChange: 58, avgDOM: 95, inventory: 5.2 },
-    },
-    // Market timing indicators
-    marketTiming: {
-      bestMonthToBuy: 'November',
-      bestMonthToSell: 'April',
-      seasonalPriceSwing: 8.5, // percentage
-      springRushStart: 'Mid-February',
-      inventoryPeak: 'June',
-    },
-  },
-};
 
 type MetricTab = 'overview' | 'speed' | 'value' | 'demand';
 type IntelPerspective = 'buyers' | 'sellers' | 'homeowners';
 type IntelDrilldown = 'region' | 'zipcode' | 'community';
 
 const InsightsDashboard: React.FC = () => {
-  const [scrollY, setScrollY] = useState(0);
   const [activeRegion, setActiveRegion] = useState(0);
   const [activeMetricTab, setActiveMetricTab] = useState<MetricTab>('overview');
   const [intelPerspective, setIntelPerspective] = useState<IntelPerspective>('buyers');
@@ -277,12 +47,6 @@ const InsightsDashboard: React.FC = () => {
   const metricsAnim = useScrollAnimation(0.2);
   const trendsAnim = useScrollAnimation(0.2);
   const regionsAnim = useScrollAnimation(0.2);
-
-  useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   const getMarketLabel = (condition: string) => {
     switch (condition) {
@@ -298,45 +62,25 @@ const InsightsDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F9F8F6] text-[#111] font-sans">
-      <Navigation variant="transparent" />
+      <SEOHead
+        title="Market Intelligence Dashboard | Scottsdale Real Estate"
+        description="Real-time analytics powering informed decisions in Scottsdale's luxury real estate market."
+      />
 
-      {/* Hero Section - Immersive with Parallax */}
-      <section className="relative h-[70vh] min-h-[600px] w-full overflow-hidden flex items-end">
-        <div
-          className="absolute inset-0 w-full h-[110%]"
-          style={{ transform: `translateY(${scrollY * 0.2}px)` }}
-        >
-          <img
-            src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=2000"
-            alt="Market Insights"
-            className="w-full h-full object-cover"
-          />
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0C1C2E] via-[#0C1C2E]/50 to-[#0C1C2E]/20" />
-
-        {/* Hero Content */}
-        <div className="relative z-10 w-full max-w-[1600px] mx-auto px-8 lg:px-20 pb-32">
-          <div className="text-white">
-            {/* Breadcrumb */}
-            <nav className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-bold mb-4">
-              <Link to="/" className="text-white/40 hover:text-white transition-colors">Home</Link>
-              <span className="text-white/20">/</span>
-              <span className="text-[#Bfa67a]">Market Insights</span>
-            </nav>
-
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-              <span className="text-[#Bfa67a] text-[11px] uppercase tracking-[0.4em] font-bold">Live Market Data</span>
-            </div>
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-serif leading-[0.95] tracking-tight mb-6">
-              Market<br /><span className="italic font-light">Intelligence</span>
-            </h1>
-            <p className="text-xl text-white/70 font-light italic max-w-lg">
-              Real-time analytics powering informed decisions in Scottsdale's luxury real estate market.
-            </p>
-          </div>
-        </div>
-      </section>
+      <PageHero
+        title="Market Intelligence"
+        subtitle="Real-time analytics powering informed decisions in Scottsdale's luxury real estate market."
+        image="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=2000"
+        height="70vh"
+        minHeight="600px"
+        badge="Live Market Data"
+        badgeIcon={<div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />}
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Market Insights' },
+        ]}
+        gradient="bg-gradient-to-t from-[#0C1C2E] via-[#0C1C2E]/50 to-[#0C1C2E]/20"
+      />
 
       {/* Overlapping Stats Cards */}
       <section className="relative z-20 -mt-24 max-w-[1600px] mx-auto px-8 lg:px-20">
@@ -697,7 +441,7 @@ const InsightsDashboard: React.FC = () => {
                       </div>
                     </div>
                     <Link
-                      to={`/region/${MARKET_DATA.regions[activeRegion].name.toLowerCase().replace(/ /g, '-').replace(/\//g, '-')}`}
+                      to={`/phoenix/${MARKET_DATA.regions[activeRegion].name.toLowerCase().replace(/ /g, '-').replace(/\//g, '-')}`}
                       className="mt-3 w-full bg-[#Bfa67a] text-white py-3 flex items-center justify-center gap-2 text-[9px] uppercase tracking-[0.15em] font-bold hover:bg-white hover:text-[#0C1C2E] transition-all"
                     >
                       View Region <ArrowRight size={12} />

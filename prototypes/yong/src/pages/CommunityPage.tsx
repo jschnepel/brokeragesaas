@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ChevronLeft,
@@ -9,12 +9,10 @@ import {
   BedDouble,
   ShowerHead,
   TrendingUp,
-  TrendingDown,
   Compass,
   ArrowRight,
   Download,
   Calendar,
-  Play,
   Mountain,
   TreePine,
   Shield,
@@ -30,16 +28,19 @@ import {
   Moon,
   Sun,
   Wind,
-  Minus,
   Home,
   Flag,
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
+import PageHero from '../components/shared/PageHero';
+import SEOHead from '../components/shared/SEOHead';
+import HeroKpiCards from '../components/shared/HeroKpiCards';
+import { useScrollAnimation } from '../components/shared/useScrollAnimation';
 import { getCommunityById, getAllCommunities, type CommunityData } from '../data/communities';
+import { agentSchema, breadcrumbSchema, placeSchema } from '../utils/structuredData';
 import { useSparkListings } from '../hooks/useSparkListings';
 import { formatPrice, formatSqft } from '../lib/sparkApi';
 
@@ -134,95 +135,11 @@ const ICON_MAP: Record<string, React.FC<{ size?: number; className?: string }>> 
   Zap,
 };
 
-// Animated Counter Component
-const AnimatedCounter: React.FC<{ value: number; suffix: string; prefix?: string; duration?: number }> = ({
-  value, suffix, prefix = "", duration = 2000
-}) => {
-  const [count, setCount] = useState(0);
-  const [isVisible, setIsVisible] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-        }
-      },
-      { threshold: 0.5 }
-    );
-
-    if (ref.current) {
-      observer.observe(ref.current);
-    }
-
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!isVisible) return;
-
-    let startTime: number;
-    const animate = (timestamp: number) => {
-      if (!startTime) startTime = timestamp;
-      const progress = Math.min((timestamp - startTime) / duration, 1);
-
-      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
-      setCount(easeOutQuart * value);
-
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      }
-    };
-
-    requestAnimationFrame(animate);
-  }, [isVisible, value, duration]);
-
-  const displayValue = value >= 1 && value < 10
-    ? count.toFixed(2)
-    : Math.round(count).toLocaleString();
-
-  return (
-    <span ref={ref}>
-      {prefix}{displayValue}{suffix}
-    </span>
-  );
-};
-
-// Scroll Animation Hook
-const useScrollAnimation = (threshold = 0.2) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-        }
-      },
-      { threshold }
-    );
-
-    if (ref.current) {
-      observer.observe(ref.current);
-    }
-
-    return () => observer.disconnect();
-  }, [threshold]);
-
-  return { ref, isVisible };
-};
-
 const CommunityPage: React.FC = () => {
-  const { id, community: communitySlug } = useParams<{ id?: string; community?: string; region?: string }>();
-
-  // Support both /community/:id and /:region/:community URLs
-  const communityId = communitySlug || id;
+  const { communityId: paramCommunityId } = useParams<{ regionId?: string; communityId?: string }>();
+  const communityId = paramCommunityId;
 
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [scrollY, setScrollY] = useState(0);
-  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [activeMapTab, setActiveMapTab] = useState<'listings' | 'restaurants' | 'hiking' | 'clubs'>('listings');
   const [selectedMarker, setSelectedMarker] = useState<number | null>(null);
@@ -239,13 +156,6 @@ const CommunityPage: React.FC = () => {
 
   const listingsPerPage = 3;
   const totalSlides = community ? Math.ceil(community.listings.length / listingsPerPage) : 0;
-
-  // Parallax scroll effect
-  useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   // Scroll to top on community change
   useEffect(() => {
@@ -276,7 +186,6 @@ const CommunityPage: React.FC = () => {
   ) || [];
 
   // Animation hooks for sections
-  const metricsAnim = useScrollAnimation();
   const featuredAnim = useScrollAnimation();
 
   // Get related communities (same region, excluding current)
@@ -286,143 +195,73 @@ const CommunityPage: React.FC = () => {
 
   if (!community) {
     return (
-      <div className="min-h-screen bg-[#F9F8F6] flex flex-col">
-        <Navigation variant="solid" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-4xl font-serif text-[#0C1C2E] mb-4">Community Not Found</h1>
-            <p className="text-gray-500 mb-8">The community you're looking for doesn't exist.</p>
-            <Link
-              to="/communities"
-              className="bg-[#0C1C2E] text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-[#Bfa67a] transition-all"
-            >
-              View All Communities
-            </Link>
-          </div>
+      <PageHero title="Community Not Found" image="" height="50vh">
+        <div className="text-center mt-8">
+          <p className="text-white/70 mb-8">The community you're looking for doesn't exist.</p>
+          <Link
+            to="/communities"
+            className="bg-[#Bfa67a] text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-[#0C1C2E] transition-all"
+          >
+            View All Communities
+          </Link>
         </div>
-        <Footer />
-      </div>
+      </PageHero>
     );
   }
 
   return (
     <div className="min-h-screen bg-[#F9F8F6] text-[#111] page-zoom-90 font-sans selection:bg-[#0C1C2E] selection:text-white antialiased overflow-x-hidden">
+      <SEOHead
+        title={`${community.name} Homes for Sale | ${community.city}, Phoenix`}
+        description={community.tagline}
+        structuredData={[
+          agentSchema(),
+          breadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Communities', path: '/communities' },
+            { name: community.name, path: `/phoenix/${community.region}/${community.id}` },
+          ]),
+          placeSchema(community.name, community.tagline, community.city),
+        ]}
+      />
 
-      {/* Navigation */}
-      <Navigation variant="transparent" />
-
-      {/* Hero Section - Immersive */}
-      <section className="relative h-[85vh] w-full overflow-hidden flex items-end">
-        <div
-          className="absolute inset-0 w-full h-[110%]"
-          style={{ transform: `translateY(${scrollY * 0.2}px)` }}
-        >
-          <img
-            src={community.heroImage}
-            className="w-full h-full object-cover"
-            alt={community.name}
-          />
+      <PageHero
+        title={community.name}
+        image={community.heroImage}
+        height="85vh"
+        badge="Community Profile"
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Communities', href: '/communities' },
+          { label: community.name },
+        ]}
+        actions={
+          <>
+            <button className="bg-[#Bfa67a] text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-[#0C1C2E] transition-all flex items-center gap-2 group shadow-xl">
+              Schedule Tour
+              <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
+            </button>
+            <button className="bg-[#0C1C2E] text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-[#0C1C2E] transition-all flex items-center gap-2 shadow-xl">
+              <Download size={14} />
+              Get Guide
+            </button>
+          </>
+        }
+      >
+        {/* Location info below title */}
+        <div className="flex gap-6 text-[10px] uppercase tracking-[0.25em] font-medium text-white/80 pl-1 -mt-4">
+          <span className="flex items-center gap-2"><MapPin size={12}/> {community.city}, AZ {community.zipCode}</span>
+          <span className="flex items-center gap-2"><Compass size={12}/> {community.elevation} Elevation</span>
         </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0C1C2E]/90 via-[#0C1C2E]/20 to-transparent" />
+      </PageHero>
 
-        {/* Video Play Button */}
-        <button
-          onClick={() => setIsVideoPlaying(!isVideoPlaying)}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 group"
-        >
-          <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 transition-all duration-300 group-hover:scale-110 group-hover:bg-white/30">
-            <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center">
-              <Play size={24} className="text-[#0C1C2E] ml-1" fill="#0C1C2E" />
-            </div>
-          </div>
-          <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-white text-[10px] uppercase tracking-[0.2em] font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-            Watch Community Film
-          </span>
-        </button>
-
-        {/* Hero Content - Bottom Left */}
-        <div className="relative z-10 w-full max-w-[1600px] mx-auto px-8 lg:px-20 pb-20">
-          <div className="flex flex-col md:flex-row items-end justify-between gap-12">
-            <div className="text-white">
-              {/* Breadcrumb */}
-              <nav className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-bold mb-4">
-                <Link to="/" className="text-white/40 hover:text-white transition-colors">Home</Link>
-                <span className="text-white/20">/</span>
-                <Link to="/communities" className="text-white/40 hover:text-white transition-colors">Communities</Link>
-                <span className="text-white/20">/</span>
-                <span className="text-[#Bfa67a]">{community.name}</span>
-              </nav>
-
-              <span className="block text-[#Bfa67a] text-[11px] uppercase tracking-[0.4em] font-bold mb-4 pl-1">Community Profile</span>
-              <h1 className="text-6xl md:text-8xl font-serif leading-[0.9] tracking-tight mb-6">
-                {community.name.split(' ').map((word, i, arr) => (
-                  i === arr.length - 1 && arr.length > 1
-                    ? <span key={i}><br/><span className="italic font-light">{word}</span></span>
-                    : <span key={i}>{word} </span>
-                ))}
-              </h1>
-              <div className="flex gap-6 text-[10px] uppercase tracking-[0.25em] font-medium opacity-80 pl-1">
-                <span className="flex items-center gap-2"><MapPin size={12}/> {community.city}, AZ {community.zipCode}</span>
-                <span className="flex items-center gap-2"><Compass size={12}/> {community.elevation} Elevation</span>
-              </div>
-            </div>
-
-            {/* Hero CTA */}
-            <div className="hidden lg:flex flex-col sm:flex-row gap-3">
-              <button className="bg-[#Bfa67a] text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-[#0C1C2E] transition-all flex items-center gap-2 group shadow-xl">
-                 Schedule Tour
-                 <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
-              </button>
-              <button className="bg-[#0C1C2E] text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-[#0C1C2E] transition-all flex items-center gap-2 shadow-xl">
-                 <Download size={14} />
-                 Get Guide
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Market Intelligence Dashboard (KPIs) - Overlapping Hero */}
-      <section ref={metricsAnim.ref} className="relative z-20 -mt-16 max-w-[1600px] mx-auto px-8 lg:px-20">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {community.metrics.map((metric, i) => (
-            <div
-              key={i}
-              className={`
-                bg-white p-8 shadow-xl shadow-black/5 border-t-4 border-[#Bfa67a]
-                transition-all duration-500 hover:shadow-2xl hover:-translate-y-1
-                ${metricsAnim.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}
-              `}
-              style={{ transitionDelay: `${i * 100}ms` }}
-            >
-              <div className="flex justify-between items-start mb-4">
-                <span className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-bold">{metric.label}</span>
-                {metric.trendDir === 'up' ? (
-                  <TrendingUp size={16} className="text-[#0C1C2E]"/>
-                ) : metric.trendDir === 'down' ? (
-                  <TrendingDown size={16} className="text-rose-500"/>
-                ) : (
-                  <Minus size={16} className="text-gray-300"/>
-                )}
-              </div>
-              <div className="flex items-baseline gap-3 mb-2">
-                <span className="text-4xl font-serif text-[#0C1C2E]">
-                  {metric.label === "Median List Price" ? "$" : ""}
-                  <AnimatedCounter
-                    value={metric.numericValue}
-                    suffix={metric.suffix}
-                    prefix={metric.label === "Price Per SqFt" ? "$" : ""}
-                  />
-                </span>
-                <span className={`text-xs font-bold ${metric.trendDir === 'up' ? 'text-emerald-600' : metric.trendDir === 'down' ? 'text-rose-500' : 'text-gray-500'}`}>
-                  {metric.trend}
-                </span>
-              </div>
-              <p className="text-[10px] text-gray-400 font-medium tracking-wide">{metric.description}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <HeroKpiCards kpis={community.metrics.map(m => ({
+        label: m.label,
+        value: m.value,
+        trend: m.trend,
+        trendDirection: m.trendDir,
+        subtext: m.description,
+      }))} />
 
       {/* Bento Box Layout - Community Information */}
       <section className="py-16 max-w-[1600px] mx-auto px-8 lg:px-20">
@@ -1337,7 +1176,7 @@ const CommunityPage: React.FC = () => {
               {relatedCommunities.map((c) => (
                 <Link
                   key={c.id}
-                  to={`/${c.region}/${c.id}`}
+                  to={`/phoenix/${c.region}/${c.id}`}
                   className="group"
                 >
                   <div className="aspect-[4/3] overflow-hidden mb-4">
