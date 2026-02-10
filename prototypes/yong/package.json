@@ -7,7 +7,13 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:compliance": "node scripts/compliance-check.mjs",
+    "test:security": "node scripts/compliance-check.mjs --security",
+    "test:seo": "node scripts/compliance-check.mjs --seo",
+    "test:a11y": "node scripts/compliance-check.mjs --a11y",
+    "test:edge": "node scripts/compliance-check.mjs --edge",
+    "test:quality": "node scripts/compliance-check.mjs --quality"
   },
   "dependencies": {
     "@types/leaflet": "^1.9.21",

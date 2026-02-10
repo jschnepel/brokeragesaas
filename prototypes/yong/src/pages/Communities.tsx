@@ -91,7 +91,7 @@ const Communities: React.FC = () => {
         subtitle="Discover the most prestigious neighborhoods across Scottsdale, Paradise Valley, and the surrounding desert communities."
         image="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=2400"
         height="70vh"
-        minHeight="500px"
+        minHeight="600px"
         badge="Explore Arizona"
         breadcrumbs={[
           { label: 'Home', href: '/' },
