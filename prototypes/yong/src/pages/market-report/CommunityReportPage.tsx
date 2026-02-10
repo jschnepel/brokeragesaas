@@ -4,7 +4,7 @@ import { MarketRegistry } from '../../models';
 import Footer from '../../components/Footer';
 import SEOHead from '../../components/shared/SEOHead';
 import MarketReportHero from '../../components/market-report/MarketReportHero';
-import KpiCardStrip from '../../components/market-report/KpiCardStrip';
+import HeroKpiCards from '../../components/shared/HeroKpiCards';
 import NarrativeBlock from '../../components/market-report/NarrativeBlock';
 import BenchmarksSidebar from '../../components/market-report/BenchmarksSidebar';
 import PriceTrendChart from '../../components/market-report/PriceTrendChart';
@@ -52,7 +52,7 @@ const CommunityReportPage: React.FC = () => {
         badge="Latest"
       />
 
-      <KpiCardStrip kpis={kpis} />
+      <HeroKpiCards kpis={kpis} />
 
       <div className="max-w-[1600px] mx-auto px-8">
         <div className="grid grid-cols-12 gap-[1px] bg-gray-200">

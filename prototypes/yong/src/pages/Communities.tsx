@@ -139,7 +139,7 @@ const Communities: React.FC = () => {
                 {searchResults.map((result, idx) => (
                   <Link
                     key={`${result.regionId}-${result.communityId || 'region'}-${idx}`}
-                    to={result.type === 'region' ? `/region/${result.regionId}` : `/${result.regionId}/${result.communityId}`}
+                    to={result.type === 'region' ? `/phoenix/${result.regionId}` : `/${result.regionId}/${result.communityId}`}
                     onClick={() => { setSearchQuery(''); setIsSearchFocused(false); }}
                     className="flex items-center gap-4 p-4 hover:bg-[#F9F8F6] transition-all duration-300 border-b border-gray-100 last:border-0 group"
                   >
@@ -309,7 +309,7 @@ const RegionBentoBox: React.FC<RegionBentoBoxProps> = ({ region, index }) => {
         {/* Region Header */}
         <div className={`flex items-center gap-4 mb-8 transition-all duration-700 ${anim.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <Link
-            to={`/region/${region.id}`}
+            to={`/phoenix/${region.id}`}
             className="text-3xl md:text-4xl font-serif text-[#0C1C2E] hover:text-[#Bfa67a] transition-colors group flex items-center gap-3"
           >
             {region.name}
@@ -354,7 +354,7 @@ const RegionBentoBox: React.FC<RegionBentoBoxProps> = ({ region, index }) => {
             </div>
 
             <Link
-              to={`/region/${region.id}`}
+              to={`/phoenix/${region.id}`}
               className="inline-flex items-center gap-2 bg-[#0C1C2E] text-white px-6 py-3 text-[10px] uppercase tracking-[0.2em] font-bold hover:bg-[#Bfa67a] transition-all group"
             >
               Explore {region.name}

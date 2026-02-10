@@ -72,42 +72,42 @@ const Navigation: React.FC<NavigationProps> = ({ variant = 'transparent' }) => {
   const regions = [
     {
       name: 'North Scottsdale',
-      href: '/region/north-scottsdale',
+      href: '/phoenix/north-scottsdale',
       communities: ['Desert Mountain', 'Silverleaf', 'DC Ranch', 'Estancia', 'Whisper Rock', 'Troon North', 'Pinnacle Peak', 'Terravita', 'Legend Trail', 'Winfield'],
     },
     {
       name: 'Paradise Valley',
-      href: '/region/paradise-valley',
+      href: '/phoenix/paradise-valley',
       communities: ['Paradise Valley Estates', 'Clearwater Hills', 'Mummy Mountain', 'Camelback Country Estates', 'Paradise Reserve', 'Cheney Estates'],
     },
     {
       name: 'Carefree & Cave Creek',
-      href: '/region/carefree-cave-creek',
+      href: '/phoenix/carefree-cave-creek',
       communities: ['Carefree', 'Cave Creek', 'The Boulders', 'Rancho Mañana', 'Black Mountain', 'Lone Mountain'],
     },
     {
       name: 'Central Scottsdale',
-      href: '/region/central-scottsdale',
+      href: '/phoenix/central-scottsdale',
       communities: ['Kierland', 'Old Town', 'Gainey Ranch', 'McCormick Ranch', 'Stonegate', 'Grayhawk'],
     },
     {
       name: 'South Scottsdale',
-      href: '/region/south-scottsdale',
+      href: '/phoenix/south-scottsdale',
       communities: ['Papago Park', 'Old Town South', 'Vista del Camino', 'Continental Golf'],
     },
     {
       name: 'Arcadia',
-      href: '/region/arcadia',
+      href: '/phoenix/arcadia',
       communities: ['Arcadia Proper', 'Arcadia Lite', 'Arcadia Estates', 'Camelback Corridor'],
     },
     {
       name: 'Fountain Hills',
-      href: '/region/fountain-hills',
+      href: '/phoenix/fountain-hills',
       communities: ['Fountain Hills', 'Eagle Mountain', 'FireRock', 'SunRidge Canyon', 'CopperWynd'],
     },
     {
       name: 'Rio Verde',
-      href: '/region/rio-verde',
+      href: '/phoenix/rio-verde',
       communities: ['Rio Verde', 'Rio Verde Foothills', 'Tonto Verde'],
     },
   ];

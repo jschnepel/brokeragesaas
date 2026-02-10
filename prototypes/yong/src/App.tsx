@@ -1,4 +1,9 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+
+const RegionRedirect = () => {
+  const { regionId } = useParams();
+  return <Navigate to={`/phoenix/${regionId}`} replace />;
+};
 
 // Pages
 import HomePage from './pages/HomePage';
@@ -31,7 +36,8 @@ function App() {
         <Route path="/communities" element={<Communities />} />
         <Route path="/community/:id" element={<CommunityPage />} />
         <Route path="/:region/:community" element={<CommunityPage />} />
-        <Route path="/region/:regionId" element={<RegionPage />} />
+        <Route path="/phoenix/:regionId" element={<RegionPage />} />
+        <Route path="/region/:regionId" element={<RegionRedirect />} />
         <Route path="/map" element={<InteractiveMap />} />
         <Route path="/listings" element={<Listings />} />
         <Route path="/listing" element={<ListingDetail />} />

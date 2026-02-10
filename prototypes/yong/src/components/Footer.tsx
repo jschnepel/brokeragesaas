@@ -252,7 +252,7 @@ const Footer: React.FC = () => {
               <div key={region.name}>
                 {region.id ? (
                   <Link
-                    to={`/region/${region.id}`}
+                    to={`/phoenix/${region.id}`}
                     className="text-white/90 hover:text-[#BFA67A] font-medium text-xs mb-3 uppercase tracking-wide block transition-colors"
                   >
                     {region.name}

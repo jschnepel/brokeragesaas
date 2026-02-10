@@ -1256,7 +1256,7 @@ const InteractiveMap: React.FC = () => {
                     {/* Right side - Quick links */}
                     <div className="flex items-center gap-6">
                       <Link
-                        to={`/region/${currentData.id}`}
+                        to={`/phoenix/${currentData.id}`}
                         className="group inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-white font-bold hover:text-[#Bfa67a] transition-all"
                       >
                         Explore Region <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />

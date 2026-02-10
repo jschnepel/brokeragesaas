@@ -441,7 +441,7 @@ const InsightsDashboard: React.FC = () => {
                       </div>
                     </div>
                     <Link
-                      to={`/region/${MARKET_DATA.regions[activeRegion].name.toLowerCase().replace(/ /g, '-').replace(/\//g, '-')}`}
+                      to={`/phoenix/${MARKET_DATA.regions[activeRegion].name.toLowerCase().replace(/ /g, '-').replace(/\//g, '-')}`}
                       className="mt-3 w-full bg-[#Bfa67a] text-white py-3 flex items-center justify-center gap-2 text-[9px] uppercase tracking-[0.15em] font-bold hover:bg-white hover:text-[#0C1C2E] transition-all"
                     >
                       View Region <ArrowRight size={12} />
