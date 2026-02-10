@@ -15,7 +15,6 @@ import {
   BarChart3,
   Bell,
   Clock,
-  CheckCircle,
   ArrowRight,
   Target,
   Building2,
@@ -73,42 +72,42 @@ const Navigation: React.FC<NavigationProps> = ({ variant = 'transparent' }) => {
   const regions = [
     {
       name: 'North Scottsdale',
-      href: '/region/north-scottsdale',
+      href: '/phoenix/north-scottsdale',
       communities: ['Desert Mountain', 'Silverleaf', 'DC Ranch', 'Estancia', 'Whisper Rock', 'Troon North', 'Pinnacle Peak', 'Terravita', 'Legend Trail', 'Winfield'],
     },
     {
       name: 'Paradise Valley',
-      href: '/region/paradise-valley',
+      href: '/phoenix/paradise-valley',
       communities: ['Paradise Valley Estates', 'Clearwater Hills', 'Mummy Mountain', 'Camelback Country Estates', 'Paradise Reserve', 'Cheney Estates'],
     },
     {
       name: 'Carefree & Cave Creek',
-      href: '/region/carefree-cave-creek',
+      href: '/phoenix/carefree-cave-creek',
       communities: ['Carefree', 'Cave Creek', 'The Boulders', 'Rancho Mañana', 'Black Mountain', 'Lone Mountain'],
     },
     {
       name: 'Central Scottsdale',
-      href: '/region/central-scottsdale',
+      href: '/phoenix/central-scottsdale',
       communities: ['Kierland', 'Old Town', 'Gainey Ranch', 'McCormick Ranch', 'Stonegate', 'Grayhawk'],
     },
     {
       name: 'South Scottsdale',
-      href: '/region/south-scottsdale',
+      href: '/phoenix/south-scottsdale',
       communities: ['Papago Park', 'Old Town South', 'Vista del Camino', 'Continental Golf'],
     },
     {
       name: 'Arcadia',
-      href: '/region/arcadia',
+      href: '/phoenix/arcadia',
       communities: ['Arcadia Proper', 'Arcadia Lite', 'Arcadia Estates', 'Camelback Corridor'],
     },
     {
       name: 'Fountain Hills',
-      href: '/region/fountain-hills',
+      href: '/phoenix/fountain-hills',
       communities: ['Fountain Hills', 'Eagle Mountain', 'FireRock', 'SunRidge Canyon', 'CopperWynd'],
     },
     {
       name: 'Rio Verde',
-      href: '/region/rio-verde',
+      href: '/phoenix/rio-verde',
       communities: ['Rio Verde', 'Rio Verde Foothills', 'Tonto Verde'],
     },
   ];
@@ -260,16 +259,6 @@ const Navigation: React.FC<NavigationProps> = ({ variant = 'transparent' }) => {
                   <Link to="/listings?status=coming-soon" className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
                     <Bell size={16} className="text-gray-400 group-hover:text-[#Bfa67a] transition-colors" />
                     <span className="text-[#0C1C2E] text-[14px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>Coming Soon</span>
-                  </Link>
-                  <div className="my-2 border-t border-gray-100" />
-                  <Link to="/sold" className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
-                    <CheckCircle size={16} className="text-gray-400 group-hover:text-[#Bfa67a] transition-colors" />
-                    <span className="text-[#0C1C2E] text-[14px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>Recently Sold</span>
-                  </Link>
-                  <div className="my-2 border-t border-gray-100" />
-                  <Link to="/alerts" className="flex items-center gap-3 px-5 py-3.5 bg-[#Bfa67a]/10 hover:bg-[#Bfa67a]/20 transition-colors group">
-                    <Bell size={16} className="text-[#Bfa67a]" />
-                    <span className="text-[#0C1C2E] text-[14px]" style={{ fontFamily: 'var(--font-serif)' }}>Get Property Alerts</span>
                   </Link>
                 </div>
               )}
@@ -448,14 +437,44 @@ const Navigation: React.FC<NavigationProps> = ({ variant = 'transparent' }) => {
               )}
             </div>
 
-            {/* The Advisor */}
-            <Link
-              to="/about"
-              className={`text-[15px] tracking-wide hover:text-[#Bfa67a] transition-colors ${location.pathname === '/about' ? 'text-[#Bfa67a]' : ''}`}
-              style={{ fontFamily: 'var(--font-serif)' }}
+            {/* The Advisor - Dropdown */}
+            <div
+              className="relative"
+              onMouseEnter={() => handleMouseEnter('advisor')}
+              onMouseLeave={handleMouseLeave}
             >
-              The Advisor
-            </Link>
+              <button
+                className={`flex items-center gap-1.5 text-[15px] tracking-wide hover:text-[#Bfa67a] transition-colors ${
+                  activeDropdown === 'advisor' ? 'text-[#Bfa67a]' : ''
+                }`}
+                style={{ fontFamily: 'var(--font-serif)' }}
+              >
+                The Advisor
+                <ChevronDown size={14} className={`transition-transform opacity-60 ${activeDropdown === 'advisor' ? 'rotate-180' : ''}`} />
+              </button>
+
+              {activeDropdown === 'advisor' && (
+                <div
+                  className="absolute top-full right-0 mt-4 w-[240px] bg-white shadow-2xl border border-gray-100 py-2 animate-in fade-in slide-in-from-top-2 duration-200 z-[60]"
+                  style={{ fontFamily: 'var(--font-sans)' }}
+                  onMouseEnter={() => handleMouseEnter('advisor')}
+                  onMouseLeave={handleMouseLeave}
+                >
+                  <Link to="/about" className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
+                    <Users size={16} className="text-gray-400 group-hover:text-[#Bfa67a] transition-colors" />
+                    <span className="text-[#0C1C2E] text-[14px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>About Yong</span>
+                  </Link>
+                  <Link to="/blog" className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
+                    <FileText size={16} className="text-gray-400 group-hover:text-[#Bfa67a] transition-colors" />
+                    <span className="text-[#0C1C2E] text-[14px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>Blog & Insights</span>
+                  </Link>
+                  <Link to="/contact" className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
+                    <Mail size={16} className="text-gray-400 group-hover:text-[#Bfa67a] transition-colors" />
+                    <span className="text-[#0C1C2E] text-[14px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>Contact</span>
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Right Side Actions */}
@@ -608,14 +627,6 @@ const Navigation: React.FC<NavigationProps> = ({ variant = 'transparent' }) => {
                       <Bell size={16} className="text-gray-500" />
                       Coming Soon
                     </Link>
-                    <Link to="/sold" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
-                      <CheckCircle size={16} className="text-gray-500" />
-                      Recently Sold
-                    </Link>
-                    <Link to="/alerts" className="flex items-center gap-3 py-3 text-[#Bfa67a] font-medium">
-                      <Bell size={16} />
-                      Get Property Alerts
-                    </Link>
                   </div>
                 )}
               </div>
@@ -674,14 +685,32 @@ const Navigation: React.FC<NavigationProps> = ({ variant = 'transparent' }) => {
                 )}
               </div>
 
-              {/* The Advisor */}
-              <Link
-                to="/about"
-                className="flex items-center justify-between py-4 border-b border-white/10 text-lg font-serif text-white hover:text-[#Bfa67a] transition-colors"
-              >
-                The Advisor
-                <ChevronRight size={20} className="opacity-40" />
-              </Link>
+              {/* The Advisor - Expandable */}
+              <div>
+                <button
+                  onClick={() => setMobileSubmenu(mobileSubmenu === 'advisor' ? null : 'advisor')}
+                  className="flex items-center justify-between w-full py-4 border-b border-white/10 text-lg font-serif text-white hover:text-[#Bfa67a] transition-colors"
+                >
+                  The Advisor
+                  <ChevronDown size={20} className={`opacity-40 transition-transform ${mobileSubmenu === 'advisor' ? 'rotate-180' : ''}`} />
+                </button>
+                {mobileSubmenu === 'advisor' && (
+                  <div className="pl-4 py-2 space-y-1 bg-white/5">
+                    <Link to="/about" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
+                      <Users size={16} className="text-gray-500" />
+                      About Yong
+                    </Link>
+                    <Link to="/blog" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
+                      <FileText size={16} className="text-gray-500" />
+                      Blog & Insights
+                    </Link>
+                    <Link to="/contact" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
+                      <Mail size={16} className="text-gray-500" />
+                      Contact
+                    </Link>
+                  </div>
+                )}
+              </div>
             </nav>
 
             {/* Mobile Contact Info */}

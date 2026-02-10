@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Core Pages -->
+  <url><loc>https://yongchoi.com/</loc><priority>1.0</priority></url>
+  <url><loc>https://yongchoi.com/communities</loc><priority>0.9</priority></url>
+  <url><loc>https://yongchoi.com/listings</loc><priority>0.9</priority></url>
+  <url><loc>https://yongchoi.com/market-report</loc><priority>0.9</priority></url>
+  <url><loc>https://yongchoi.com/insights</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/insights/buyers</loc><priority>0.7</priority></url>
+  <url><loc>https://yongchoi.com/insights/sellers</loc><priority>0.7</priority></url>
+  <url><loc>https://yongchoi.com/blog</loc><priority>0.7</priority></url>
+  <url><loc>https://yongchoi.com/about</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/contact</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/map</loc><priority>0.7</priority></url>
+
+  <!-- Regions -->
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale</loc><priority>0.9</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/paradise-valley</loc><priority>0.9</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/carefree-cave-creek</loc><priority>0.9</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/central-scottsdale</loc><priority>0.9</priority></url>
+
+  <!-- Communities - North Scottsdale -->
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/desert-mountain</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/silverleaf</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/dc-ranch</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/estancia</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/mirabel</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/troon-north</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/grayhawk</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/desert-highlands</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/whisper-rock</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/ancala</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/terravita</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/windgate-ranch</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/troon-village</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/legend-trail</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/mcdowell-mountain-ranch</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/pinnacle-peak</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/kierland</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/boulders</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/scottsdale-mountain</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/sincuidados</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/pima-acres</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/pinnacle-peak-country-club</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/pinnacle-peak-heights</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/pinnacle-peak-vistas</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/north-scottsdale/canyon-heights</loc><priority>0.8</priority></url>
+
+  <!-- Communities - Central Scottsdale -->
+  <url><loc>https://yongchoi.com/phoenix/central-scottsdale/central-scottsdale</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/central-scottsdale/scottsdale-ranch</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/central-scottsdale/stonegate</loc><priority>0.8</priority></url>
+
+  <!-- Communities - South Scottsdale -->
+  <url><loc>https://yongchoi.com/phoenix/south-scottsdale/gainey-ranch</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/south-scottsdale/mccormick-ranch</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/south-scottsdale/old-town-scottsdale</loc><priority>0.8</priority></url>
+
+  <!-- Communities - Paradise Valley -->
+  <url><loc>https://yongchoi.com/phoenix/paradise-valley/paradise-valley</loc><priority>0.8</priority></url>
+
+  <!-- Communities - Carefree & Cave Creek -->
+  <url><loc>https://yongchoi.com/phoenix/carefree-cave-creek/carefree</loc><priority>0.8</priority></url>
+  <url><loc>https://yongchoi.com/phoenix/carefree-cave-creek/cave-creek</loc><priority>0.8</priority></url>
+
+  <!-- Communities - Phoenix -->
+  <url><loc>https://yongchoi.com/phoenix/phoenix/desert-ridge</loc><priority>0.8</priority></url>
+</urlset>
