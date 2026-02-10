@@ -1,4 +1,31 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { getCommunityById } from './data/communities';
+
+// Initialize the market data registry
+import './models';
+
+// HomePage loads eagerly (entry point)
+import HomePage from './pages/HomePage';
+
+// Everything else is lazy-loaded
+const Communities = lazy(() => import('./pages/Communities'));
+const CommunityPage = lazy(() => import('./pages/CommunityPage'));
+const RegionPage = lazy(() => import('./pages/RegionPage'));
+const InteractiveMap = lazy(() => import('./pages/InteractiveMap'));
+const Listings = lazy(() => import('./pages/Listings'));
+const ListingDetail = lazy(() => import('./pages/ListingDetail'));
+const Blog = lazy(() => import('./pages/Blog'));
+const BlogPost = lazy(() => import('./pages/BlogPost'));
+const InsightsDashboard = lazy(() => import('./pages/InsightsDashboard'));
+const BuyersCenter = lazy(() => import('./pages/BuyersCenter'));
+const SellersCenter = lazy(() => import('./pages/SellersCenter'));
+const AboutPage = lazy(() => import('./pages/AboutPage'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
+const MarketOverviewPage = lazy(() => import('./pages/market-report/MarketOverviewPage'));
+const RegionReportPage = lazy(() => import('./pages/market-report/RegionReportPage'));
+const ZipcodeReportPage = lazy(() => import('./pages/market-report/ZipcodeReportPage'));
+const CommunityReportPage = lazy(() => import('./pages/market-report/CommunityReportPage'));
 
 const RegionRedirect = () => {
   const { regionId } = useParams();
@@ -19,62 +46,43 @@ const CommunityIdRedirect = () => {
   return <Navigate to="/communities" replace />;
 };
 
-// Pages
-import HomePage from './pages/HomePage';
-import InteractiveMap from './pages/InteractiveMap';
-import Listings from './pages/Listings';
-import ListingDetail from './pages/ListingDetail';
-import Blog from './pages/Blog';
-import BlogPost from './pages/BlogPost';
-import Communities from './pages/Communities';
-import CommunityPage from './pages/CommunityPage';
-import { getCommunityById } from './data/communities';
-import RegionPage from './pages/RegionPage';
-import InsightsDashboard from './pages/InsightsDashboard';
-import BuyersCenter from './pages/BuyersCenter';
-import SellersCenter from './pages/SellersCenter';
-import AboutPage from './pages/AboutPage';
-import ContactPage from './pages/ContactPage';
-
-// Market Report Pages (drill-down system)
-import MarketOverviewPage from './pages/market-report/MarketOverviewPage';
-import RegionReportPage from './pages/market-report/RegionReportPage';
-import ZipcodeReportPage from './pages/market-report/ZipcodeReportPage';
-import CommunityReportPage from './pages/market-report/CommunityReportPage';
-
-// Initialize the market data registry
-import './models';
+// Minimal loading state that doesn't flash
+const PageLoader = () => (
+  <div className="min-h-screen bg-[#F9F8F6]" />
+);
 
 function App() {
   return (
     <div className="min-h-screen bg-[#F9F8F6]">
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/communities" element={<Communities />} />
-        <Route path="/phoenix/:regionId/:communityId" element={<CommunityPage />} />
-        <Route path="/phoenix/:regionId" element={<RegionPage />} />
-        <Route path="/community/:id" element={<CommunityIdRedirect />} />
-        <Route path="/:region/:community" element={<CommunityRedirect />} />
-        <Route path="/region/:regionId" element={<RegionRedirect />} />
-        <Route path="/map" element={<InteractiveMap />} />
-        <Route path="/listings" element={<Listings />} />
-        <Route path="/listing" element={<ListingDetail />} />
-        <Route path="/listing/:id" element={<ListingDetail />} />
-        <Route path="/listings/:city/:zipcode/:address" element={<ListingDetail />} />
-        <Route path="/listings/:city/:zipcode/:community/:address" element={<ListingDetail />} />
-        <Route path="/report" element={<Navigate to="/market-report" replace />} />
-        <Route path="/market-report" element={<MarketOverviewPage />} />
-        <Route path="/market-report/:region" element={<RegionReportPage />} />
-        <Route path="/market-report/:region/:zipcode" element={<ZipcodeReportPage />} />
-        <Route path="/market-report/:region/:zipcode/:community" element={<CommunityReportPage />} />
-        <Route path="/blog" element={<Blog />} />
-        <Route path="/blog/:id" element={<BlogPost />} />
-        <Route path="/insights" element={<InsightsDashboard />} />
-        <Route path="/insights/buyers" element={<BuyersCenter />} />
-        <Route path="/insights/sellers" element={<SellersCenter />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/contact" element={<ContactPage />} />
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/communities" element={<Communities />} />
+          <Route path="/phoenix/:regionId/:communityId" element={<CommunityPage />} />
+          <Route path="/phoenix/:regionId" element={<RegionPage />} />
+          <Route path="/community/:id" element={<CommunityIdRedirect />} />
+          <Route path="/:region/:community" element={<CommunityRedirect />} />
+          <Route path="/region/:regionId" element={<RegionRedirect />} />
+          <Route path="/map" element={<InteractiveMap />} />
+          <Route path="/listings" element={<Listings />} />
+          <Route path="/listing" element={<ListingDetail />} />
+          <Route path="/listing/:id" element={<ListingDetail />} />
+          <Route path="/listings/:city/:zipcode/:address" element={<ListingDetail />} />
+          <Route path="/listings/:city/:zipcode/:community/:address" element={<ListingDetail />} />
+          <Route path="/report" element={<Navigate to="/market-report" replace />} />
+          <Route path="/market-report" element={<MarketOverviewPage />} />
+          <Route path="/market-report/:region" element={<RegionReportPage />} />
+          <Route path="/market-report/:region/:zipcode" element={<ZipcodeReportPage />} />
+          <Route path="/market-report/:region/:zipcode/:community" element={<CommunityReportPage />} />
+          <Route path="/blog" element={<Blog />} />
+          <Route path="/blog/:id" element={<BlogPost />} />
+          <Route path="/insights" element={<InsightsDashboard />} />
+          <Route path="/insights/buyers" element={<BuyersCenter />} />
+          <Route path="/insights/sellers" element={<SellersCenter />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+        </Routes>
+      </Suspense>
     </div>
   );
 }
