@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   TrendingUp,
@@ -28,62 +28,8 @@ import {
 } from 'lucide-react';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
-
-// Animated Counter Component
-const AnimatedCounter: React.FC<{ value: number; suffix: string; prefix?: string; decimals?: number }> = ({
-  value, suffix, prefix = "", decimals = 0
-}) => {
-  const [count, setCount] = useState(0);
-  const [isVisible, setIsVisible] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) setIsVisible(true);
-      },
-      { threshold: 0.5 }
-    );
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!isVisible) return;
-    let startTime: number;
-    const animate = (timestamp: number) => {
-      if (!startTime) startTime = timestamp;
-      const progress = Math.min((timestamp - startTime) / 2000, 1);
-      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
-      setCount(easeOutQuart * value);
-      if (progress < 1) requestAnimationFrame(animate);
-    };
-    requestAnimationFrame(animate);
-  }, [isVisible, value]);
-
-  const displayValue = decimals > 0 ? count.toFixed(decimals) : Math.round(count).toLocaleString();
-
-  return <span ref={ref}>{prefix}{displayValue}{suffix}</span>;
-};
-
-// Scroll Animation Hook
-const useScrollAnimation = (threshold = 0.2) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) setIsVisible(true);
-      },
-      { threshold }
-    );
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, [threshold]);
-
-  return { ref, isVisible };
-};
+import AnimatedCounter from '../components/shared/AnimatedCounter';
+import { useScrollAnimation } from '../components/shared/useScrollAnimation';
 
 // Extended market data
 const MARKET_DATA = {

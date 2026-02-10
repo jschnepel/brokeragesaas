@@ -2,8 +2,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Pages
 import HomePage from './pages/HomePage';
-import NeighborhoodProfile from './pages/NeighborhoodProfile';
-import NeighborhoodProfile2 from './pages/NeighborhoodProfile2';
 import InteractiveMap from './pages/InteractiveMap';
 import Listings from './pages/Listings';
 import ListingDetail from './pages/ListingDetail';
@@ -30,8 +28,6 @@ function App() {
     <div className="min-h-screen bg-[#F9F8F6]">
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/neighborhood" element={<NeighborhoodProfile />} />
-        <Route path="/neighborhood2" element={<NeighborhoodProfile2 />} />
         <Route path="/communities" element={<Communities />} />
         <Route path="/community/:id" element={<CommunityPage />} />
         <Route path="/:region/:community" element={<CommunityPage />} />

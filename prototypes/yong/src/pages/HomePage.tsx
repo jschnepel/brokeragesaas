@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Search,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
+import AnimatedCounter from '../components/shared/AnimatedCounter';
 
 const FEATURED_LISTINGS = [
   {
@@ -80,43 +81,6 @@ const LIFESTYLE_COLLECTIONS = [
 ];
 
 // Animated Counter Component
-const AnimatedCounter: React.FC<{ end: number; suffix?: string; prefix?: string; duration?: number }> = ({
-  end, suffix = '', prefix = '', duration = 2000
-}) => {
-  const [count, setCount] = useState(0);
-  const [isVisible, setIsVisible] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !isVisible) {
-          setIsVisible(true);
-        }
-      },
-      { threshold: 0.5 }
-    );
-
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, [isVisible]);
-
-  useEffect(() => {
-    if (!isVisible) return;
-
-    let startTime: number;
-    const animate = (timestamp: number) => {
-      if (!startTime) startTime = timestamp;
-      const progress = Math.min((timestamp - startTime) / duration, 1);
-      setCount(Math.floor(progress * end));
-      if (progress < 1) requestAnimationFrame(animate);
-    };
-    requestAnimationFrame(animate);
-  }, [isVisible, end, duration]);
-
-  return <span ref={ref}>{prefix}{count}{suffix}</span>;
-};
-
 const HomePage: React.FC = () => {
   const [searchTab, setSearchTab] = useState<'buy' | 'sell' | 'rent'>('buy');
   const [searchQuery, setSearchQuery] = useState('');
@@ -246,7 +210,7 @@ const HomePage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-8 lg:px-24 flex flex-wrap justify-around gap-8 text-[#0C1C2E]">
           <div className="text-center group cursor-default">
             <p className="text-3xl lg:text-4xl font-serif text-[#Bfa67a] mb-2 transition-transform group-hover:scale-110">
-              $<AnimatedCounter end={1.2} suffix="B+" duration={2500} />
+              $<AnimatedCounter value={1.2} suffix="B+" duration={2500} />
             </p>
             <p className="text-[9px] uppercase tracking-widest text-gray-400">Career Sales</p>
           </div>
@@ -255,7 +219,7 @@ const HomePage: React.FC = () => {
           </div>
           <div className="text-center group cursor-default">
             <p className="text-3xl lg:text-4xl font-serif text-[#Bfa67a] mb-2 transition-transform group-hover:scale-110">
-              #<AnimatedCounter end={1} duration={1500} />
+              #<AnimatedCounter value={1} duration={1500} />
             </p>
             <p className="text-[9px] uppercase tracking-widest text-gray-400">Team in N. Scottsdale</p>
           </div>
@@ -264,7 +228,7 @@ const HomePage: React.FC = () => {
           </div>
           <div className="text-center group cursor-default">
             <p className="text-3xl lg:text-4xl font-serif text-[#Bfa67a] mb-2 transition-transform group-hover:scale-110">
-              <AnimatedCounter end={98} suffix="%" duration={2000} />
+              <AnimatedCounter value={98} suffix="%" duration={2000} />
             </p>
             <p className="text-[9px] uppercase tracking-widest text-gray-400">List-to-Sale Ratio</p>
           </div>
@@ -273,7 +237,7 @@ const HomePage: React.FC = () => {
           </div>
           <div className="text-center group cursor-default">
             <p className="text-3xl lg:text-4xl font-serif text-[#Bfa67a] mb-2 transition-transform group-hover:scale-110">
-              <AnimatedCounter end={34} suffix="+" duration={2000} />
+              <AnimatedCounter value={34} suffix="+" duration={2000} />
             </p>
             <p className="text-[9px] uppercase tracking-widest text-gray-400">Years Experience</p>
           </div>

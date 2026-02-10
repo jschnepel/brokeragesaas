@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   MapPin,
@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
+import { useScrollAnimation } from '../components/shared/useScrollAnimation';
 import { useSparkListing, useSparkListings } from '../hooks/useSparkListings';
 import { formatPrice, formatSqft, getPrimaryPhoto, getAllPhotos } from '../lib/sparkApi';
 
@@ -208,31 +209,6 @@ const SIMILAR_PROPERTIES = [
     image: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&q=80&w=600"
   },
 ];
-
-// Scroll Animation Hook
-const useScrollAnimation = (threshold = 0.2) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-        }
-      },
-      { threshold }
-    );
-
-    if (ref.current) {
-      observer.observe(ref.current);
-    }
-
-    return () => observer.disconnect();
-  }, [threshold]);
-
-  return { ref, isVisible };
-};
 
 // Helper to create SEO-friendly URL slug
 export const createListingSlug = (listing: {

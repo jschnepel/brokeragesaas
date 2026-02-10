@@ -2,13 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 
 interface AnimatedCounterProps {
   value: number;
-  suffix: string;
+  suffix?: string;
   prefix?: string;
   duration?: number;
+  decimals?: number;
 }
 
 const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
-  value, suffix, prefix = '', duration = 2000
+  value, suffix = '', prefix = '', duration = 2000, decimals
 }) => {
   const [count, setCount] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
@@ -49,9 +50,11 @@ const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
     requestAnimationFrame(animate);
   }, [isVisible, value, duration]);
 
-  const displayValue = value >= 1 && value < 10
-    ? count.toFixed(2)
-    : Math.round(count).toLocaleString();
+  const displayValue = decimals !== undefined
+    ? count.toFixed(decimals)
+    : value >= 1 && value < 10
+      ? count.toFixed(2)
+      : Math.round(count).toLocaleString();
 
   return (
     <span ref={ref}>
