@@ -78,28 +78,26 @@ const Footer: React.FC = () => {
   ];
 
   const propertyLinks = [
-    { href: '/properties?status=active', label: 'All Active Listings' },
-    { href: '/properties?type=luxury', label: 'Luxury Homes $3M+' },
-    { href: '/properties?type=golf', label: 'Golf Course Properties' },
-    { href: '/properties?status=new', label: 'New Listings' },
-    { href: '/properties?status=price-reduced', label: 'Price Reductions' },
-    { href: '/properties?status=sold', label: 'Recently Sold' },
+    { href: '/listings', label: 'All Active Listings' },
+    { href: '/listings?type=luxury', label: 'Luxury Homes $3M+' },
+    { href: '/listings?type=golf', label: 'Golf Course Properties' },
+    { href: '/listings?status=new', label: 'New Listings' },
+    { href: '/listings?status=price-reduced', label: 'Price Reductions' },
+    { href: '/listings?status=sold', label: 'Recently Sold' },
   ];
 
   const resourceLinks = [
     { href: '/map', label: 'Interactive Market Map' },
     { href: '/market-report', label: 'Market Intelligence' },
     { href: '/blog', label: 'Blog & Insights' },
-    { href: '/buyer-guide', label: 'Buyer\'s Guide' },
-    { href: '/seller-guide', label: 'Seller\'s Guide' },
-    { href: '/relocation', label: 'Relocation Resources' },
+    { href: '/insights/buyers', label: 'Buyer\'s Guide' },
+    { href: '/insights/sellers', label: 'Seller\'s Guide' },
   ];
 
   const aboutLinks = [
     { href: '/about', label: 'About Yong Choi' },
-    { href: '/testimonials', label: 'Client Testimonials' },
+    { href: '/blog', label: 'Blog & Insights' },
     { href: '/contact', label: 'Contact' },
-    { href: '/schedule', label: 'Schedule Consultation' },
   ];
 
   return (
@@ -288,17 +286,12 @@ const Footer: React.FC = () => {
               © {new Date().getFullYear()} Yong Choi | Russ Lyon Sotheby's International Realty. All rights reserved.
             </div>
             <div className="flex items-center gap-6 text-xs">
-              <Link to="/privacy" className="text-white/50 hover:text-white transition-colors">
-                Privacy Policy
+              <span className="text-white/50">Equal Housing Opportunity</span>
+              <Link to="/about" className="text-white/50 hover:text-white transition-colors">
+                About
               </Link>
-              <Link to="/terms" className="text-white/50 hover:text-white transition-colors">
-                Terms of Service
-              </Link>
-              <Link to="/accessibility" className="text-white/50 hover:text-white transition-colors">
-                Accessibility
-              </Link>
-              <Link to="/sitemap" className="text-white/50 hover:text-white transition-colors">
-                Sitemap
+              <Link to="/contact" className="text-white/50 hover:text-white transition-colors">
+                Contact
               </Link>
             </div>
           </div>
