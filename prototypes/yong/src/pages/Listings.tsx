@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
+import SEOHead from '../components/shared/SEOHead';
 import { useSparkListings } from '../hooks/useSparkListings';
 import { formatPrice, formatSqft, getPrimaryPhoto } from '../lib/sparkApi';
 import { createListingSlug } from './ListingDetail';
@@ -50,6 +51,10 @@ const Listings: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F9F8F6] text-[#111] page-zoom-90 font-sans">
+      <SEOHead
+        title="Browse Luxury Listings | Scottsdale Real Estate"
+        description="Explore luxury homes for sale in Scottsdale, Paradise Valley, and the Phoenix Metro area."
+      />
       <Navigation />
 
       {/* Hero Header */}

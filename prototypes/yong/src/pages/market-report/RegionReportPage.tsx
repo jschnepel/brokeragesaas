@@ -2,8 +2,9 @@ import { useParams, Navigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { MarketRegistry } from '../../models';
 import Footer from '../../components/Footer';
+import SEOHead from '../../components/shared/SEOHead';
 import MarketReportHero from '../../components/market-report/MarketReportHero';
-import KpiCardStrip from '../../components/market-report/KpiCardStrip';
+import HeroKpiCards from '../../components/shared/HeroKpiCards';
 import NarrativeBlock from '../../components/market-report/NarrativeBlock';
 import ScopeComparisonTable from '../../components/market-report/ScopeComparisonTable';
 import DrilldownCard from '../../components/market-report/DrilldownCard';
@@ -49,6 +50,10 @@ const RegionReportPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white text-[#111] font-sans selection:bg-[#0C1C2E] selection:text-white antialiased overflow-x-hidden">
+      <SEOHead
+        title={`${region.name} Market Report | Real Estate Intelligence`}
+        description={`Market analytics for ${region.name}`}
+      />
       <MarketReportHero
         title={`${region.name}: Market Report`}
         subtitle={region.description}
@@ -56,7 +61,7 @@ const RegionReportPage: React.FC = () => {
         breadcrumbs={region.getBreadcrumbs()}
       />
 
-      <KpiCardStrip kpis={kpis} />
+      <HeroKpiCards kpis={kpis} />
 
       <div className="max-w-[1600px] mx-auto px-8">
         <div className="grid grid-cols-12 gap-[1px] bg-gray-200">

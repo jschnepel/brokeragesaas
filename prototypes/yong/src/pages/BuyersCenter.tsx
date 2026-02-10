@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
+import SEOHead from '../components/shared/SEOHead';
 
 // Helper function to format currency
 const formatCurrency = (value: number): string => {
@@ -112,6 +113,10 @@ const BuyersCenter: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F9F8F6] text-[#111] font-sans">
+      <SEOHead
+        title="Buyer's Guide | Scottsdale Luxury Real Estate"
+        description="Everything you need to know about buying luxury real estate in Scottsdale and Paradise Valley."
+      />
       <Navigation variant="transparent" />
 
       {/* Hero Section - Immersive with Parallax */}
