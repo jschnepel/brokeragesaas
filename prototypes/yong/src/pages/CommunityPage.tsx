@@ -135,10 +135,8 @@ const ICON_MAP: Record<string, React.FC<{ size?: number; className?: string }>> 
 };
 
 const CommunityPage: React.FC = () => {
-  const { id, community: communitySlug } = useParams<{ id?: string; community?: string; region?: string }>();
-
-  // Support both /community/:id and /:region/:community URLs
-  const communityId = communitySlug || id;
+  const { communityId: paramCommunityId } = useParams<{ regionId?: string; communityId?: string }>();
+  const communityId = paramCommunityId;
 
   const [currentSlide, setCurrentSlide] = useState(0);
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -1168,7 +1166,7 @@ const CommunityPage: React.FC = () => {
               {relatedCommunities.map((c) => (
                 <Link
                   key={c.id}
-                  to={`/${c.region}/${c.id}`}
+                  to={`/phoenix/${c.region}/${c.id}`}
                   className="group"
                 >
                   <div className="aspect-[4/3] overflow-hidden mb-4">

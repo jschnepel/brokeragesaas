@@ -139,7 +139,7 @@ const Communities: React.FC = () => {
                 {searchResults.map((result, idx) => (
                   <Link
                     key={`${result.regionId}-${result.communityId || 'region'}-${idx}`}
-                    to={result.type === 'region' ? `/phoenix/${result.regionId}` : `/${result.regionId}/${result.communityId}`}
+                    to={result.type === 'region' ? `/phoenix/${result.regionId}` : `/phoenix/${result.regionId}/${result.communityId}`}
                     onClick={() => { setSearchQuery(''); setIsSearchFocused(false); }}
                     className="flex items-center gap-4 p-4 hover:bg-[#F9F8F6] transition-all duration-300 border-b border-gray-100 last:border-0 group"
                   >
@@ -427,7 +427,7 @@ const RegionBentoBox: React.FC<RegionBentoBoxProps> = ({ region, index }) => {
               {region.communities.map((community, idx) => (
                 <Link
                   key={community.id}
-                  to={`/${region.id}/${community.id}`}
+                  to={`/phoenix/${region.id}/${community.id}`}
                   className="group relative h-[320px] overflow-hidden cursor-pointer"
                 >
                   {/* Image Background */}

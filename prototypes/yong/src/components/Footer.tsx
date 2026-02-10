@@ -266,7 +266,7 @@ const Footer: React.FC = () => {
                   {region.communities.map((community) => (
                     <li key={community.id}>
                       <Link
-                        to={`/${region.id}/${community.id}`}
+                        to={`/phoenix/${region.id}/${community.id}`}
                         className="text-white/60 hover:text-[#BFA67A] transition-colors text-xs"
                       >
                         {community.name}

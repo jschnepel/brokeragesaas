@@ -384,7 +384,7 @@ const RegionPage: React.FC = () => {
                   {region.lifestyles[activeLifestyle]?.communities.map((community, idx) => (
                     <Link
                       key={community.id}
-                      to={`/${regionId}/${community.id}`}
+                      to={`/phoenix/${regionId}/${community.id}`}
                       className={`
                         group relative overflow-hidden transition-all duration-500 ease-out cursor-pointer
                         ${activeCommunity === idx ? 'flex-[3]' : 'flex-[1]'}
@@ -661,7 +661,7 @@ const RegionPage: React.FC = () => {
             {region.communities.map((community, index) => (
               <Link
                 key={community.id}
-                to={`/${regionId}/${community.id}`}
+                to={`/phoenix/${regionId}/${community.id}`}
                 className="group relative h-[280px] overflow-hidden cursor-pointer"
                 style={{
                   animation: `fadeSlideIn 0.5s ease-out ${index * 50}ms both`

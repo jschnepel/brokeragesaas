@@ -5,6 +5,20 @@ const RegionRedirect = () => {
   return <Navigate to={`/phoenix/${regionId}`} replace />;
 };
 
+const CommunityRedirect = () => {
+  const { region, community } = useParams();
+  return <Navigate to={`/phoenix/${region}/${community}`} replace />;
+};
+
+const CommunityIdRedirect = () => {
+  const { id } = useParams();
+  const community = id ? getCommunityById(id) : undefined;
+  if (community) {
+    return <Navigate to={`/phoenix/${community.region}/${community.id}`} replace />;
+  }
+  return <Navigate to="/communities" replace />;
+};
+
 // Pages
 import HomePage from './pages/HomePage';
 import InteractiveMap from './pages/InteractiveMap';
@@ -14,6 +28,7 @@ import Blog from './pages/Blog';
 import BlogPost from './pages/BlogPost';
 import Communities from './pages/Communities';
 import CommunityPage from './pages/CommunityPage';
+import { getCommunityById } from './data/communities';
 import RegionPage from './pages/RegionPage';
 import InsightsDashboard from './pages/InsightsDashboard';
 import BuyersCenter from './pages/BuyersCenter';
@@ -34,9 +49,10 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/communities" element={<Communities />} />
-        <Route path="/community/:id" element={<CommunityPage />} />
-        <Route path="/:region/:community" element={<CommunityPage />} />
+        <Route path="/phoenix/:regionId/:communityId" element={<CommunityPage />} />
         <Route path="/phoenix/:regionId" element={<RegionPage />} />
+        <Route path="/community/:id" element={<CommunityIdRedirect />} />
+        <Route path="/:region/:community" element={<CommunityRedirect />} />
         <Route path="/region/:regionId" element={<RegionRedirect />} />
         <Route path="/map" element={<InteractiveMap />} />
         <Route path="/listings" element={<Listings />} />
