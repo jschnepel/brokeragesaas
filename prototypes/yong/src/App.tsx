@@ -33,6 +33,8 @@ import RegionPage from './pages/RegionPage';
 import InsightsDashboard from './pages/InsightsDashboard';
 import BuyersCenter from './pages/BuyersCenter';
 import SellersCenter from './pages/SellersCenter';
+import AboutPage from './pages/AboutPage';
+import ContactPage from './pages/ContactPage';
 
 // Market Report Pages (drill-down system)
 import MarketOverviewPage from './pages/market-report/MarketOverviewPage';
@@ -70,6 +72,8 @@ function App() {
         <Route path="/insights" element={<InsightsDashboard />} />
         <Route path="/insights/buyers" element={<BuyersCenter />} />
         <Route path="/insights/sellers" element={<SellersCenter />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/contact" element={<ContactPage />} />
       </Routes>
     </div>
   );

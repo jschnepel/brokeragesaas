@@ -437,14 +437,44 @@ const Navigation: React.FC<NavigationProps> = ({ variant = 'transparent' }) => {
               )}
             </div>
 
-            {/* The Advisor */}
-            <Link
-              to="/about"
-              className={`text-[15px] tracking-wide hover:text-[#Bfa67a] transition-colors ${location.pathname === '/about' ? 'text-[#Bfa67a]' : ''}`}
-              style={{ fontFamily: 'var(--font-serif)' }}
+            {/* The Advisor - Dropdown */}
+            <div
+              className="relative"
+              onMouseEnter={() => handleMouseEnter('advisor')}
+              onMouseLeave={handleMouseLeave}
             >
-              The Advisor
-            </Link>
+              <button
+                className={`flex items-center gap-1.5 text-[15px] tracking-wide hover:text-[#Bfa67a] transition-colors ${
+                  activeDropdown === 'advisor' ? 'text-[#Bfa67a]' : ''
+                }`}
+                style={{ fontFamily: 'var(--font-serif)' }}
+              >
+                The Advisor
+                <ChevronDown size={14} className={`transition-transform opacity-60 ${activeDropdown === 'advisor' ? 'rotate-180' : ''}`} />
+              </button>
+
+              {activeDropdown === 'advisor' && (
+                <div
+                  className="absolute top-full right-0 mt-4 w-[240px] bg-white shadow-2xl border border-gray-100 py-2 animate-in fade-in slide-in-from-top-2 duration-200 z-[60]"
+                  style={{ fontFamily: 'var(--font-sans)' }}
+                  onMouseEnter={() => handleMouseEnter('advisor')}
+                  onMouseLeave={handleMouseLeave}
+                >
+                  <Link to="/about" className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
+                    <Users size={16} className="text-gray-400 group-hover:text-[#Bfa67a] transition-colors" />
+                    <span className="text-[#0C1C2E] text-[14px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>About Yong</span>
+                  </Link>
+                  <Link to="/blog" className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
+                    <FileText size={16} className="text-gray-400 group-hover:text-[#Bfa67a] transition-colors" />
+                    <span className="text-[#0C1C2E] text-[14px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>Blog & Insights</span>
+                  </Link>
+                  <Link to="/contact" className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
+                    <Mail size={16} className="text-gray-400 group-hover:text-[#Bfa67a] transition-colors" />
+                    <span className="text-[#0C1C2E] text-[14px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>Contact</span>
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Right Side Actions */}
@@ -655,14 +685,32 @@ const Navigation: React.FC<NavigationProps> = ({ variant = 'transparent' }) => {
                 )}
               </div>
 
-              {/* The Advisor */}
-              <Link
-                to="/about"
-                className="flex items-center justify-between py-4 border-b border-white/10 text-lg font-serif text-white hover:text-[#Bfa67a] transition-colors"
-              >
-                The Advisor
-                <ChevronRight size={20} className="opacity-40" />
-              </Link>
+              {/* The Advisor - Expandable */}
+              <div>
+                <button
+                  onClick={() => setMobileSubmenu(mobileSubmenu === 'advisor' ? null : 'advisor')}
+                  className="flex items-center justify-between w-full py-4 border-b border-white/10 text-lg font-serif text-white hover:text-[#Bfa67a] transition-colors"
+                >
+                  The Advisor
+                  <ChevronDown size={20} className={`opacity-40 transition-transform ${mobileSubmenu === 'advisor' ? 'rotate-180' : ''}`} />
+                </button>
+                {mobileSubmenu === 'advisor' && (
+                  <div className="pl-4 py-2 space-y-1 bg-white/5">
+                    <Link to="/about" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
+                      <Users size={16} className="text-gray-500" />
+                      About Yong
+                    </Link>
+                    <Link to="/blog" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
+                      <FileText size={16} className="text-gray-500" />
+                      Blog & Insights
+                    </Link>
+                    <Link to="/contact" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
+                      <Mail size={16} className="text-gray-500" />
+                      Contact
+                    </Link>
+                  </div>
+                )}
+              </div>
             </nav>
 
             {/* Mobile Contact Info */}
