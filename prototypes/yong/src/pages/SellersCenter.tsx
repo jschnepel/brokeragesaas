@@ -95,7 +95,7 @@ const SellersCenter: React.FC = () => {
   const handleCmaSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // In production, this would submit to an API
-    console.log('CMA Form submitted:', cmaForm);
+    // CMA form submission — wire to API endpoint when backend is ready
     setFormSubmitted(true);
   };
 

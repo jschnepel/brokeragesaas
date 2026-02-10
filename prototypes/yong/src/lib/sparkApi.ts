@@ -3,7 +3,7 @@
 
 // Use proxy in development to avoid CORS issues
 const SPARK_API_BASE = import.meta.env.DEV ? '/api/spark' : 'https://sparkapi.com/v1';
-const DEMO_ACCESS_TOKEN = '870vf8lm9wtm4ohi2dm9trr22';
+const DEMO_ACCESS_TOKEN = import.meta.env.VITE_SPARK_TOKEN ?? '870vf8lm9wtm4ohi2dm9trr22';
 
 interface SparkApiOptions {
   limit?: number;

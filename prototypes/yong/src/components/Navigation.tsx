@@ -17,7 +17,6 @@ import {
   Clock,
   ArrowRight,
   Target,
-  Building2,
   DollarSign,
   Calculator,
   FileText,
