@@ -408,7 +408,7 @@ const Navigation: React.FC<NavigationProps> = ({ variant = 'transparent' }) => {
                         </span>
                         <div className="grid grid-cols-3 gap-2">
                           <Link
-                            to="/market-report"
+                            to="/insights"
                             className="flex items-center gap-2 p-2.5 bg-gray-50 hover:bg-[#Bfa67a]/10 transition-colors group rounded"
                           >
                             <Scale size={15} className="text-[#Bfa67a]" />
@@ -672,7 +672,7 @@ const Navigation: React.FC<NavigationProps> = ({ variant = 'transparent' }) => {
                       Net Proceeds Calculator
                     </Link>
                     <span className="text-[9px] uppercase tracking-[0.2em] text-gray-500 font-bold pt-2 block">Market Intelligence</span>
-                    <Link to="/market-report" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
+                    <Link to="/insights" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
                       <Scale size={16} className="text-gray-500" />
                       Market Comparison Tool
                     </Link>

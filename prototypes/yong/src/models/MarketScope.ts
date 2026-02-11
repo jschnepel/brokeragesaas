@@ -36,7 +36,7 @@ export abstract class MarketScope {
   abstract getYoyStats(): YoyStat[];
 
   getUrl(): string {
-    return '/market-report';
+    return '/insights';
   }
 
   getMarketLabel(): string {

@@ -147,6 +147,85 @@ export interface RecentSale {
   date: string;
 }
 
+// Intelligence data types (absorbed from insightsConfig.ts)
+
+export interface BuyerMetrics {
+  avgSearchTime: number;
+  avgOffersBeforeAccepted: number;
+  cashBuyerPercentage: number;
+  firstTimeBuyerPercentage: number;
+  investorPercentage: number;
+  avgDownPayment: number;
+  competitionIndex: number;
+  preApprovalRate: number;
+}
+
+export interface SellerMetrics {
+  avgTimeToSell: number;
+  avgPriceReduction: number;
+  firstWeekShowings: number;
+  offersPerListing: number;
+  aboveAskingPercentage: number;
+  withdrawnRate: number;
+  avgPhotosTopListings: number;
+  virtualTourImpact: number;
+}
+
+export interface HomeownerMetrics {
+  avgEquityGain1Yr: number;
+  avgEquityGain5Yr: number;
+  refinanceOpportunity: number;
+  helocUsage: number;
+  avgHomeAge: number;
+  avgRenovationROI: number;
+}
+
+export interface MarketIndicators {
+  buyerDemand: string;
+  sellerConfidence: string;
+  investorActivity: string;
+  luxurySegmentHealth: string;
+  priceNegotiability: string;
+  multipleOfferFrequency: string;
+}
+
+export interface MarketTiming {
+  bestMonthToBuy: string;
+  bestMonthToSell: string;
+  seasonalPriceSwing: number;
+  springRushStart: string;
+  inventoryPeak: string;
+}
+
+export interface CommunityRanking {
+  name: string;
+  value: string | number;
+  region: string;
+}
+
+export interface CommunityRankings {
+  fastestSelling: CommunityRanking[];
+  highestPricePerSqFt: CommunityRanking[];
+  mostActive: CommunityRanking[];
+  highestAppreciation: CommunityRanking[];
+  lowestInventory: CommunityRanking[];
+  bestListToSale: CommunityRanking[];
+}
+
+export interface MonthlyTrend {
+  month: string;
+  medianPrice: number;
+  sales: number;
+  inventory: number;
+}
+
+export interface PriceTier {
+  tier: string;
+  percentage: number;
+  count: number;
+  avgDOM: number;
+}
+
 // Config types used by the factory
 export interface RegionConfig {
   slug: string;
