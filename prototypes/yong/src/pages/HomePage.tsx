@@ -394,7 +394,7 @@ const HomePage: React.FC = () => {
           </div>
         </Link>
 
-        <Link to="/market-report" className="relative group overflow-hidden cursor-pointer flex items-center justify-center bg-[#0C1C2E] text-white">
+        <Link to="/insights" className="relative group overflow-hidden cursor-pointer flex items-center justify-center bg-[#0C1C2E] text-white">
           <div className="absolute inset-0 bg-[#Bfa67a] transform translate-x-full group-hover:translate-x-0 transition-transform duration-700"></div>
           <div className="text-center p-12 z-10 relative">
             <TrendingUp size={40} className="text-[#Bfa67a] group-hover:text-[#0C1C2E] mb-6 mx-auto opacity-50 group-hover:opacity-100 transition-all group-hover:scale-110" />

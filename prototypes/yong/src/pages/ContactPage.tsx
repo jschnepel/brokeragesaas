@@ -112,7 +112,7 @@ const ContactPage: React.FC = () => {
                   <p className="text-white/40 text-[10px] uppercase tracking-widest mb-3">Quick Actions</p>
                   <div className="space-y-3">
                     <Link
-                      to="/market-report"
+                      to="/insights"
                       className="flex items-center justify-between py-3 border-b border-white/10 text-white/80 hover:text-[#Bfa67a] transition-colors text-sm"
                     >
                       View Market Reports
