@@ -88,7 +88,7 @@ const Footer: React.FC = () => {
 
   const resourceLinks = [
     { href: '/map', label: 'Interactive Market Map' },
-    { href: '/market-report', label: 'Market Intelligence' },
+    { href: '/insights', label: 'Market Intelligence' },
     { href: '/blog', label: 'Blog & Insights' },
     { href: '/insights/buyers', label: 'Buyer\'s Guide' },
     { href: '/insights/sellers', label: 'Seller\'s Guide' },

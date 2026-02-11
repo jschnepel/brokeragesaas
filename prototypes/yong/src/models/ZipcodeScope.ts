@@ -37,7 +37,7 @@ export class ZipcodeScope extends MarketScope {
   }
 
   getUrl(): string {
-    return `/market-report/${this.parentRegionSlug}/${this.code}`;
+    return `/insights/${this.parentRegionSlug}/${this.code}`;
   }
 
   getChildren(): MarketScope[] {
@@ -52,8 +52,8 @@ export class ZipcodeScope extends MarketScope {
     const regionName = this.parentRegionSlug.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
     return [
       { label: 'Home', url: '/' },
-      { label: 'Market Report', url: '/market-report' },
-      { label: regionName, url: `/market-report/${this.parentRegionSlug}` },
+      { label: 'Market Insights', url: '/insights' },
+      { label: regionName, url: `/insights/${this.parentRegionSlug}` },
       { label: this.code, url: this.getUrl() },
     ];
   }

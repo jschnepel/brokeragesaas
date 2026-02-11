@@ -11,6 +11,14 @@ import type {
   BuyerMigrationSource,
   SeasonalTrend,
   LuxuryTier,
+  BuyerMetrics,
+  SellerMetrics,
+  HomeownerMetrics,
+  MarketIndicators,
+  MarketTiming,
+  CommunityRankings,
+  MonthlyTrend,
+  PriceTier,
 } from './types';
 
 export class MarketOverview extends MarketScope {
@@ -31,7 +39,7 @@ export class MarketOverview extends MarketScope {
   }
 
   getUrl(): string {
-    return '/market-report';
+    return '/insights';
   }
 
   getChildren(): MarketScope[] {
@@ -45,7 +53,7 @@ export class MarketOverview extends MarketScope {
   getBreadcrumbs(): Breadcrumb[] {
     return [
       { label: 'Home', url: '/' },
-      { label: 'Market Report', url: '/market-report' },
+      { label: 'Market Insights', url: '/insights' },
     ];
   }
 
@@ -180,6 +188,132 @@ export class MarketOverview extends MarketScope {
       { range: '$3M - $5M', active: 65, sold: 25 },
       { range: '$5M - $10M', active: 45, sold: 14 },
       { range: '$10M+', active: 18, sold: 5 },
+    ];
+  }
+
+  // ── Intelligence data (absorbed from insightsConfig.ts) ────────────
+
+  getMarketIntelligence(): {
+    buyerMetrics: BuyerMetrics;
+    sellerMetrics: SellerMetrics;
+    homeownerMetrics: HomeownerMetrics;
+    marketTiming: MarketTiming;
+  } {
+    return {
+      buyerMetrics: {
+        avgSearchTime: 4.2,
+        avgOffersBeforeAccepted: 2.8,
+        cashBuyerPercentage: 42,
+        firstTimeBuyerPercentage: 18,
+        investorPercentage: 24,
+        avgDownPayment: 28,
+        competitionIndex: 78,
+        preApprovalRate: 89,
+      },
+      sellerMetrics: {
+        avgTimeToSell: 38,
+        avgPriceReduction: 2.4,
+        firstWeekShowings: 12,
+        offersPerListing: 3.2,
+        aboveAskingPercentage: 35,
+        withdrawnRate: 4.8,
+        avgPhotosTopListings: 42,
+        virtualTourImpact: 28,
+      },
+      homeownerMetrics: {
+        avgEquityGain1Yr: 86500,
+        avgEquityGain5Yr: 425000,
+        refinanceOpportunity: 34,
+        helocUsage: 18,
+        avgHomeAge: 12,
+        avgRenovationROI: 72,
+      },
+      marketTiming: {
+        bestMonthToBuy: 'November',
+        bestMonthToSell: 'April',
+        seasonalPriceSwing: 8.5,
+        springRushStart: 'Mid-February',
+        inventoryPeak: 'June',
+      },
+    };
+  }
+
+  getMarketIndicators(): MarketIndicators {
+    return {
+      buyerDemand: 'High',
+      sellerConfidence: 'Strong',
+      investorActivity: 'Moderate',
+      luxurySegmentHealth: 'Excellent',
+      priceNegotiability: 'Low',
+      multipleOfferFrequency: '45%',
+    };
+  }
+
+  getCommunityRankings(): CommunityRankings {
+    return {
+      fastestSelling: [
+        { name: 'Arcadia Proper', value: 18, region: 'Arcadia' },
+        { name: 'DC Ranch', value: 21, region: 'North Scottsdale' },
+        { name: 'Gainey Ranch', value: 24, region: 'Central Scottsdale' },
+        { name: 'Silverleaf', value: 26, region: 'North Scottsdale' },
+        { name: 'McCormick Ranch', value: 28, region: 'Central Scottsdale' },
+      ],
+      highestPricePerSqFt: [
+        { name: 'Paradise Valley Estates', value: 845, region: 'Paradise Valley' },
+        { name: 'Silverleaf', value: 725, region: 'North Scottsdale' },
+        { name: 'Mummy Mountain', value: 695, region: 'Paradise Valley' },
+        { name: 'Estancia', value: 615, region: 'North Scottsdale' },
+        { name: 'Arcadia Proper', value: 585, region: 'Arcadia' },
+      ],
+      mostActive: [
+        { name: 'DC Ranch', value: 28, region: 'North Scottsdale' },
+        { name: 'McCormick Ranch', value: 24, region: 'Central Scottsdale' },
+        { name: 'Gainey Ranch', value: 22, region: 'Central Scottsdale' },
+        { name: 'Grayhawk', value: 19, region: 'Central Scottsdale' },
+        { name: 'Desert Mountain', value: 16, region: 'North Scottsdale' },
+      ],
+      highestAppreciation: [
+        { name: 'Paradise Valley Estates', value: 14.2, region: 'Paradise Valley' },
+        { name: 'Silverleaf', value: 12.8, region: 'North Scottsdale' },
+        { name: 'Arcadia Proper', value: 11.5, region: 'Arcadia' },
+        { name: 'Estancia', value: 10.2, region: 'North Scottsdale' },
+        { name: 'DC Ranch', value: 9.8, region: 'North Scottsdale' },
+      ],
+      lowestInventory: [
+        { name: 'Arcadia Proper', value: 1.8, region: 'Arcadia' },
+        { name: 'Gainey Ranch', value: 2.1, region: 'Central Scottsdale' },
+        { name: 'DC Ranch', value: 2.4, region: 'North Scottsdale' },
+        { name: 'McCormick Ranch', value: 2.6, region: 'Central Scottsdale' },
+        { name: 'Silverleaf', value: 2.9, region: 'North Scottsdale' },
+      ],
+      bestListToSale: [
+        { name: 'Arcadia Proper', value: '101.2%', region: 'Arcadia' },
+        { name: 'DC Ranch', value: '99.5%', region: 'North Scottsdale' },
+        { name: 'Gainey Ranch', value: '98.8%', region: 'Central Scottsdale' },
+        { name: 'Silverleaf', value: '98.2%', region: 'North Scottsdale' },
+        { name: 'McCormick Ranch', value: '97.5%', region: 'Central Scottsdale' },
+      ],
+    };
+  }
+
+  getMonthlyTrends(): MonthlyTrend[] {
+    return [
+      { month: 'Sep', medianPrice: 1720000, sales: 165, inventory: 4.1 },
+      { month: 'Oct', medianPrice: 1755000, sales: 178, inventory: 3.8 },
+      { month: 'Nov', medianPrice: 1780000, sales: 156, inventory: 3.6 },
+      { month: 'Dec', medianPrice: 1795000, sales: 142, inventory: 3.4 },
+      { month: 'Jan', medianPrice: 1820000, sales: 185, inventory: 3.3 },
+      { month: 'Feb', medianPrice: 1850000, sales: 198, inventory: 3.2 },
+    ];
+  }
+
+  getPriceTierBreakdown(): PriceTier[] {
+    return [
+      { tier: '$500K - $1M', percentage: 28, count: 156, avgDOM: 35 },
+      { tier: '$1M - $2M', percentage: 35, count: 195, avgDOM: 42 },
+      { tier: '$2M - $3M', percentage: 20, count: 112, avgDOM: 48 },
+      { tier: '$3M - $5M', percentage: 12, count: 67, avgDOM: 58 },
+      { tier: '$5M+', percentage: 5, count: 28, avgDOM: 72 },
     ];
   }
 }

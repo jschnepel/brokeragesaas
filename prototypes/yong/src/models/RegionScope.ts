@@ -40,7 +40,7 @@ export class RegionScope extends MarketScope {
   }
 
   getUrl(): string {
-    return `/market-report/${this.slug}`;
+    return `/insights/${this.slug}`;
   }
 
   getChildren(): MarketScope[] {
@@ -54,7 +54,7 @@ export class RegionScope extends MarketScope {
   getBreadcrumbs(): Breadcrumb[] {
     return [
       { label: 'Home', url: '/' },
-      { label: 'Market Report', url: '/market-report' },
+      { label: 'Market Insights', url: '/insights' },
       { label: this.name, url: this.getUrl() },
     ];
   }
