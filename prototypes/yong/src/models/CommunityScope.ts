@@ -45,7 +45,7 @@ export class CommunityScope extends MarketScope {
   }
 
   getUrl(): string {
-    return `/market-report/${this.parentRegionSlug}/${this.parentZipcodeCode}/${this.slug}`;
+    return `/insights/${this.parentRegionSlug}/${this.parentZipcodeCode}/${this.slug}`;
   }
 
   getChildren(): MarketScope[] {
@@ -55,9 +55,9 @@ export class CommunityScope extends MarketScope {
   getBreadcrumbs(): Breadcrumb[] {
     return [
       { label: 'Home', url: '/' },
-      { label: 'Market Report', url: '/market-report' },
-      { label: this.parentRegionSlug.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' '), url: `/market-report/${this.parentRegionSlug}` },
-      { label: this.parentZipcodeCode, url: `/market-report/${this.parentRegionSlug}/${this.parentZipcodeCode}` },
+      { label: 'Market Insights', url: '/insights' },
+      { label: this.parentRegionSlug.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' '), url: `/insights/${this.parentRegionSlug}` },
+      { label: this.parentZipcodeCode, url: `/insights/${this.parentRegionSlug}/${this.parentZipcodeCode}` },
       { label: this.name, url: this.getUrl() },
     ];
   }

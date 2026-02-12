@@ -155,7 +155,7 @@ const AboutPage: React.FC = () => {
                   <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
                 </Link>
                 <Link
-                  to="/market-report"
+                  to="/insights"
                   className="border border-[#0C1C2E]/20 text-[#0C1C2E] px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-[#0C1C2E] hover:text-white transition-all text-center"
                 >
                   View Market Reports

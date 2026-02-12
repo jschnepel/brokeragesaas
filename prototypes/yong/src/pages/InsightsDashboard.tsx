@@ -25,6 +25,9 @@ import {
   Award,
   LineChart,
   PieChart,
+  Newspaper,
+  GitCompare,
+  Camera,
 } from 'lucide-react';
 import Footer from '../components/Footer';
 import PageHero from '../components/shared/PageHero';
@@ -1634,7 +1637,92 @@ const InsightsDashboard: React.FC = () => {
             </h2>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Analytics Heatmap */}
+            <Link
+              to="/temp/analytics"
+              className="bg-white p-6 shadow-md hover:shadow-xl transition-all duration-300 group border-l-4 border-[#Bfa67a]"
+            >
+              <Activity size={28} className="text-[#Bfa67a] mb-4" />
+              <h3 className="font-serif text-xl text-[#0C1C2E] mb-2 group-hover:text-[#Bfa67a] transition-colors">
+                Analytics
+              </h3>
+              <p className="text-gray-500 text-sm mb-4">
+                Interactive H3 heatmap with IDX metrics, scatter plots, and community drill-downs.
+              </p>
+              <span className="inline-flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-[#Bfa67a] group-hover:gap-3 transition-all">
+                Explore <ArrowRight size={12} />
+              </span>
+            </Link>
+
+            {/* Market Pulse */}
+            <Link
+              to="/pulse"
+              className="bg-white p-6 shadow-md hover:shadow-xl transition-all duration-300 group border-l-4 border-[#Bfa67a]"
+            >
+              <Newspaper size={28} className="text-[#Bfa67a] mb-4" />
+              <h3 className="font-serif text-xl text-[#0C1C2E] mb-2 group-hover:text-[#Bfa67a] transition-colors">
+                Market Pulse
+              </h3>
+              <p className="text-gray-500 text-sm mb-4">
+                This week's activity feed — new listings, sales, price changes, and expirations.
+              </p>
+              <span className="inline-flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-[#Bfa67a] group-hover:gap-3 transition-all">
+                View Feed <ArrowRight size={12} />
+              </span>
+            </Link>
+
+            {/* Comparative Analysis */}
+            <Link
+              to="/compare"
+              className="bg-white p-6 shadow-md hover:shadow-xl transition-all duration-300 group border-l-4 border-[#Bfa67a]"
+            >
+              <GitCompare size={28} className="text-[#Bfa67a] mb-4" />
+              <h3 className="font-serif text-xl text-[#0C1C2E] mb-2 group-hover:text-[#Bfa67a] transition-colors">
+                Compare
+              </h3>
+              <p className="text-gray-500 text-sm mb-4">
+                Side-by-side scope comparison with radar charts and performance metrics.
+              </p>
+              <span className="inline-flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-[#Bfa67a] group-hover:gap-3 transition-all">
+                Compare <ArrowRight size={12} />
+              </span>
+            </Link>
+
+            {/* Trend Explorer */}
+            <Link
+              to="/trends"
+              className="bg-white p-6 shadow-md hover:shadow-xl transition-all duration-300 group border-l-4 border-[#Bfa67a]"
+            >
+              <LineChart size={28} className="text-[#Bfa67a] mb-4" />
+              <h3 className="font-serif text-xl text-[#0C1C2E] mb-2 group-hover:text-[#Bfa67a] transition-colors">
+                Trend Explorer
+              </h3>
+              <p className="text-gray-500 text-sm mb-4">
+                Time-series deep dive with multi-line charts, seasonality, and period selection.
+              </p>
+              <span className="inline-flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-[#Bfa67a] group-hover:gap-3 transition-all">
+                Explore <ArrowRight size={12} />
+              </span>
+            </Link>
+
+            {/* Market Snapshot */}
+            <Link
+              to="/snapshot"
+              className="bg-white p-6 shadow-md hover:shadow-xl transition-all duration-300 group border-l-4 border-[#Bfa67a]"
+            >
+              <Camera size={28} className="text-[#Bfa67a] mb-4" />
+              <h3 className="font-serif text-xl text-[#0C1C2E] mb-2 group-hover:text-[#Bfa67a] transition-colors">
+                Snapshot
+              </h3>
+              <p className="text-gray-500 text-sm mb-4">
+                Print-ready, single-page market summary — perfect for sharing with clients.
+              </p>
+              <span className="inline-flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-[#Bfa67a] group-hover:gap-3 transition-all">
+                View <ArrowRight size={12} />
+              </span>
+            </Link>
+
             {/* Buyer's Center */}
             <Link
               to="/insights/buyers"
@@ -1669,7 +1757,7 @@ const InsightsDashboard: React.FC = () => {
               </span>
             </Link>
 
-            {/* Market Comparison */}
+            {/* Market Report */}
             <Link
               to="/market-report"
               className="bg-white p-6 shadow-md hover:shadow-xl transition-all duration-300 group border-l-4 border-[#Bfa67a]"
@@ -1679,14 +1767,14 @@ const InsightsDashboard: React.FC = () => {
                 Market Report
               </h3>
               <p className="text-gray-500 text-sm mb-4">
-                Compare regions and communities side-by-side with detailed metrics.
+                Detailed market report with full data breakdowns by region, zip, and community.
               </p>
               <span className="inline-flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-[#Bfa67a] group-hover:gap-3 transition-all">
-                Compare <ArrowRight size={12} />
+                View <ArrowRight size={12} />
               </span>
             </Link>
 
-            {/* Consultation */}
+            {/* Expert Guidance */}
             <Link
               to="/contact"
               className="bg-[#0C1C2E] p-6 shadow-sm hover:shadow-xl transition-all duration-300 group"
