@@ -10,6 +10,7 @@ export interface CommunityListing {
   name: string;
   price: string;
   image: string;
+  zipCode?: string;
 }
 
 export interface RegionListingData {
@@ -30,6 +31,7 @@ export interface SearchResult {
   communityId?: string;
   communityName?: string;
   price?: string;
+  zipCode?: string;
   image: string;
 }
 
@@ -48,16 +50,16 @@ export const REGIONS_DATA: RegionListingData[] = [
     ],
     highlights: ['Guard-Gated', 'Championship Golf', 'Desert Preserve', 'A+ Schools'],
     communities: [
-      { id: 'desert-mountain', name: 'Desert Mountain', price: '$1.5M - $15M+', image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800' },
-      { id: 'silverleaf', name: 'Silverleaf', price: '$3M - $25M+', image: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&q=80&w=800' },
-      { id: 'dc-ranch', name: 'DC Ranch', price: '$800K - $8M+', image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800' },
-      { id: 'estancia', name: 'Estancia', price: '$2M - $12M+', image: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?auto=format&fit=crop&q=80&w=800' },
-      { id: 'whisper-rock', name: 'Whisper Rock', price: '$2M - $10M+', image: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&q=80&w=800' },
-      { id: 'troon-north', name: 'Troon North', price: '$1M - $6M+', image: 'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&q=80&w=800' },
-      { id: 'pinnacle-peak', name: 'Pinnacle Peak', price: '$1.2M - $8M+', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800' },
-      { id: 'terravita', name: 'Terravita', price: '$600K - $3M+', image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&q=80&w=800' },
-      { id: 'legend-trail', name: 'Legend Trail', price: '$500K - $2M+', image: 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800' },
-      { id: 'winfield', name: 'Winfield', price: '$800K - $4M+', image: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&q=80&w=800' },
+      { id: 'desert-mountain', name: 'Desert Mountain', price: '$1.5M - $15M+', zipCode: '85262', image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800' },
+      { id: 'silverleaf', name: 'Silverleaf', price: '$3M - $25M+', zipCode: '85255', image: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&q=80&w=800' },
+      { id: 'dc-ranch', name: 'DC Ranch', price: '$800K - $8M+', zipCode: '85255', image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800' },
+      { id: 'estancia', name: 'Estancia', price: '$2M - $12M+', zipCode: '85262', image: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?auto=format&fit=crop&q=80&w=800' },
+      { id: 'whisper-rock', name: 'Whisper Rock', price: '$2M - $10M+', zipCode: '85262', image: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&q=80&w=800' },
+      { id: 'troon-north', name: 'Troon North', price: '$1M - $6M+', zipCode: '85262', image: 'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&q=80&w=800' },
+      { id: 'pinnacle-peak', name: 'Pinnacle Peak', price: '$1.2M - $8M+', zipCode: '85255', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800' },
+      { id: 'terravita', name: 'Terravita', price: '$600K - $3M+', zipCode: '85266', image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&q=80&w=800' },
+      { id: 'legend-trail', name: 'Legend Trail', price: '$500K - $2M+', zipCode: '85262', image: 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800' },
+      { id: 'winfield', name: 'Winfield', price: '$800K - $4M+', zipCode: '85255', image: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&q=80&w=800' },
     ],
   },
   {
@@ -74,12 +76,12 @@ export const REGIONS_DATA: RegionListingData[] = [
     ],
     highlights: ['Estate Living', 'Mountain Views', 'Ultra Privacy', 'Resort Access'],
     communities: [
-      { id: 'paradise-valley-estates', name: 'Paradise Valley Estates', price: '$2M - $30M+', image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&q=80&w=800' },
-      { id: 'clearwater-hills', name: 'Clearwater Hills', price: '$3M - $15M+', image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&q=80&w=800' },
-      { id: 'mummy-mountain', name: 'Mummy Mountain', price: '$4M - $20M+', image: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&q=80&w=800' },
-      { id: 'camelback-country-estates', name: 'Camelback Country Estates', price: '$2.5M - $12M+', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800' },
-      { id: 'paradise-reserve', name: 'Paradise Reserve', price: '$3M - $18M+', image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800' },
-      { id: 'cheney-estates', name: 'Cheney Estates', price: '$2M - $10M+', image: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&q=80&w=800' },
+      { id: 'paradise-valley-estates', name: 'Paradise Valley Estates', price: '$2M - $30M+', zipCode: '85253', image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&q=80&w=800' },
+      { id: 'clearwater-hills', name: 'Clearwater Hills', price: '$3M - $15M+', zipCode: '85253', image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&q=80&w=800' },
+      { id: 'mummy-mountain', name: 'Mummy Mountain', price: '$4M - $20M+', zipCode: '85253', image: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&q=80&w=800' },
+      { id: 'camelback-country-estates', name: 'Camelback Country Estates', price: '$2.5M - $12M+', zipCode: '85253', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800' },
+      { id: 'paradise-reserve', name: 'Paradise Reserve', price: '$3M - $18M+', zipCode: '85253', image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800' },
+      { id: 'cheney-estates', name: 'Cheney Estates', price: '$2M - $10M+', zipCode: '85253', image: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&q=80&w=800' },
     ],
   },
   {
@@ -96,12 +98,12 @@ export const REGIONS_DATA: RegionListingData[] = [
     ],
     highlights: ['Horse Properties', 'Western Culture', 'Large Lots', 'Dark Skies'],
     communities: [
-      { id: 'carefree', name: 'Carefree', price: '$800K - $8M+', image: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&q=80&w=800' },
-      { id: 'cave-creek', name: 'Cave Creek', price: '$600K - $5M+', image: 'https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?auto=format&fit=crop&q=80&w=800' },
-      { id: 'the-boulders', name: 'The Boulders', price: '$1M - $6M+', image: 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800' },
-      { id: 'rancho-manana', name: 'Rancho Mañana', price: '$700K - $3M+', image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&q=80&w=800' },
-      { id: 'black-mountain', name: 'Black Mountain', price: '$800K - $4M+', image: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&q=80&w=800' },
-      { id: 'lone-mountain', name: 'Lone Mountain', price: '$600K - $3M+', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800' },
+      { id: 'carefree', name: 'Carefree', price: '$800K - $8M+', zipCode: '85377', image: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&q=80&w=800' },
+      { id: 'cave-creek', name: 'Cave Creek', price: '$600K - $5M+', zipCode: '85331', image: 'https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?auto=format&fit=crop&q=80&w=800' },
+      { id: 'the-boulders', name: 'The Boulders', price: '$1M - $6M+', zipCode: '85377', image: 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800' },
+      { id: 'rancho-manana', name: 'Rancho Mañana', price: '$700K - $3M+', zipCode: '85331', image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&q=80&w=800' },
+      { id: 'black-mountain', name: 'Black Mountain', price: '$800K - $4M+', zipCode: '85331', image: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&q=80&w=800' },
+      { id: 'lone-mountain', name: 'Lone Mountain', price: '$600K - $3M+', zipCode: '85331', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800' },
     ],
   },
   {
@@ -118,12 +120,12 @@ export const REGIONS_DATA: RegionListingData[] = [
     ],
     highlights: ['Walkable', 'Arts & Culture', 'Nightlife', 'Shopping'],
     communities: [
-      { id: 'old-town', name: 'Old Town Scottsdale', price: '$300K - $5M+', image: 'https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?auto=format&fit=crop&q=80&w=800' },
-      { id: 'kierland', name: 'Kierland', price: '$400K - $3M+', image: 'https://images.unsplash.com/photo-1600607687644-c7171b42498f?auto=format&fit=crop&q=80&w=800' },
-      { id: 'gainey-ranch', name: 'Gainey Ranch', price: '$1M - $5M+', image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&q=80&w=800' },
-      { id: 'mccormick-ranch', name: 'McCormick Ranch', price: '$500K - $3M+', image: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&q=80&w=800' },
-      { id: 'stonegate', name: 'Stonegate', price: '$600K - $2M+', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800' },
-      { id: 'grayhawk', name: 'Grayhawk', price: '$500K - $4M+', image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800' },
+      { id: 'old-town', name: 'Old Town Scottsdale', price: '$300K - $5M+', zipCode: '85251', image: 'https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?auto=format&fit=crop&q=80&w=800' },
+      { id: 'kierland', name: 'Kierland', price: '$400K - $3M+', zipCode: '85254', image: 'https://images.unsplash.com/photo-1600607687644-c7171b42498f?auto=format&fit=crop&q=80&w=800' },
+      { id: 'gainey-ranch', name: 'Gainey Ranch', price: '$1M - $5M+', zipCode: '85258', image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&q=80&w=800' },
+      { id: 'mccormick-ranch', name: 'McCormick Ranch', price: '$500K - $3M+', zipCode: '85258', image: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&q=80&w=800' },
+      { id: 'stonegate', name: 'Stonegate', price: '$600K - $2M+', zipCode: '85255', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800' },
+      { id: 'grayhawk', name: 'Grayhawk', price: '$500K - $4M+', zipCode: '85255', image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800' },
     ],
   },
   {
@@ -140,10 +142,10 @@ export const REGIONS_DATA: RegionListingData[] = [
     ],
     highlights: ['Urban Living', 'Nightlife', 'Investment Potential', 'Transit Access'],
     communities: [
-      { id: 'papago-park', name: 'Papago Park', price: '$400K - $1.5M+', image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800' },
-      { id: 'old-town-south', name: 'Old Town South', price: '$350K - $2M+', image: 'https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?auto=format&fit=crop&q=80&w=800' },
-      { id: 'vista-del-camino', name: 'Vista del Camino', price: '$300K - $800K+', image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&q=80&w=800' },
-      { id: 'continental-golf', name: 'Continental Golf', price: '$400K - $1.2M+', image: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&q=80&w=800' },
+      { id: 'papago-park', name: 'Papago Park', price: '$400K - $1.5M+', zipCode: '85257', image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800' },
+      { id: 'old-town-south', name: 'Old Town South', price: '$350K - $2M+', zipCode: '85251', image: 'https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?auto=format&fit=crop&q=80&w=800' },
+      { id: 'vista-del-camino', name: 'Vista del Camino', price: '$300K - $800K+', zipCode: '85257', image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&q=80&w=800' },
+      { id: 'continental-golf', name: 'Continental Golf', price: '$400K - $1.2M+', zipCode: '85257', image: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&q=80&w=800' },
     ],
   },
   {
@@ -160,10 +162,10 @@ export const REGIONS_DATA: RegionListingData[] = [
     ],
     highlights: ['Historic Homes', 'Camelback Mountain', 'Top Schools', 'Walkable'],
     communities: [
-      { id: 'arcadia-proper', name: 'Arcadia Proper', price: '$1.5M - $10M+', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800' },
-      { id: 'arcadia-lite', name: 'Arcadia Lite', price: '$800K - $3M+', image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&q=80&w=800' },
-      { id: 'arcadia-estates', name: 'Arcadia Estates', price: '$2M - $8M+', image: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&q=80&w=800' },
-      { id: 'camelback-corridor', name: 'Camelback Corridor', price: '$1M - $5M+', image: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&q=80&w=800' },
+      { id: 'arcadia-proper', name: 'Arcadia Proper', price: '$1.5M - $10M+', zipCode: '85018', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800' },
+      { id: 'arcadia-lite', name: 'Arcadia Lite', price: '$800K - $3M+', zipCode: '85018', image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&q=80&w=800' },
+      { id: 'arcadia-estates', name: 'Arcadia Estates', price: '$2M - $8M+', zipCode: '85018', image: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&q=80&w=800' },
+      { id: 'camelback-corridor', name: 'Camelback Corridor', price: '$1M - $5M+', zipCode: '85016', image: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&q=80&w=800' },
     ],
   },
   {
@@ -180,11 +182,11 @@ export const REGIONS_DATA: RegionListingData[] = [
     ],
     highlights: ['Mountain Views', 'Famous Fountain', 'Golf Communities', 'Dark Sky'],
     communities: [
-      { id: 'fountain-hills', name: 'Fountain Hills', price: '$500K - $3M+', image: 'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&q=80&w=800' },
-      { id: 'eagle-mountain', name: 'Eagle Mountain', price: '$600K - $2.5M+', image: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&q=80&w=800' },
-      { id: 'firerock', name: 'FireRock', price: '$800K - $4M+', image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800' },
-      { id: 'sunridge-canyon', name: 'SunRidge Canyon', price: '$500K - $2M+', image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&q=80&w=800' },
-      { id: 'copperwynd', name: 'CopperWynd', price: '$700K - $3M+', image: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&q=80&w=800' },
+      { id: 'fountain-hills', name: 'Fountain Hills', price: '$500K - $3M+', zipCode: '85268', image: 'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&q=80&w=800' },
+      { id: 'eagle-mountain', name: 'Eagle Mountain', price: '$600K - $2.5M+', zipCode: '85268', image: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&q=80&w=800' },
+      { id: 'firerock', name: 'FireRock', price: '$800K - $4M+', zipCode: '85268', image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800' },
+      { id: 'sunridge-canyon', name: 'SunRidge Canyon', price: '$500K - $2M+', zipCode: '85268', image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&q=80&w=800' },
+      { id: 'copperwynd', name: 'CopperWynd', price: '$700K - $3M+', zipCode: '85268', image: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&q=80&w=800' },
     ],
   },
   {
@@ -201,9 +203,9 @@ export const REGIONS_DATA: RegionListingData[] = [
     ],
     highlights: ['Horse Properties', 'Golf Communities', 'Mountain Views', 'Dark Skies'],
     communities: [
-      { id: 'rio-verde', name: 'Rio Verde', price: '$600K - $3M+', image: 'https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?auto=format&fit=crop&q=80&w=800' },
-      { id: 'rio-verde-foothills', name: 'Rio Verde Foothills', price: '$500K - $2M+', image: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&q=80&w=800' },
-      { id: 'tonto-verde', name: 'Tonto Verde', price: '$400K - $1.5M+', image: 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800' },
+      { id: 'rio-verde', name: 'Rio Verde', price: '$600K - $3M+', zipCode: '85263', image: 'https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?auto=format&fit=crop&q=80&w=800' },
+      { id: 'rio-verde-foothills', name: 'Rio Verde Foothills', price: '$500K - $2M+', zipCode: '85263', image: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&q=80&w=800' },
+      { id: 'tonto-verde', name: 'Tonto Verde', price: '$400K - $1.5M+', zipCode: '85263', image: 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800' },
     ],
   },
 ];

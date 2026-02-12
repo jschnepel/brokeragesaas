@@ -1,7 +1,7 @@
 /**
  * H3 Hexagonal Heatmap Section — containerized layout.
  * Header: breadcrumb (left) + metric switcher (right).
- * Body: MapContainer + HexagonLayer (left) + HexDetailPanel (right).
+ * Body: Full-bleed map background with HexDetailPanel overlaid on left.
  */
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
@@ -30,16 +30,29 @@ interface H3HeatmapSectionProps {
   defaultMetric: HeatmapMetricId;
 }
 
-// Fit map tightly to hex cell bounds on mount + data change
+// Fit map so hexagons are centered on the right (visible) half,
+// accounting for the panel overlay covering the left 50%.
 const MapBoundsController: React.FC<{
   bounds: [[number, number], [number, number]] | null;
 }> = ({ bounds }) => {
   const map = useMap();
   useEffect(() => {
     if (!bounds) return;
-    try {
-      map.fitBounds(bounds, { padding: [0, 0], maxZoom: 15, animate: false });
-    } catch { /* single-point scopes */ }
+    const fit = () => {
+      try {
+        const container = map.getContainer();
+        const panelWidth = container.offsetWidth * 0.5; // left panel overlay
+        map.fitBounds(bounds, {
+          paddingTopLeft: [panelWidth, 20],
+          paddingBottomRight: [20, 20],
+          maxZoom: 15,
+          animate: false,
+        });
+      } catch { /* single-point scopes */ }
+    };
+    fit();
+    map.on('resize', fit);
+    return () => { map.off('resize', fit); };
   }, [bounds, map]);
   return null;
 };
@@ -160,10 +173,10 @@ const H3HeatmapSection: React.FC<H3HeatmapSectionProps> = ({
         <MapMetricSwitcher current={metric} onChange={setMetric} />
       </div>
 
-      {/* ── Body: Map + Panel ─────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2">
-        {/* Left: Map */}
-        <div className="relative aspect-square">
+      {/* ── Body: Full-bleed map with panel overlay ──── */}
+      <div className="relative aspect-square lg:aspect-[2/1]">
+        {/* Map fills entire background */}
+        <div className="absolute inset-0">
           <MapContainer
             center={HEATMAP_CENTER}
             zoom={12}
@@ -190,8 +203,8 @@ const H3HeatmapSection: React.FC<H3HeatmapSectionProps> = ({
           <HeatmapLegend metricDef={metricDef} min={min} max={max} />
         </div>
 
-        {/* Right: Detail Panel */}
-        <div className="hidden lg:flex flex-col aspect-square overflow-y-auto">
+        {/* Panel overlays on the left */}
+        <div className="hidden lg:flex absolute inset-y-0 left-0 w-1/2 flex-col overflow-y-auto z-[500] pointer-events-auto">
           <HexDetailPanel
             hoveredCell={hoveredCell}
             metric={metric}

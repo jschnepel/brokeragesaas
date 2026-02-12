@@ -16,7 +16,7 @@ const HeatmapLegend: React.FC<HeatmapLegendProps> = ({ metricDef, min, max }) =>
   const gradient = getGradientCss(metricDef.colorScale);
 
   return (
-    <div className="absolute bottom-3 left-3 z-[1000] bg-[#0C1C2E]/90 backdrop-blur border border-white/10 px-3 py-2.5 pointer-events-auto">
+    <div className="absolute bottom-3 right-3 z-[1000] bg-[#0C1C2E]/90 backdrop-blur border border-white/10 px-3 py-2.5 pointer-events-auto">
       <span className="text-[8px] uppercase tracking-widest text-[#Bfa67a] font-bold block mb-1.5">
         {metricDef.label}
       </span>
