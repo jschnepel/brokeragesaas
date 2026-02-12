@@ -423,52 +423,32 @@ const CommunityPanel: React.FC<{
 
         {/* ── PROFILE TAB ── */}
         {tab === 'profile' && (
-          <div className="p-3 space-y-3">
+          <div className="space-y-3">
             {neighborhood ? (
               <>
-                {/* Tagline */}
+                {/* Hero image */}
+                <div className="relative h-24 w-full overflow-hidden">
+                  <img
+                    src={neighborhood.image}
+                    alt={neighborhood.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0C1C2E]/70 to-transparent" />
+                  <span className="absolute bottom-2 left-3 text-[10px] uppercase tracking-[0.2em] font-bold text-white/90">
+                    {neighborhood.name}
+                  </span>
+                </div>
+
+                {/* Bio */}
+                <div className="px-3">
                 <p className="text-sm font-serif text-[#0C1C2E] leading-snug">
                   {neighborhood.tagline}
                 </p>
-
-                {/* Description */}
                 <p className="text-[11px] text-gray-500 leading-relaxed">
                   {neighborhood.description}
                 </p>
 
-                {/* Features */}
-                {neighborhood.features.length > 0 && (
-                  <div>
-                    <span className="text-[7px] uppercase tracking-widest text-gray-400 font-bold block mb-1.5">
-                      Features
-                    </span>
-                    <div className="flex flex-wrap gap-1">
-                      {neighborhood.features.map(f => (
-                        <span key={f} className="text-[9px] font-serif px-2 py-0.5 bg-[#Bfa67a]/10 text-[#0C1C2E] border border-[#Bfa67a]/20 rounded-sm">
-                          {f}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Amenities */}
-                {neighborhood.amenities.length > 0 && (
-                  <div>
-                    <span className="text-[7px] uppercase tracking-widest text-gray-400 font-bold block mb-1.5">
-                      Amenities
-                    </span>
-                    <div className="flex flex-wrap gap-1">
-                      {neighborhood.amenities.map(a => (
-                        <span key={a} className="text-[9px] font-serif px-2 py-0.5 bg-gray-50 text-gray-600 border border-gray-100 rounded-sm">
-                          {a}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Quick stats from neighborhood data */}
+                {/* Market Snapshot */}
                 <div>
                   <span className="text-[7px] uppercase tracking-widest text-gray-400 font-bold block mb-1.5">
                     Market Snapshot
@@ -490,9 +470,44 @@ const CommunityPanel: React.FC<{
                     ))}
                   </div>
                 </div>
+
+                {/* Features & Amenities — two-column row */}
+                {(neighborhood.features.length > 0 || neighborhood.amenities.length > 0) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {neighborhood.features.length > 0 && (
+                      <div>
+                        <span className="text-[7px] uppercase tracking-widest text-gray-400 font-bold block mb-1.5">
+                          Features
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {neighborhood.features.map(f => (
+                            <span key={f} className="text-[9px] font-serif px-2 py-0.5 bg-[#Bfa67a]/10 text-[#0C1C2E] border border-[#Bfa67a]/20 rounded-sm">
+                              {f}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {neighborhood.amenities.length > 0 && (
+                      <div>
+                        <span className="text-[7px] uppercase tracking-widest text-gray-400 font-bold block mb-1.5">
+                          Amenities
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {neighborhood.amenities.map(a => (
+                            <span key={a} className="text-[9px] font-serif px-2 py-0.5 bg-gray-50 text-gray-600 border border-gray-100 rounded-sm">
+                              {a}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                </div>
               </>
             ) : (
-              <p className="text-[11px] text-gray-400 italic">
+              <p className="text-[11px] text-gray-400 italic px-3">
                 Community profile not available.
               </p>
             )}
@@ -631,7 +646,7 @@ const HexDetailPanel: React.FC<HexDetailPanelProps> = ({
   const topVal = top10[0]?.metrics[metric] ?? 1;
 
   return (
-    <div className="flex flex-col h-full bg-gray-50/50">
+    <div className="flex flex-col h-full">
 
       {/* ── Navy Header (fixed height — always renders stats row) ── */}
       <div className="bg-[#0C1C2E] p-4 shrink-0" style={{ minHeight: 88 }}>
