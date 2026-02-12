@@ -60,9 +60,11 @@ const Communities: React.FC = () => {
         });
       }
 
-      // Check communities
+      // Check communities (name or zip code)
       region.communities.forEach(community => {
-        if (fuzzyMatch(community.name, searchQuery)) {
+        const nameMatch = fuzzyMatch(community.name, searchQuery);
+        const zipMatch = community.zipCode?.startsWith(searchQuery.trim()) ?? false;
+        if (nameMatch || zipMatch) {
           results.push({
             type: 'community',
             regionId: region.id,
@@ -70,6 +72,7 @@ const Communities: React.FC = () => {
             communityId: community.id,
             communityName: community.name,
             price: community.price,
+            zipCode: community.zipCode,
             image: community.image,
           });
         }
@@ -108,7 +111,7 @@ const Communities: React.FC = () => {
               </div>
               <input
                 type="text"
-                placeholder="Search by region or community name..."
+                placeholder="Search by region, community, or zip code..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setIsSearchFocused(true)}
@@ -165,7 +168,7 @@ const Communities: React.FC = () => {
                       {result.type === 'community' && (
                         <p className="text-gray-400 text-[11px] truncate flex items-center gap-2">
                           <MapPin size={10} className="text-[#Bfa67a]" />
-                          {result.regionName} <span className="text-[#Bfa67a]">•</span> {result.price}
+                          {result.regionName} <span className="text-[#Bfa67a]">•</span> {result.zipCode && <>{result.zipCode} <span className="text-[#Bfa67a]">•</span></>} {result.price}
                         </p>
                       )}
                     </div>
@@ -184,7 +187,7 @@ const Communities: React.FC = () => {
                 <div className="p-8 text-center">
                   <Search size={32} className="mx-auto mb-3 text-gray-300" />
                   <p className="text-[#0C1C2E] font-serif text-lg mb-1">No Results Found</p>
-                  <p className="text-gray-400 text-sm">No regions or communities match "{searchQuery}"</p>
+                  <p className="text-gray-400 text-sm">No regions, communities, or zip codes match "{searchQuery}"</p>
                 </div>
               </div>
             )}

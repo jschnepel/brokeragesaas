@@ -24,6 +24,10 @@ import {
   PieChart,
   Activity,
   Scale,
+  LineChart,
+  GitCompare,
+  Newspaper,
+  Camera,
 } from 'lucide-react';
 
 interface NavigationProps {
@@ -406,27 +410,34 @@ const Navigation: React.FC<NavigationProps> = ({ variant = 'transparent' }) => {
                           <BarChart3 size={12} className="text-[#Bfa67a]" />
                           Market Intelligence
                         </span>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-4 gap-2">
                           <Link
-                            to="/insights"
+                            to="/pulse"
                             className="flex items-center gap-2 p-2.5 bg-gray-50 hover:bg-[#Bfa67a]/10 transition-colors group rounded"
                           >
-                            <Scale size={15} className="text-[#Bfa67a]" />
-                            <span className="text-[#0C1C2E] text-[12px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>Market Comparison</span>
+                            <Newspaper size={15} className="text-[#Bfa67a]" />
+                            <span className="text-[#0C1C2E] text-[12px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>Market Pulse</span>
                           </Link>
                           <Link
-                            to="/insights#trends"
+                            to="/compare"
                             className="flex items-center gap-2 p-2.5 bg-gray-50 hover:bg-[#Bfa67a]/10 transition-colors group rounded"
                           >
-                            <TrendingUp size={15} className="text-[#Bfa67a]" />
-                            <span className="text-[#0C1C2E] text-[12px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>Price Trends</span>
+                            <GitCompare size={15} className="text-[#Bfa67a]" />
+                            <span className="text-[#0C1C2E] text-[12px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>Compare</span>
                           </Link>
                           <Link
-                            to="/insights#reports"
+                            to="/trends"
                             className="flex items-center gap-2 p-2.5 bg-gray-50 hover:bg-[#Bfa67a]/10 transition-colors group rounded"
                           >
-                            <FileText size={15} className="text-[#Bfa67a]" />
-                            <span className="text-[#0C1C2E] text-[12px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>Monthly Reports</span>
+                            <LineChart size={15} className="text-[#Bfa67a]" />
+                            <span className="text-[#0C1C2E] text-[12px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>Trend Explorer</span>
+                          </Link>
+                          <Link
+                            to="/snapshot"
+                            className="flex items-center gap-2 p-2.5 bg-gray-50 hover:bg-[#Bfa67a]/10 transition-colors group rounded"
+                          >
+                            <Camera size={15} className="text-[#Bfa67a]" />
+                            <span className="text-[#0C1C2E] text-[12px] group-hover:text-[#Bfa67a] transition-colors" style={{ fontFamily: 'var(--font-serif)' }}>Snapshot</span>
                           </Link>
                         </div>
                       </div>
@@ -672,13 +683,21 @@ const Navigation: React.FC<NavigationProps> = ({ variant = 'transparent' }) => {
                       Net Proceeds Calculator
                     </Link>
                     <span className="text-[9px] uppercase tracking-[0.2em] text-gray-500 font-bold pt-2 block">Market Intelligence</span>
-                    <Link to="/insights" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
-                      <Scale size={16} className="text-gray-500" />
-                      Market Comparison Tool
+                    <Link to="/pulse" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
+                      <Newspaper size={16} className="text-gray-500" />
+                      Market Pulse
                     </Link>
-                    <Link to="/insights#trends" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
-                      <TrendingUp size={16} className="text-gray-500" />
-                      Price Trends
+                    <Link to="/compare" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
+                      <GitCompare size={16} className="text-gray-500" />
+                      Compare
+                    </Link>
+                    <Link to="/trends" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
+                      <LineChart size={16} className="text-gray-500" />
+                      Trend Explorer
+                    </Link>
+                    <Link to="/snapshot" className="flex items-center gap-3 py-3 text-white/80 hover:text-[#Bfa67a] transition-colors">
+                      <Camera size={16} className="text-gray-500" />
+                      Snapshot
                     </Link>
                   </div>
                 )}

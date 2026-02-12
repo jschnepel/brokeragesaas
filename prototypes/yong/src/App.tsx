@@ -22,11 +22,23 @@ const SellersCenter = lazy(() => import('./pages/SellersCenter'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 
-// Insights placeholder (templates + components TBD)
-const InsightsPlaceholder = lazy(() => import('./pages/InsightsPlaceholder'));
+// Insights dashboard (restored from main)
+const InsightsDashboard = lazy(() => import('./pages/InsightsDashboard'));
+
+// Market report pages (restored from main)
+const MarketOverviewPage = lazy(() => import('./pages/market-report/MarketOverviewPage'));
+const RegionReportPage = lazy(() => import('./pages/market-report/RegionReportPage'));
+const ZipcodeReportPage = lazy(() => import('./pages/market-report/ZipcodeReportPage'));
+const CommunityReportPage = lazy(() => import('./pages/market-report/CommunityReportPage'));
 
 // Temp analytics sandbox
 const TempAnalytics = lazy(() => import('./pages/TempAnalytics'));
+
+// Scoped analytics pages
+const MarketPulse = lazy(() => import('./pages/MarketPulse'));
+const ComparativeAnalysis = lazy(() => import('./pages/ComparativeAnalysis'));
+const TrendExplorer = lazy(() => import('./pages/TrendExplorer'));
+const MarketSnapshot = lazy(() => import('./pages/MarketSnapshot'));
 
 // --- Redirect helpers ---
 
@@ -49,23 +61,6 @@ const CommunityIdRedirect = () => {
   return <Navigate to="/communities" replace />;
 };
 
-// Market report → insights param-preserving redirects
-const MarketReportRedirect = () => <Navigate to="/insights" replace />;
-
-const MarketReportRegionRedirect = () => {
-  const { region } = useParams();
-  return <Navigate to={`/insights/${region}`} replace />;
-};
-
-const MarketReportZipcodeRedirect = () => {
-  const { region, zipcode } = useParams();
-  return <Navigate to={`/insights/${region}/${zipcode}`} replace />;
-};
-
-const MarketReportCommunityRedirect = () => {
-  const { region, zipcode, community } = useParams();
-  return <Navigate to={`/insights/${region}/${zipcode}/${community}`} replace />;
-};
 
 // Minimal loading state that doesn't flash
 const PageLoader = () => (
@@ -97,20 +92,41 @@ function App() {
           <Route path="/temp/analytics/:region/:zipcode" element={<TempAnalytics />} />
           <Route path="/temp/analytics/:region/:zipcode/:community" element={<TempAnalytics />} />
 
-          {/* Unified Insights Dashboard — all scope levels */}
-          <Route path="/insights" element={<InsightsPlaceholder />} />
+          {/* Insights Dashboard */}
+          <Route path="/insights" element={<InsightsDashboard />} />
           <Route path="/insights/buyers" element={<BuyersCenter />} />
           <Route path="/insights/sellers" element={<SellersCenter />} />
-          <Route path="/insights/:region" element={<InsightsPlaceholder />} />
-          <Route path="/insights/:region/:zipcode" element={<InsightsPlaceholder />} />
-          <Route path="/insights/:region/:zipcode/:community" element={<InsightsPlaceholder />} />
 
-          {/* Legacy redirects: /market-report/* → /insights/* */}
-          <Route path="/report" element={<Navigate to="/insights" replace />} />
-          <Route path="/market-report" element={<MarketReportRedirect />} />
-          <Route path="/market-report/:region" element={<MarketReportRegionRedirect />} />
-          <Route path="/market-report/:region/:zipcode" element={<MarketReportZipcodeRedirect />} />
-          <Route path="/market-report/:region/:zipcode/:community" element={<MarketReportCommunityRedirect />} />
+          {/* Market Pulse — activity feed */}
+          <Route path="/pulse" element={<MarketPulse />} />
+          <Route path="/pulse/:region" element={<MarketPulse />} />
+          <Route path="/pulse/:region/:zipcode" element={<MarketPulse />} />
+          <Route path="/pulse/:region/:zipcode/:community" element={<MarketPulse />} />
+
+          {/* Comparative Analysis — side-by-side comparison */}
+          <Route path="/compare" element={<ComparativeAnalysis />} />
+          <Route path="/compare/:region" element={<ComparativeAnalysis />} />
+          <Route path="/compare/:region/:zipcode" element={<ComparativeAnalysis />} />
+          <Route path="/compare/:region/:zipcode/:community" element={<ComparativeAnalysis />} />
+
+          {/* Trend Explorer — time-series deep dive */}
+          <Route path="/trends" element={<TrendExplorer />} />
+          <Route path="/trends/:region" element={<TrendExplorer />} />
+          <Route path="/trends/:region/:zipcode" element={<TrendExplorer />} />
+          <Route path="/trends/:region/:zipcode/:community" element={<TrendExplorer />} />
+
+          {/* Market Snapshot — print/share summary */}
+          <Route path="/snapshot" element={<MarketSnapshot />} />
+          <Route path="/snapshot/:region" element={<MarketSnapshot />} />
+          <Route path="/snapshot/:region/:zipcode" element={<MarketSnapshot />} />
+          <Route path="/snapshot/:region/:zipcode/:community" element={<MarketSnapshot />} />
+
+          {/* Market Report pages */}
+          <Route path="/report" element={<Navigate to="/market-report" replace />} />
+          <Route path="/market-report" element={<MarketOverviewPage />} />
+          <Route path="/market-report/:region" element={<RegionReportPage />} />
+          <Route path="/market-report/:region/:zipcode" element={<ZipcodeReportPage />} />
+          <Route path="/market-report/:region/:zipcode/:community" element={<CommunityReportPage />} />
 
           <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:id" element={<BlogPost />} />

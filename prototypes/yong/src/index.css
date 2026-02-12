@@ -127,6 +127,20 @@
   animation: fadeInUp 0.8s ease-out forwards;
 }
 
+/* Print styles for Snapshot page */
+@media print {
+  nav, footer, .print\:hidden {
+    display: none !important;
+  }
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .min-h-screen {
+    min-height: auto;
+  }
+}
+
 /* Selection styling */
 ::selection {
   background-color: #0C1C2E;

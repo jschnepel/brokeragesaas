@@ -144,6 +144,7 @@ const CommunityPage: React.FC = () => {
   const [activeMapTab, setActiveMapTab] = useState<'listings' | 'restaurants' | 'hiking' | 'clubs'>('listings');
   const [selectedMarker, setSelectedMarker] = useState<number | null>(null);
   const [selectedSparkListing, setSelectedSparkListing] = useState<string | null>(null);
+  const [narrativeTab, setNarrativeTab] = useState(0);
 
   const community = communityId ? getCommunityById(communityId) : undefined;
   const exploreData = communityId && EXPLORE_DATA[communityId as keyof typeof EXPLORE_DATA] ? EXPLORE_DATA[communityId as keyof typeof EXPLORE_DATA] : null;
@@ -275,13 +276,84 @@ const CommunityPage: React.FC = () => {
               {community.tagline} <span className="italic text-gray-400">— {community.city}</span>
             </h2>
 
-            <div className="prose prose-lg text-gray-500 font-light leading-relaxed mb-8 max-w-none">
-              {community.narrative.split('\n\n').map((paragraph, i) => (
-                <p key={i} className={i === 0 ? "first-letter:text-5xl first-letter:font-serif first-letter:text-[#0C1C2E] first-letter:mr-3 first-letter:float-left first-letter:leading-none" : "mt-6"}>
-                  {paragraph}
-                </p>
-              ))}
-            </div>
+            {(() => {
+              const paragraphs = community.narrative.split('\n\n');
+
+              // Short narratives: render inline, no tabs
+              if (paragraphs.length <= 2) {
+                return (
+                  <div className="text-gray-500 font-light leading-relaxed text-[16px] mb-8">
+                    {paragraphs.map((p, pi) => (
+                      <p key={pi} className={pi === 0 ? 'first-letter:text-5xl first-letter:font-serif first-letter:text-[#0C1C2E] first-letter:mr-3 first-letter:float-left first-letter:leading-none' : 'mt-6'}>
+                        {p}
+                      </p>
+                    ))}
+                  </div>
+                );
+              }
+
+              // Lead paragraph always visible, remaining split into tabs
+              const lead = paragraphs[0];
+              const rest = paragraphs.slice(1);
+              const chunkSize = Math.max(1, Math.ceil(rest.length / 3));
+              const TAB_LABELS = ['Heritage', 'Lifestyle', 'Residences'];
+              const tabs = [];
+              for (let t = 0; t < 3 && t * chunkSize < rest.length; t++) {
+                tabs.push({
+                  label: TAB_LABELS[t],
+                  paras: rest.slice(t * chunkSize, (t + 1) * chunkSize),
+                });
+              }
+
+              return (
+                <div className="mb-8">
+                  {/* Lead paragraph — always visible */}
+                  <p className="text-gray-500 font-light leading-relaxed text-[16px] first-letter:text-5xl first-letter:font-serif first-letter:text-[#0C1C2E] first-letter:mr-3 first-letter:float-left first-letter:leading-none mb-8">
+                    {lead}
+                  </p>
+
+                  {/* Tab navigation */}
+                  <div className="inline-flex items-center mb-6">
+                    {tabs.map((tab, ti, arr) => (
+                      <div key={ti} className="flex items-center">
+                        <button
+                          onClick={() => setNarrativeTab(ti)}
+                          className={`px-4 py-2 transition-all relative ${
+                            narrativeTab === ti
+                              ? 'text-[#0C1C2E]'
+                              : 'text-[#0C1C2E]/40 hover:text-[#0C1C2E]/70'
+                          }`}
+                        >
+                          <span className={`font-serif text-sm tracking-wide ${narrativeTab === ti ? 'italic' : ''}`}>
+                            {tab.label}
+                          </span>
+                          {narrativeTab === ti && (
+                            <span className="absolute bottom-0 left-4 right-4 h-[1px] bg-[#Bfa67a]" />
+                          )}
+                        </button>
+                        {ti < arr.length - 1 && (
+                          <span className="text-[#0C1C2E]/20 text-xs mx-1 font-light">|</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Tab panels — ALL rendered in DOM for SEO, shown/hidden via CSS */}
+                  {tabs.map((tab, ti) => (
+                    <div
+                      key={ti}
+                      className={narrativeTab === ti ? 'block' : 'hidden'}
+                    >
+                      <div className="text-gray-500 font-light leading-relaxed text-[16px]">
+                        {tab.paras.map((p, pi) => (
+                          <p key={pi} className={pi > 0 ? 'mt-6' : ''}>{p}</p>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* Features */}
             <div className="flex flex-wrap gap-3 mb-8">
