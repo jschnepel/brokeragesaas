@@ -12,10 +12,104 @@ const AMENITY_TAB_MAP: Record<string, { key: string; label: string; desc: string
   'spa': { key: 'fitness', label: 'Fitness', desc: 'Health & wellness', markerColor: '#4A90D9' },
   'pool': { key: 'fitness', label: 'Fitness', desc: 'Health & wellness', markerColor: '#4A90D9' },
   'tennis': { key: 'fitness', label: 'Fitness', desc: 'Health & wellness', markerColor: '#4A90D9' },
-  'clubhouse': { key: 'dining', label: 'Dining', desc: 'Fine dining & casual', markerColor: '#E07A5F' },
+  'clubhouse': { key: 'fitness', label: 'Fitness', desc: 'Health & wellness', markerColor: '#4A90D9' },
   'shopping': { key: 'shopping', label: 'Shopping', desc: 'Retail & boutiques', markerColor: '#9B59B6' },
   'park': { key: 'parks', label: 'Parks', desc: 'Parks & recreation', markerColor: '#27AE60' },
 };
+
+// ── Fine Dining filtering constants ──
+
+const DINING_EXCLUDE = new Set([
+  'sports_club', 'association_or_organization', 'golf_course', 'shopping_mall',
+  'hotel', 'resort_hotel', 'night_club', 'hookah_bar', 'sports_bar', 'pub',
+  'cocktail_bar', 'bar', 'wine_bar', 'pizza_restaurant', 'pizza_delivery',
+  'fast_food_restaurant', 'diner', 'breakfast_restaurant', 'sandwich_shop',
+  'coffee_shop', 'ice_cream_shop', 'bakery', 'donut_shop', 'juice_shop',
+  'bagel_shop', 'dessert_shop', 'cafe', 'deli', 'meal_delivery',
+  'clothing_store', 'furniture_store', 'grocery_store', 'liquor_store',
+  'corporate_office', 'spa', 'educational_institution',
+  'hamburger_restaurant', 'chicken_wings_restaurant', 'brunch_restaurant',
+  'fish_and_chips_restaurant', 'taco_restaurant',
+  'community_center', 'art_gallery', 'sporting_goods_store', 'barber_shop',
+  'health', 'butcher_shop', 'event_venue', 'banquet_hall', 'catering_service',
+  'convenience_store', 'supermarket', 'discount_store', 'department_store',
+]);
+
+// Known chains, non-restaurants, and fast-casual spots that sneak past type filters
+const DINING_NAME_EXCLUDE = new Set([
+  'pei wei', 'filiberto\'s', 'noodles & company', 'buffalo wild wings',
+  'ono hawaiian bbq', 'matt\'s big breakfast', 'the cheesecake factory',
+  'dickey\'s barbecue pit', 'norterra shopping corridor (nearby)',
+  'kierland commons', 'scottsdale quarter', 'hb wellness',
+  'casa del monte central location', 'best life nutrition',
+  'chili\'s', 'olive garden', 'downtown carefree shops & galleries',
+  'teebox indoor golf club', 'legend trail clubhouse & pool',
+]);
+
+const TIER1_TYPES = new Set(['fine_dining_restaurant', 'steak_house']);
+const TIER2_TYPES = new Set([
+  'seafood_restaurant', 'sushi_restaurant', 'mediterranean_restaurant',
+  'french_restaurant', 'italian_restaurant', 'japanese_restaurant',
+]);
+
+const CUISINE_MAP: Record<string, string> = {
+  fine_dining_restaurant: 'Fine Dining',
+  steak_house: 'Steakhouse',
+  italian_restaurant: 'Italian',
+  seafood_restaurant: 'Seafood',
+  sushi_restaurant: 'Sushi',
+  japanese_restaurant: 'Japanese',
+  mediterranean_restaurant: 'Mediterranean',
+  french_restaurant: 'French',
+  mexican_restaurant: 'Mexican',
+  thai_restaurant: 'Thai',
+  indian_restaurant: 'Indian',
+  american_restaurant: 'American',
+  korean_restaurant: 'Korean',
+  chinese_restaurant: 'Chinese',
+  greek_restaurant: 'Greek',
+  vietnamese_restaurant: 'Vietnamese',
+  persian_restaurant: 'Persian',
+  brazilian_restaurant: 'Brazilian',
+  african_restaurant: 'African',
+  asian_restaurant: 'Asian',
+  asian_fusion_restaurant: 'Asian Fusion',
+  hawaiian_restaurant: 'Hawaiian',
+  middle_eastern_restaurant: 'Middle Eastern',
+  southwestern_us_restaurant: 'Southwestern',
+  gastropub: 'Gastropub',
+  bistro: 'Bistro',
+  brunch_restaurant: 'Brunch',
+  bar_and_grill: 'Bar & Grill',
+  fondue_restaurant: 'Fondue',
+  mongolian_barbecue_restaurant: 'Mongolian BBQ',
+  barbecue_restaurant: 'BBQ',
+  ramen_restaurant: 'Ramen',
+  vegan_restaurant: 'Vegan',
+  gyro_restaurant: 'Mediterranean',
+  taco_restaurant: 'Mexican',
+  hamburger_restaurant: 'American',
+  fish_and_chips_restaurant: 'Seafood',
+  chicken_wings_restaurant: 'American',
+  restaurant: 'Dining',
+};
+
+// Pipeline artifacts that aren't cuisine labels
+const NON_CUISINE_RE = /clubhouse|golf|resort|shopping|spa|walkable|nearby|modern|western|waterfront|on-course|pool|tennis|social|events|fitness|nightlife|lifestyle|entertainment|arts|central-location/i;
+
+function formatCuisine(subtype: string | null | undefined, googleType: string | undefined): string {
+  // Prefer curated subtype if it looks like a cuisine
+  if (subtype && !NON_CUISINE_RE.test(subtype)) {
+    // Already formatted (starts with uppercase) — use as-is
+    if (/^[A-Z]/.test(subtype)) return subtype;
+    // Pipeline format: "mexican", "italian;pizza" → take first, capitalize, clean underscores
+    const first = subtype.split(';')[0].replace(/_/g, ' ');
+    return first.charAt(0).toUpperCase() + first.slice(1);
+  }
+  // Fall back to CUISINE_MAP
+  if (googleType && CUISINE_MAP[googleType]) return CUISINE_MAP[googleType];
+  return 'Dining';
+}
 
 function buildExploreData(community: ResolvedCommunity) {
   const amenitiesWithCoords = community.amenities.filter(a => a.coordinates !== null);
@@ -24,7 +118,7 @@ function buildExploreData(community: ResolvedCommunity) {
   // Group amenities into tabs
   const tabMap = new Map<string, {
     key: string; label: string; desc: string; markerColor: string;
-    items: { id: number; name: string; coords: [number, number]; cuisine?: string; type?: string; holes?: number }[];
+    items: { id: number; name: string; coords: [number, number]; cuisine?: string; rating?: number; type?: string; holes?: number }[];
   }>();
 
   let itemId = 1;
@@ -39,15 +133,17 @@ function buildExploreData(community: ResolvedCommunity) {
     }
 
     const coords = amenity.coordinates as [number, number];
-    const item: { id: number; name: string; coords: [number, number]; cuisine?: string; type?: string; holes?: number } = {
+    const item: { id: number; name: string; coords: [number, number]; cuisine?: string; rating?: number; type?: string; holes?: number } = {
       id: itemId++,
       name: amenity.name,
       coords,
     };
 
     // Type-specific fields
-    if (amenity.type === 'restaurant' || amenity.type === 'clubhouse') {
-      item.cuisine = amenity.tags.slice(0, 2).join(' · ') || amenity.description.slice(0, 50);
+    if (amenity.type === 'restaurant') {
+      const poi = community.pois?.find(p => p.type === 'restaurant' && p.name === amenity.name);
+      item.cuisine = formatCuisine(poi?.subtype, poi?.googleType) !== 'Dining' ? formatCuisine(poi?.subtype, poi?.googleType) : (amenity.tags.slice(0, 2).join(' · ') || amenity.description.slice(0, 50));
+      if (poi?.rating) item.rating = poi.rating;
     }
     if (amenity.type === 'golf-course') {
       item.type = amenity.tags.includes('jack-nicklaus') ? 'Jack Nicklaus Signature' :
@@ -180,48 +276,99 @@ function buildSchools(community: ResolvedCommunity) {
   return schools.slice(0, 6);
 }
 
+function getTier(googleType: string | undefined, rating: number): number {
+  if (!googleType) return 9;
+  if (TIER1_TYPES.has(googleType)) return 1;
+  if (TIER2_TYPES.has(googleType)) return 2;
+  // Tier 3: any other accepted type with decent rating
+  if (googleType === 'restaurant' && rating >= 4.0) return 3;
+  if (!DINING_EXCLUDE.has(googleType)) return 3;
+  return 9; // should not reach here after filtering
+}
+
 function buildRestaurants(community: ResolvedCommunity) {
-  const restaurants: { name: string; cuisine: string; distance: string; rating: number; image: string }[] = [];
+  type Candidate = {
+    name: string; cuisine: string; distance: string;
+    rating: number; image: string; tier: number;
+  };
 
-  // Helper: find enriched POI data for a restaurant by name
-  const findRestaurantPoi = (name: string) =>
-    community.pois?.find(p => p.type === 'restaurant' && p.name === name);
+  const seen = new Set<string>();
+  const candidates: Candidate[] = [];
 
-  // From amenity entities
-  const diningAmenities = community.amenities.filter(
-    (a: AmenityEntity) => a.type === 'restaurant' ||
-      (a.type === 'clubhouse' && a.tags.some(t => t.includes('dining'))) ||
-      (a.type === 'golf-course' && a.tags.some(t => t.includes('dining')))
-  );
-  for (const a of diningAmenities) {
-    const poi = findRestaurantPoi(a.name);
-    restaurants.push({
-      name: a.name,
-      cuisine: a.tags.filter(t => !['dining', 'restaurant'].includes(t)).slice(0, 2).join(' · ') || a.description.slice(0, 40),
-      distance: poi?.distanceMi != null
-        ? (poi.distanceMi === 0 ? 'On-Site' : `${poi.distanceMi.toFixed(1)} mi`)
-        : '—',
-      rating: poi?.rating ?? 0,
-      image: poi?.photoUrl ?? '',
-    });
-  }
-
-  // Supplement from POIs
+  // Collect from POIs (primary source — has googleType, rating, photos)
   if (community.pois) {
     for (const poi of community.pois) {
-      if (poi.type === 'restaurant' && !restaurants.some(r => r.name === poi.name)) {
-        restaurants.push({
-          name: poi.name,
-          cuisine: poi.subtype ?? 'Dining',
-          distance: poi.distanceMi === 0 ? 'On-Site' : `${poi.distanceMi.toFixed(1)} mi`,
-          rating: poi.rating ?? 0,
-          image: poi.photoUrl ?? '',
-        });
-      }
+      if (poi.type !== 'restaurant') continue;
+      if (!poi.googleType || DINING_EXCLUDE.has(poi.googleType)) continue;
+      if (DINING_NAME_EXCLUDE.has(poi.name.toLowerCase())) continue;
+      if ((poi.rating ?? 0) <= 0) continue;
+      if (!poi.photoUrl) continue;
+
+      const tier = getTier(poi.googleType, poi.rating ?? 0);
+      if (tier > 3) continue;
+
+      seen.add(poi.name);
+      candidates.push({
+        name: poi.name,
+        cuisine: formatCuisine(poi.subtype, poi.googleType),
+        distance: poi.distanceMi === 0 ? 'On-Site' : `${poi.distanceMi.toFixed(1)} mi`,
+        rating: poi.rating ?? 0,
+        image: poi.photoUrl,
+        tier,
+      });
     }
   }
 
-  return restaurants.slice(0, 6);
+  // Supplement from amenity entities that are real restaurants (not clubhouses)
+  const restaurantAmenities = community.amenities.filter(
+    (a: AmenityEntity) => a.type === 'restaurant'
+  );
+  for (const a of restaurantAmenities) {
+    if (seen.has(a.name)) continue;
+    if (DINING_NAME_EXCLUDE.has(a.name.toLowerCase())) continue;
+    const poi = community.pois?.find(p => p.type === 'restaurant' && p.name === a.name);
+    if (!poi?.photoUrl || (poi.rating ?? 0) <= 0) continue;
+    if (poi.googleType && DINING_EXCLUDE.has(poi.googleType)) continue;
+
+    const tier = getTier(poi.googleType, poi.rating ?? 0);
+    if (tier > 3) continue;
+
+    seen.add(a.name);
+    candidates.push({
+      name: a.name,
+      cuisine: formatCuisine(poi.subtype, poi.googleType),
+      distance: poi.distanceMi === 0 ? 'On-Site' : `${poi.distanceMi.toFixed(1)} mi`,
+      rating: poi.rating ?? 0,
+      image: poi.photoUrl,
+      tier,
+    });
+  }
+
+  // If fewer than 4 candidates, relax: accept Tier 3 at rating >= 3.5
+  if (candidates.length < 4 && community.pois) {
+    for (const poi of community.pois) {
+      if (poi.type !== 'restaurant' || seen.has(poi.name)) continue;
+      if (!poi.googleType || DINING_EXCLUDE.has(poi.googleType)) continue;
+      if (DINING_NAME_EXCLUDE.has(poi.name.toLowerCase())) continue;
+      if ((poi.rating ?? 0) < 3.5 || !poi.photoUrl) continue;
+
+      seen.add(poi.name);
+      candidates.push({
+        name: poi.name,
+        cuisine: formatCuisine(poi.subtype, poi.googleType),
+        distance: poi.distanceMi === 0 ? 'On-Site' : `${poi.distanceMi.toFixed(1)} mi`,
+        rating: poi.rating ?? 0,
+        image: poi.photoUrl,
+        tier: 3,
+      });
+      if (candidates.length >= 4) break;
+    }
+  }
+
+  // Sort: tier asc, rating desc
+  candidates.sort((a, b) => a.tier - b.tier || b.rating - a.rating);
+
+  return candidates.slice(0, 4).map(({ tier: _t, ...rest }) => rest);
 }
 
 function buildQualityOfLife(community: ResolvedCommunity) {
