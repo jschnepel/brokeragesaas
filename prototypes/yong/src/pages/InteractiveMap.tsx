@@ -964,7 +964,7 @@ const InteractiveMap: React.FC = () => {
     if (!geoData || !selectedRegion) return [];
     return geoData.communities.features.filter(f => {
       const community = getCommunityById(f.properties.slug);
-      return community?.region === selectedRegion;
+      return community?.identity.regionId === selectedRegion;
     });
   }, [geoData, selectedRegion]);
 
@@ -983,7 +983,7 @@ const InteractiveMap: React.FC = () => {
           ...f,
           properties: {
             ...f.properties,
-            regionId: getCommunityById(f.properties.slug)?.region ?? '',
+            regionId: getCommunityById(f.properties.slug)?.identity.regionId ?? '',
           },
         })),
     };
@@ -999,7 +999,7 @@ const InteractiveMap: React.FC = () => {
           ...f,
           properties: {
             ...f.properties,
-            regionId: getCommunityById(f.properties.slug)?.region ?? '',
+            regionId: getCommunityById(f.properties.slug)?.identity.regionId ?? '',
           },
         })),
     };
@@ -1026,7 +1026,7 @@ const InteractiveMap: React.FC = () => {
     } else if (selectedRegion) {
       const regionFeatures = geoData.communities.features.filter(f => {
         const c = getCommunityById(f.properties.slug);
-        return c?.region === selectedRegion;
+        return c?.identity.regionId === selectedRegion;
       });
       if (regionFeatures.length > 0) {
         const allLngs: number[] = [];
