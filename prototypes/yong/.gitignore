@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Environment variables
+.env
+.env.local
+.env.*.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,3 +27,19 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# SQLite databases (enrichment pipeline)
+scripts/data/*.db
+scripts/data/*.db-journal
+scripts/data/*.db-wal
+scripts/dist
+
+# Enrichment pipeline scripts (one-time tooling, not shipped)
+scripts/*.cjs
+scripts/*.ts
+scripts/tsconfig.json
+scripts/sql.js.d.ts
+
+# Temp / working files
+src/data/communityDesertMountain.temp.json
+src/data/luxury-communities.json

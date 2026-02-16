@@ -9,13 +9,9 @@ import PriceSegmentBars from '../../../components/market-report/PriceSegmentBars
 import DomDistributionBars from '../../../components/market-report/DomDistributionBars';
 import SeasonalTrendsChart from '../../../components/market-report/SeasonalTrendsChart';
 import ScopeComparisonTable from '../../../components/market-report/ScopeComparisonTable';
-import YoyComparisonTable from '../../../components/market-report/YoyComparisonTable';
-import PriceTrendChart from '../../../components/market-report/PriceTrendChart';
 import PropertyTypeTable from '../../../components/market-report/PropertyTypeTable';
-import FinancingBreakdownChart from '../../../components/market-report/FinancingBreakdownChart';
 import RegionalBenchmarkGrid from '../../../components/market-report/RegionalBenchmarkGrid';
 import BenchmarksSidebar from '../../../components/market-report/BenchmarksSidebar';
-import VOWGate from '../../../components/compliance/VOWGate';
 import H3HeatmapSection from '../../../components/analytics/H3HeatmapSection';
 
 interface BuyerTabProps {
@@ -35,9 +31,8 @@ const BuyerTab: React.FC<BuyerTabProps> = ({ scope, overview, level }) => {
   const priceTiers = scope.getPriceSegments();
   const domDist = scope.getDomDistribution();
   const avgDom = kpis[1]?.rawValue ?? 45;
-  const trendHistory = scope.getTrendHistory();
-  const sparkPrices = trendHistory.map(t => t.price);
-  const sparkVols = trendHistory.map(t => t.vol);
+  const sparkPrices = scope.getTrendHistory().map(t => t.price);
+  const sparkVols = scope.getTrendHistory().map(t => t.vol);
 
   const isMarket = level === 'market';
   const isRegion = level === 'region';
@@ -127,7 +122,7 @@ const BuyerTab: React.FC<BuyerTabProps> = ({ scope, overview, level }) => {
           {/* ── Property Types (zipcode + community) ──────────── */}
           {(isZipcode || isCommunity) && (
             <>
-              <Divider label="Property Breakdown" tier="mixed" />
+              <Divider label="Property Breakdown" tier="idx" />
               {isCommunity ? (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                   <div className="lg:col-span-2 bg-white border border-gray-100 p-3">
@@ -149,14 +144,10 @@ const BuyerTab: React.FC<BuyerTabProps> = ({ scope, overview, level }) => {
             </>
           )}
 
-          {/* ── Community: Financing + Regional Context ────────── */}
+          {/* ── Community: Regional Context ────────────────── */}
           {isCommunity && (
             <>
-              <Divider label="Financing Mix" tier="mixed" />
-              <div className="bg-white border border-gray-100 p-3">
-                <FinancingBreakdownChart data={(scope as CommunityScope).getFinancingData()} />
-              </div>
-              <Divider label="Regional Context" tier="mixed" />
+              <Divider label="Regional Context" tier="idx" />
               <div className="bg-white border border-gray-100 p-3">
                 <RegionalBenchmarkGrid data={(scope as CommunityScope).getRegionalContext()} localName={scope.name} />
               </div>
@@ -166,7 +157,7 @@ const BuyerTab: React.FC<BuyerTabProps> = ({ scope, overview, level }) => {
           {/* ── Scope Comparison (market + region) ────────────── */}
           {(isMarket || isRegion) && (
             <>
-              <Divider label={isMarket ? 'Region Comparison' : 'Zipcode Comparison'} tier="mixed" />
+              <Divider label={isMarket ? 'Region Comparison' : 'Zipcode Comparison'} tier="idx" />
               <div className="bg-white border border-gray-100 p-3">
                 <ScopeComparisonTable
                   title={isMarket ? 'Regions at a Glance' : 'Zip Codes at a Glance'}
@@ -182,24 +173,6 @@ const BuyerTab: React.FC<BuyerTabProps> = ({ scope, overview, level }) => {
         </div>
       </div>
 
-      {/* ═══ VOW SECTION (navy background) ═════════════════════════ */}
-      <div className="bg-[#0C1C2E] py-3">
-        <div className="max-w-[1600px] mx-auto px-6 lg:px-12 space-y-1">
-          <Divider label="Sold Data & Transaction History" tier="vow" dark />
-          <VOWGate>
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                <div className="bg-white/10 backdrop-blur-sm p-3 rounded-sm">
-                  <PriceTrendChart data={trendHistory} />
-                </div>
-                <div className="bg-white/10 backdrop-blur-sm p-3 rounded-sm">
-                  <YoyComparisonTable data={scope.getYoyStats()} />
-                </div>
-              </div>
-            </div>
-          </VOWGate>
-        </div>
-      </div>
     </>
   );
 };

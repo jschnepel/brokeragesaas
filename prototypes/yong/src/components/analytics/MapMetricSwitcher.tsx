@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Lock } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { METRIC_DEFS, type HeatmapMetricId } from '../../data/h3HeatmapData';
 
 interface MapMetricSwitcherProps {
@@ -14,7 +14,6 @@ interface MapMetricSwitcherProps {
 }
 
 const idxMetrics = METRIC_DEFS.filter(m => !m.isVow);
-const vowMetrics = METRIC_DEFS.filter(m => m.isVow);
 
 const MapMetricSwitcher: React.FC<MapMetricSwitcherProps> = ({ current, onChange }) => {
   const [open, setOpen] = useState(false);
@@ -49,7 +48,6 @@ const MapMetricSwitcher: React.FC<MapMetricSwitcherProps> = ({ current, onChange
 
       {open && (
         <div className="absolute top-full right-0 mt-1.5 bg-[#0C1C2E] border border-white/10 shadow-2xl min-w-[200px] overflow-hidden rounded-sm z-50">
-          {/* IDX Group */}
           <div className="px-3 pt-2.5 pb-1">
             <span className="text-[7px] uppercase tracking-widest text-[#Bfa67a] font-bold">
               IDX Metrics
@@ -65,27 +63,6 @@ const MapMetricSwitcher: React.FC<MapMetricSwitcherProps> = ({ current, onChange
                   : 'text-white/70 hover:bg-white/5 hover:text-white'
               }`}
             >
-              {m.label}
-            </button>
-          ))}
-
-          {/* VOW Group */}
-          <div className="px-3 pt-3 pb-1 border-t border-white/10">
-            <span className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
-              VOW Metrics
-            </span>
-          </div>
-          {vowMetrics.map(m => (
-            <button
-              key={m.id}
-              onClick={() => { onChange(m.id); setOpen(false); }}
-              className={`w-full text-left px-3 py-2 text-[11px] font-serif flex items-center gap-2 transition-colors ${
-                m.id === current
-                  ? 'bg-[#Bfa67a]/15 text-[#Bfa67a]'
-                  : 'text-white/40 hover:bg-white/5 hover:text-white/60'
-              }`}
-            >
-              <Lock size={9} className="text-white/30 shrink-0" />
               {m.label}
             </button>
           ))}

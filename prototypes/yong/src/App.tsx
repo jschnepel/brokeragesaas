@@ -1,6 +1,9 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { getCommunityById } from './data/communities';
+import { CompareProvider } from './context/CompareContext';
+import CompareFloatingBar from './components/compare/CompareFloatingBar';
+import CompareModal from './components/compare/CompareModal';
 
 // Initialize the market data registry
 import './models';
@@ -34,6 +37,10 @@ const CommunityReportPage = lazy(() => import('./pages/market-report/CommunityRe
 // Temp analytics sandbox
 const TempAnalytics = lazy(() => import('./pages/TempAnalytics'));
 
+// Template community pages (JSON-driven)
+const TemplateCommunityPage = lazy(() => import('./pages/TemplateCommunityPage'));
+const TemplateCommunityDM = lazy(() => import('./pages/TemplateCommunityDM'));
+
 // Scoped analytics pages
 const MarketPulse = lazy(() => import('./pages/MarketPulse'));
 const ComparativeAnalysis = lazy(() => import('./pages/ComparativeAnalysis'));
@@ -56,7 +63,7 @@ const CommunityIdRedirect = () => {
   const { id } = useParams();
   const community = id ? getCommunityById(id) : undefined;
   if (community) {
-    return <Navigate to={`/phoenix/${community.region}/${community.id}`} replace />;
+    return <Navigate to={`/phoenix/${community.identity.regionId}/${community.id}`} replace />;
   }
   return <Navigate to="/communities" replace />;
 };
@@ -69,6 +76,7 @@ const PageLoader = () => (
 
 function App() {
   return (
+    <CompareProvider>
     <div className="min-h-screen bg-[#F9F8F6]">
       <Suspense fallback={<PageLoader />}>
         <Routes>
@@ -85,6 +93,10 @@ function App() {
           <Route path="/listing/:id" element={<ListingDetail />} />
           <Route path="/listings/:city/:zipcode/:address" element={<ListingDetail />} />
           <Route path="/listings/:city/:zipcode/:community/:address" element={<ListingDetail />} />
+
+          {/* Template community pages — JSON-driven */}
+          <Route path="/temp/community" element={<TemplateCommunityPage />} />
+          <Route path="/temp/community_dm" element={<TemplateCommunityDM />} />
 
           {/* Temp analytics sandbox — all scope levels */}
           <Route path="/temp/analytics" element={<TempAnalytics />} />
@@ -134,7 +146,10 @@ function App() {
           <Route path="/contact" element={<ContactPage />} />
         </Routes>
       </Suspense>
+      <CompareFloatingBar />
+      <CompareModal />
     </div>
+    </CompareProvider>
   );
 }
 

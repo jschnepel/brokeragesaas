@@ -13,13 +13,8 @@ import { useAuth } from '../../context/AuthContext';
 
 const EmailVerification: React.FC = () => {
   const navigate = useNavigate();
-  const { registrant, verifyEmail, isEmailVerified } = useAuth();
+  const { registrant, verifyEmail, isEmailVerified: _isEmailVerified } = useAuth();
   const [verified, setVerified] = useState(false);
-
-  // Redirect if no registrant
-  if (!registrant) {
-    return <Navigate to="/register" replace />;
-  }
 
   // Auto-navigate after verification
   useEffect(() => {
@@ -30,6 +25,11 @@ const EmailVerification: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [verified, navigate]);
+
+  // Redirect if no registrant
+  if (!registrant) {
+    return <Navigate to="/register" replace />;
+  }
 
   const handleSimulateVerify = () => {
     verifyEmail();
