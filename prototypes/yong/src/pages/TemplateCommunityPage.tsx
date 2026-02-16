@@ -302,6 +302,34 @@ const TemplateCommunityPage: React.FC<TemplateCommunityPageProps> = ({ data }) =
       .catch(() => { /* boundary not critical */ });
   }, [community.boundary, community.id]);
 
+  // Fit map to boundary polygon once loaded
+  useEffect(() => {
+    if (!boundaryGeoJson || !mapRef.current) return;
+    const map = mapRef.current.getMap();
+    // Flatten all coordinates from Polygon / MultiPolygon
+    const coords: [number, number][] = [];
+    const geom = boundaryGeoJson.geometry;
+    if (geom?.type === 'Polygon') {
+      for (const ring of geom.coordinates) {
+        for (const c of ring) coords.push(c as [number, number]);
+      }
+    } else if (geom?.type === 'MultiPolygon') {
+      for (const poly of geom.coordinates) {
+        for (const ring of poly) {
+          for (const c of ring) coords.push(c as [number, number]);
+        }
+      }
+    }
+    if (coords.length > 0) {
+      const lngs = coords.map(c => c[0]);
+      const lats = coords.map(c => c[1]);
+      map.fitBounds(
+        [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+        { padding: 40, maxZoom: 14 }
+      );
+    }
+  }, [boundaryGeoJson]);
+
   // Auto-rotate gallery
   useEffect(() => {
     if (!community.gallery || community.gallery.length === 0) return;
@@ -1051,6 +1079,7 @@ const TemplateCommunityPage: React.FC<TemplateCommunityPageProps> = ({ data }) =
           </div>
 
           {/* DINING */}
+          {community.restaurants.length > 0 && (
           <div className="col-span-12 lg:col-span-6 bg-white p-6 shadow-lg shadow-black/5">
             <div className="flex items-center gap-2 mb-4">
               <Utensils size={16} className="text-[#Bfa67a]" />
@@ -1081,6 +1110,7 @@ const TemplateCommunityPage: React.FC<TemplateCommunityPageProps> = ({ data }) =
               ))}
             </div>
           </div>
+          )}
 
           {/* ECONOMY & EMPLOYERS */}
           {community.economicStats === null && community.employers === null ? (
