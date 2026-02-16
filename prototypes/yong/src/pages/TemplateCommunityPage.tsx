@@ -42,10 +42,8 @@ import HeroKpiCards from '../components/shared/HeroKpiCards';
 import { useScrollAnimation } from '../components/shared/useScrollAnimation';
 import LoadingShell from '../components/community/LoadingShell';
 import { agentSchema, breadcrumbSchema, placeSchema } from '../utils/structuredData';
-
-// --- JSON Data Import ---
-// Replace this import with your populated JSON file
-import communityData from '../data/communityTemplate.json';
+import { getCommunityById } from '../data/communityLoader';
+import { resolvedToTemplate } from '../utils/communityAdapter';
 
 // --- Types (matching the JSON schema) ---
 
@@ -263,9 +261,13 @@ interface TemplateCommunityPageProps {
 }
 
 const TemplateCommunityPage: React.FC<TemplateCommunityPageProps> = ({ data }) => {
-  // Use passed data or fall back to default template JSON
-  const community = (data ?? communityData) as unknown as CommunityTemplateData;
-  const exploreData = community.exploreData;
+  // Use passed data or fall back to Desert Mountain from communityLoader
+  const fallback = !data ? (() => {
+    const resolved = getCommunityById('desert-mountain');
+    return resolved ? resolvedToTemplate(resolved) : null;
+  })() : null;
+  const community = (data ?? fallback) as CommunityTemplateData | null;
+  const exploreData = community?.exploreData;
 
   const [currentSlide, setCurrentSlide] = useState(0);
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -320,12 +322,12 @@ const TemplateCommunityPage: React.FC<TemplateCommunityPageProps> = ({ data }) =
 
   const featuredAnim = useScrollAnimation();
 
-  // Guard: if no data loaded yet
-  if (!community.name) {
+  // Guard: if no data loaded
+  if (!community?.name) {
     return (
       <PageHero title="Community Template" image="" height="50vh">
         <div className="text-center mt-8">
-          <p className="text-white/70 mb-8">No community data loaded. Populate communityTemplate.json to preview.</p>
+          <p className="text-white/70 mb-8">No community data available.</p>
           <Link
             to="/communities"
             className="bg-[#Bfa67a] text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-[#0C1C2E] transition-all"
@@ -1032,10 +1034,17 @@ const TemplateCommunityPage: React.FC<TemplateCommunityPageProps> = ({ data }) =
                     <p className="font-bold text-[#0C1C2E] text-sm truncate group-hover:text-[#Bfa67a] transition-colors">{school.name}</p>
                     <p className="text-[9px] text-gray-400">{school.type} · {school.distance}</p>
                   </div>
-                  <div className="flex items-center gap-0.5 bg-emerald-50 px-2 py-1 rounded-full flex-shrink-0 ml-2">
-                    <span className="text-emerald-600 font-bold">{school.rating}</span>
-                    <span className="text-emerald-600 text-[10px] md:text-[8px]">/10</span>
-                  </div>
+                  {school.rating > 0 ? (
+                    <div className="flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-full flex-shrink-0 ml-2">
+                      <Star size={10} className="text-emerald-500 fill-emerald-500" />
+                      <span className="text-emerald-600 font-bold">{school.rating}</span>
+                      <span className="text-emerald-600 text-[10px] md:text-[8px]">/10</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center bg-gray-100 px-2 py-1 rounded-full flex-shrink-0 ml-2">
+                      <span className="text-gray-400 text-[9px] uppercase tracking-wider font-medium">No Rating</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
