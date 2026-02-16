@@ -42,10 +42,8 @@ import HeroKpiCards from '../components/shared/HeroKpiCards';
 import { useScrollAnimation } from '../components/shared/useScrollAnimation';
 import LoadingShell from '../components/community/LoadingShell';
 import { agentSchema, breadcrumbSchema, placeSchema } from '../utils/structuredData';
-
-// --- JSON Data Import ---
-// Replace this import with your populated JSON file
-import communityData from '../data/communityTemplate.json';
+import { getCommunityById } from '../data/communityLoader';
+import { resolvedToTemplate } from '../utils/communityAdapter';
 
 // --- Types (matching the JSON schema) ---
 
@@ -263,9 +261,13 @@ interface TemplateCommunityPageProps {
 }
 
 const TemplateCommunityPage: React.FC<TemplateCommunityPageProps> = ({ data }) => {
-  // Use passed data or fall back to default template JSON
-  const community = (data ?? communityData) as unknown as CommunityTemplateData;
-  const exploreData = community.exploreData;
+  // Use passed data or fall back to Desert Mountain from communityLoader
+  const fallback = !data ? (() => {
+    const resolved = getCommunityById('desert-mountain');
+    return resolved ? resolvedToTemplate(resolved) : null;
+  })() : null;
+  const community = (data ?? fallback) as CommunityTemplateData | null;
+  const exploreData = community?.exploreData;
 
   const [currentSlide, setCurrentSlide] = useState(0);
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -320,12 +322,12 @@ const TemplateCommunityPage: React.FC<TemplateCommunityPageProps> = ({ data }) =
 
   const featuredAnim = useScrollAnimation();
 
-  // Guard: if no data loaded yet
-  if (!community.name) {
+  // Guard: if no data loaded
+  if (!community?.name) {
     return (
       <PageHero title="Community Template" image="" height="50vh">
         <div className="text-center mt-8">
-          <p className="text-white/70 mb-8">No community data loaded. Populate communityTemplate.json to preview.</p>
+          <p className="text-white/70 mb-8">No community data available.</p>
           <Link
             to="/communities"
             className="bg-[#Bfa67a] text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-[#0C1C2E] transition-all"
