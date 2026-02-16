@@ -1032,10 +1032,17 @@ const TemplateCommunityPage: React.FC<TemplateCommunityPageProps> = ({ data }) =
                     <p className="font-bold text-[#0C1C2E] text-sm truncate group-hover:text-[#Bfa67a] transition-colors">{school.name}</p>
                     <p className="text-[9px] text-gray-400">{school.type} · {school.distance}</p>
                   </div>
-                  <div className="flex items-center gap-0.5 bg-emerald-50 px-2 py-1 rounded-full flex-shrink-0 ml-2">
-                    <span className="text-emerald-600 font-bold">{school.rating}</span>
-                    <span className="text-emerald-600 text-[10px] md:text-[8px]">/10</span>
-                  </div>
+                  {school.rating > 0 ? (
+                    <div className="flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-full flex-shrink-0 ml-2">
+                      <Star size={10} className="text-emerald-500 fill-emerald-500" />
+                      <span className="text-emerald-600 font-bold">{school.rating}</span>
+                      <span className="text-emerald-600 text-[10px] md:text-[8px]">/10</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center bg-gray-100 px-2 py-1 rounded-full flex-shrink-0 ml-2">
+                      <span className="text-gray-400 text-[9px] uppercase tracking-wider font-medium">No Rating</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -154,11 +154,27 @@ function buildSchools(community: ResolvedCommunity) {
   const schools: { name: string; type: string; rating: number; distance: string }[] = [];
   const sd = community.residential.schoolDistrict;
 
+  // Helper: find enriched POI data for a school by name
+  const findSchoolPoi = (name: string) =>
+    community.pois?.find(p => p.type === 'school' && p.name === name);
+
   if (sd.highSchool) {
-    schools.push({ name: sd.highSchool, type: 'Public High School', rating: 0, distance: '—' });
+    const poi = findSchoolPoi(sd.highSchool);
+    schools.push({
+      name: sd.highSchool,
+      type: 'Public High School',
+      rating: poi?.rating ?? 0,
+      distance: poi?.distanceMi ? `${poi.distanceMi.toFixed(1)} mi` : '—',
+    });
   }
   for (const ps of sd.privateSchools) {
-    schools.push({ name: ps, type: 'Private', rating: 0, distance: '—' });
+    const poi = findSchoolPoi(ps);
+    schools.push({
+      name: ps,
+      type: 'Private',
+      rating: poi?.rating ?? 0,
+      distance: poi?.distanceMi ? `${poi.distanceMi.toFixed(1)} mi` : '—',
+    });
   }
 
   // Supplement from POIs
@@ -168,7 +184,7 @@ function buildSchools(community: ResolvedCommunity) {
         schools.push({
           name: poi.name,
           type: poi.subtype ?? 'School',
-          rating: 0,
+          rating: poi.rating ?? 0,
           distance: `${poi.distanceMi.toFixed(1)} mi`,
         });
       }
@@ -181,17 +197,26 @@ function buildSchools(community: ResolvedCommunity) {
 function buildRestaurants(community: ResolvedCommunity) {
   const restaurants: { name: string; cuisine: string; distance: string; rating: number; image: string }[] = [];
 
+  // Helper: find enriched POI data for a restaurant by name
+  const findRestaurantPoi = (name: string) =>
+    community.pois?.find(p => p.type === 'restaurant' && p.name === name);
+
   // From amenity entities
   const diningAmenities = community.amenities.filter(
-    (a: AmenityEntity) => a.type === 'restaurant' || (a.type === 'clubhouse' && a.tags.some(t => t.includes('dining')))
+    (a: AmenityEntity) => a.type === 'restaurant' ||
+      (a.type === 'clubhouse' && a.tags.some(t => t.includes('dining'))) ||
+      (a.type === 'golf-course' && a.tags.some(t => t.includes('dining')))
   );
   for (const a of diningAmenities) {
+    const poi = findRestaurantPoi(a.name);
     restaurants.push({
       name: a.name,
       cuisine: a.tags.filter(t => !['dining', 'restaurant'].includes(t)).slice(0, 2).join(' · ') || a.description.slice(0, 40),
-      distance: '—',
-      rating: 0,
-      image: '',
+      distance: poi?.distanceMi != null
+        ? (poi.distanceMi === 0 ? 'On-Site' : `${poi.distanceMi.toFixed(1)} mi`)
+        : '—',
+      rating: poi?.rating ?? 0,
+      image: poi?.photoUrl ?? '',
     });
   }
 
@@ -203,8 +228,8 @@ function buildRestaurants(community: ResolvedCommunity) {
           name: poi.name,
           cuisine: poi.subtype ?? 'Dining',
           distance: poi.distanceMi === 0 ? 'On-Site' : `${poi.distanceMi.toFixed(1)} mi`,
-          rating: 0,
-          image: '',
+          rating: poi.rating ?? 0,
+          image: poi.photoUrl ?? '',
         });
       }
     }
