@@ -13,3 +13,12 @@ dist-ssr
 *.sw?
 .claude
 nul
+
+# Junk / downloads / temp
+AWSCLIV2.msi
+Subdivisions.zip
+Subdivisions/
+GEOJSON-luxury-communities.geojson
+luxury-communities.json
+luxury-communities-north-phoenix-v8.md
+scripts/

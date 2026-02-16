@@ -10,6 +10,7 @@
 
 import { useMemo, useState } from 'react';
 import { MapPin, BarChart3 } from 'lucide-react';
+import MapMetricSwitcher from './MapMetricSwitcher';
 import {
   METRIC_DEFS,
   type HexCell,
@@ -28,6 +29,8 @@ interface HexDetailPanelProps {
   cells: HexCell[];
   /** Bubble hover from panel back to map */
   onHoverCell?: (cell: HexCell | null) => void;
+  /** Switch the active heatmap metric */
+  onMetricChange?: (id: HeatmapMetricId) => void;
   /** Navigate drill-down from rankings click (undefined at community level) */
   onDrilldown?: (neighborhoodName: string) => void;
 }
@@ -613,6 +616,7 @@ const HexDetailPanel: React.FC<HexDetailPanelProps> = ({
   max,
   cells,
   onHoverCell,
+  onMetricChange,
   onDrilldown,
 }) => {
   const { averages, maxes } = useAggregates(cells);
@@ -649,9 +653,14 @@ const HexDetailPanel: React.FC<HexDetailPanelProps> = ({
     <div className="flex flex-col h-full">
 
       {/* ── Navy Header (fixed height — always renders stats row) ── */}
-      <div className="bg-[#0C1C2E] p-4 shrink-0" style={{ minHeight: 88 }}>
-        <div className="flex items-center gap-2 text-[#Bfa67a] text-[9px] uppercase tracking-[0.2em] font-bold mb-1">
-          {hoveredCell ? 'Hex Cell' : 'Market Overview'}
+      <div className="bg-[#0C1C2E] px-3 pt-3 pb-3 shrink-0" style={{ minHeight: 88 }}>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[#Bfa67a] text-[9px] uppercase tracking-[0.2em] font-bold">
+            {hoveredCell ? 'Hex Cell' : 'Market Overview'}
+          </span>
+          {onMetricChange && (
+            <MapMetricSwitcher current={metric} onChange={onMetricChange} />
+          )}
         </div>
         <h2 className="text-xl font-serif text-white tracking-wide">
           {cellName ?? 'All Areas'}
@@ -681,20 +690,20 @@ const HexDetailPanel: React.FC<HexDetailPanelProps> = ({
       </div>
 
       {/* ── Stats Bar (fixed height) ── */}
-      <div className="grid grid-cols-4 shrink-0 bg-[#0C1C2E] border-t border-white/10">
+      <div className="grid grid-cols-4 shrink-0 bg-[#0C1C2E] border-t border-white/10 overflow-hidden">
         {idxDefs.map((def, i) => {
           const val = hoveredCell ? hoveredCell.metrics[def.id] : averages[def.id];
           const isActive = def.id === metric;
           return (
             <div
               key={def.id}
-              className={`p-3 text-center ${i > 0 ? 'border-l border-white/10' : ''}`}
+              className={`px-2 py-3 text-center overflow-hidden ${i > 0 ? 'border-l border-white/10' : ''}`}
               style={isActive ? { borderBottom: '2px solid #Bfa67a' } : { borderBottom: '2px solid transparent' }}
             >
-              <p className={`text-[8px] uppercase tracking-[0.15em] font-bold mb-1 ${isActive ? 'text-[#Bfa67a]' : 'text-white/40'}`}>
+              <p className={`text-[8px] uppercase tracking-[0.15em] font-bold mb-1 truncate ${isActive ? 'text-[#Bfa67a]' : 'text-white/40'}`}>
                 {def.label}
               </p>
-              <p className="text-lg font-serif text-white" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              <p className="text-base font-serif text-white truncate" style={{ fontVariantNumeric: 'tabular-nums' }}>
                 {def.format(val)}
               </p>
             </div>
@@ -706,15 +715,15 @@ const HexDetailPanel: React.FC<HexDetailPanelProps> = ({
       <div className="flex-1 flex flex-col min-h-0">
 
         {/* ── 3-Column Visualization Row ──────────── */}
-        <div className="grid grid-cols-3 gap-2 p-3 shrink-0">
-          <div className="bg-white border border-gray-100 shadow-sm rounded p-2">
+        <div className="grid grid-cols-3 gap-2 px-3 py-3 shrink-0 overflow-hidden">
+          <div className="bg-white border border-gray-100 shadow-sm rounded p-2 min-w-0 overflow-hidden">
             <h4 className="text-[7px] uppercase tracking-widest text-gray-500 font-bold mb-1">
               Price vs DOM
             </h4>
             <ScatterPlot cell={hoveredCell} cells={cells} onHoverCell={onHoverCell} />
           </div>
 
-          <div className="bg-white border border-gray-100 shadow-sm rounded p-2">
+          <div className="bg-white border border-gray-100 shadow-sm rounded p-2 min-w-0 overflow-hidden">
             <h4 className="text-[7px] uppercase tracking-widest text-gray-500 font-bold mb-1">
               {metricDef.label}
             </h4>
@@ -726,7 +735,7 @@ const HexDetailPanel: React.FC<HexDetailPanelProps> = ({
             />
           </div>
 
-          <div className="bg-white border border-gray-100 shadow-sm rounded p-2">
+          <div className="bg-white border border-gray-100 shadow-sm rounded p-2 min-w-0 overflow-hidden">
             <h4 className="text-[7px] uppercase tracking-widest text-gray-500 font-bold mb-1">
               {hoveredCell ? 'vs Market' : 'Market Avg'}
             </h4>

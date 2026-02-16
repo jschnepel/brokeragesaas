@@ -72,7 +72,7 @@ const PageHero: React.FC<PageHeroProps> = ({
         </div>
 
         {/* Content — sits outside the overflow-hidden wrapper */}
-        <div className="relative z-10 w-full max-w-[1600px] mx-auto px-8 pb-20">
+        <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 pb-12 md:pb-20">
           <div className="flex flex-col md:flex-row items-end justify-between gap-12">
             <div className="text-white">
               {/* Breadcrumbs */}
@@ -102,7 +102,7 @@ const PageHero: React.FC<PageHeroProps> = ({
               )}
 
               {/* Title */}
-              <h1 className="text-6xl md:text-8xl font-serif leading-[0.9] tracking-tight mb-6">
+              <h1 className="text-4xl sm:text-6xl md:text-8xl font-serif leading-[0.9] tracking-tight mb-6">
                 {hasMultipleWords ? (
                   words.map((word, i) => (
                     i === words.length - 1

@@ -17,7 +17,7 @@ const HeroKpiCards: React.FC<HeroKpiCardsProps> = ({ kpis }) => {
   const anim = useScrollAnimation();
 
   return (
-    <section ref={anim.ref} className="relative z-20 -mt-16 max-w-[1600px] mx-auto px-8 lg:px-20">
+    <section ref={anim.ref} className="relative z-20 -mt-16 max-w-[1600px] mx-auto px-4 md:px-8 lg:px-20">
       <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-700 ${anim.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         {kpis.map((stat, i) => (
           <div key={i} className="bg-white p-6 shadow-xl">
