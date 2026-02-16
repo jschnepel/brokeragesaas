@@ -1,0 +1,1441 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "community-template-v2",
+  "title": "CommunityTemplateData",
+  "description": "JSON schema for TemplateCommunityPage.tsx — the editorial-quality community profile page. Every field is annotated with its render status, the exact UI section it feeds, and data sourcing notes. Fields are ordered to match the visual layout top-to-bottom.",
+
+  "x-page-layout": [
+    "1. HERO — PageHero with background image, breadcrumbs, location badges",
+    "2. KPI CARDS — 4 floating cards overlapping hero (HeroKpiCards component)",
+    "3. BENTO GRID — 12-column grid containing all content sections:",
+    "   3a. NARRATIVE (8-col) — editorial text with tabbed paragraphs + feature pills",
+    "   3b. GALLERY (4-col sidebar) — auto-rotating image carousel",
+    "   3c. DEMOGRAPHICS (4-col sidebar) — 'At a Glance' stats + quick market stats + CTAs",
+    "   3d. EXPLORE MAP (12-col) — Leaflet map with 4-tab sidebar (listings/dining/trails/golf)",
+    "   3e. SIGNATURE AMENITY (12-col) — full-width split card (text + image)",
+    "   3f. AIRPORTS (4-col) — private + commercial airport cards",
+    "   3g. KEY DISTANCES (4-col) — drive times to key destinations",
+    "   3h. QUALITY OF LIFE (4-col) — 6-metric grid with icons",
+    "   3i. SCHOOLS (6-col) — top 4 schools grid",
+    "   3j. DINING (6-col) — top 4 restaurants with thumbnails",
+    "   3k. ECONOMY (12-col) — economic stats + employer cards",
+    "4. FEATURED LISTING — hero-style spotlight for listings[0]",
+    "5. LISTING GRID — paginated 3-column carousel of all listings",
+    "6. CTA — closing call-to-action section",
+    "7. FOOTER — standard site footer"
+  ],
+
+  "type": "object",
+  "required": [
+    "id", "name", "city", "region", "tagline", "narrative", "heroImage",
+    "elevation", "zipCode",
+    "stats", "metrics", "features",
+    "gallery", "demographics", "qualityOfLife",
+    "schools", "restaurants", "employers", "economicStats",
+    "airports", "keyDistances",
+    "signatureAmenity", "listings", "exploreData"
+  ],
+
+  "properties": {
+
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "URL-safe slug identifier",
+      "examples": ["desert-mountain", "silverleaf-at-dc-ranch"],
+      "x-rendered": true,
+      "x-page-sections": ["Hero breadcrumbs", "Listing links", "Market Intel link", "CTA links"],
+      "x-usage": "Used in 6 URL constructions: breadcrumb path, listing filter, market-intel link, browse listings, view listings CTA, listing detail CTA"
+    },
+
+    "name": {
+      "type": "string",
+      "description": "Display name of the community",
+      "examples": ["Desert Mountain"],
+      "x-rendered": true,
+      "x-page-sections": ["SEO title", "Hero title", "Breadcrumbs", "Narrative header", "Featured Listing description", "Listing Grid heading", "CTA heading"],
+      "x-usage": "Most-used field — appears in 7+ locations. SEO title format: '{name} Homes for Sale | {city}, Phoenix'"
+    },
+
+    "city": {
+      "type": "string",
+      "description": "City name for display",
+      "examples": ["Scottsdale"],
+      "x-rendered": true,
+      "x-page-sections": ["SEO title", "Hero location badge", "Narrative subheader", "CTA text"],
+      "x-usage": "Hero badge: '{city}, AZ {zipCode}'. Narrative: '{tagline} — {city}'"
+    },
+
+    "region": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Region slug for URL routing",
+      "examples": ["north-scottsdale"],
+      "x-rendered": true,
+      "x-page-sections": ["SEO breadcrumbs"],
+      "x-usage": "Breadcrumb URL: /phoenix/{region}/{id}"
+    },
+
+    "tagline": {
+      "type": "string",
+      "description": "Short tagline — used as both the narrative heading AND the SEO meta description",
+      "examples": ["Six Jack Nicklaus Golf Courses"],
+      "x-rendered": true,
+      "x-page-sections": ["SEO meta description", "Narrative h2 heading"],
+      "x-usage": "Narrative heading: '{tagline} — {city}'. Also passed to placeSchema() for structured data."
+    },
+
+    "description": {
+      "type": "string",
+      "description": "1-2 sentence summary. Currently NOT rendered by the page — the SEO description uses 'tagline' instead. Reserved for future use (e.g. social sharing, search results).",
+      "examples": ["Desert Mountain is the crown jewel of North Scottsdale luxury..."],
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Present in the TypeScript interface but never accessed in JSX. Consider using this as the SEO description instead of tagline."
+    },
+
+    "narrative": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Legacy format: paragraphs separated by \\n\\n. Auto-split into 3 tabs: Legacy, Lifestyle, The Homes."
+        },
+        {
+          "type": "object",
+          "description": "Structured format with explicit lead paragraph and named tabs.",
+          "required": ["lead", "sections"],
+          "properties": {
+            "lead": {
+              "type": "string",
+              "description": "Opening paragraph rendered with drop-cap. Sets the tone for the community."
+            },
+            "sections": {
+              "type": "array",
+              "description": "Narrative tabs. Each section has a tab name and multi-paragraph content (\\n\\n separated).",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["tab", "content"],
+                "properties": {
+                  "tab": { "type": "string", "description": "Tab label displayed in the narrative tab bar.", "examples": ["Legacy", "Lifestyle", "The Homes"] },
+                  "content": { "type": "string", "description": "Tab content. Multiple paragraphs separated by \\n\\n. Minimum 250 words per tab recommended." }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "description": "Community narrative. Supports two formats: (1) legacy string with \\n\\n-separated paragraphs auto-split into 3 tabs, or (2) structured object with explicit lead + named tab sections. Structured format preferred for new communities. Minimum 750 words total (1000+ for ultra-luxury).",
+      "x-rendered": true,
+      "x-page-sections": ["Narrative section (8-col)"],
+      "x-notes": "Tab labels are data-driven from sections[].tab. Structured format allows custom tab names per community."
+    },
+
+    "heroImage": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL for the full-width hero background image. Recommended: 2400px wide, landscape orientation.",
+      "x-rendered": true,
+      "x-page-sections": ["Hero background"],
+      "x-image-spec": { "minWidth": 1600, "recommendedWidth": 2400, "aspectRatio": "16:9 or wider" }
+    },
+
+    "elevation": {
+      "type": "string",
+      "description": "Elevation display string shown in the hero location badge",
+      "examples": ["2,500' - 4,500'", "1,200'"],
+      "x-rendered": true,
+      "x-page-sections": ["Hero location badge"],
+      "x-usage": "Rendered as: '{elevation} Elevation' with Compass icon"
+    },
+
+    "zipCode": {
+      "type": "string",
+      "pattern": "^\\d{5}$",
+      "description": "Primary ZIP code for the community",
+      "examples": ["85262"],
+      "x-rendered": true,
+      "x-page-sections": ["Hero location badge"],
+      "x-usage": "Rendered as: '{city}, AZ {zipCode}' with MapPin icon"
+    },
+
+    "coordinates": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 2,
+      "description": "[latitude, longitude] center point. NOT rendered — the Explore Map uses exploreData.center instead. Reserved for geocoding/distance calculations.",
+      "examples": [[33.7950, -111.8250]],
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "In TypeScript interface but never accessed in JSX. Consider removing from interface or using as exploreData.center fallback."
+    },
+
+    "stats": {
+      "type": "object",
+      "description": "Market summary statistics shown in the sidebar 'At a Glance' card below demographics",
+      "x-rendered": true,
+      "x-page-sections": ["Demographics sidebar — Quick Stats", "Demographics sidebar — Browse Listings CTA"],
+      "required": ["avgPrice", "inventory", "trend"],
+      "properties": {
+        "avgPrice": {
+          "type": "string",
+          "description": "Average price display",
+          "examples": ["$3.4M"],
+          "x-rendered": true,
+          "x-page-sections": ["Sidebar 'Avg Price' stat"]
+        },
+        "priceRange": {
+          "type": "string",
+          "description": "Price range display. NOT rendered — present in interface but never accessed in JSX.",
+          "examples": ["$800K - $20M+"],
+          "x-rendered": false
+        },
+        "avgPpsf": {
+          "type": "string",
+          "description": "Average PPSF. NOT rendered — present in interface but never accessed in JSX.",
+          "examples": ["$685"],
+          "x-rendered": false
+        },
+        "avgDom": {
+          "type": "integer",
+          "description": "Average days on market. NOT rendered — present in interface but never accessed in JSX.",
+          "examples": [48],
+          "x-rendered": false
+        },
+        "inventory": {
+          "type": "integer",
+          "description": "Active listing count shown in the 'Browse N Listings' CTA button",
+          "examples": [72],
+          "x-rendered": true,
+          "x-page-sections": ["Sidebar Browse Listings CTA"]
+        },
+        "trend": {
+          "type": "string",
+          "description": "Year-over-year trend display",
+          "examples": ["+14%"],
+          "x-rendered": true,
+          "x-page-sections": ["Sidebar 'YoY Growth' stat"]
+        }
+      }
+    },
+
+    "metrics": {
+      "type": "array",
+      "description": "KPI cards displayed as floating cards overlapping the hero. Rendered by HeroKpiCards component. Typically exactly 4 items (2x2 grid on mobile, 1x4 on desktop).",
+      "x-rendered": true,
+      "x-page-sections": ["KPI Cards (HeroKpiCards component)"],
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "required": ["label", "value", "trend", "trendDir", "description"],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "KPI label in small uppercase text",
+            "examples": ["Median List Price", "Avg Days on Market", "Price Per SqFt", "Absorption Rate"],
+            "x-rendered": true
+          },
+          "value": {
+            "type": "string",
+            "description": "Large serif display value",
+            "examples": ["$3.4M", "48", "$685", "2.8 Mo"],
+            "x-rendered": true
+          },
+          "numericValue": {
+            "type": "number",
+            "description": "Numeric equivalent for sorting/animation. NOT rendered — reserved for future AnimatedCounter integration.",
+            "examples": [3.4, 48, 685, 2.8],
+            "x-rendered": false
+          },
+          "suffix": {
+            "type": "string",
+            "description": "Unit suffix. NOT rendered — reserved for future AnimatedCounter integration.",
+            "examples": ["M", "", " Mo"],
+            "x-rendered": false
+          },
+          "trend": {
+            "type": "string",
+            "description": "Trend text shown with arrow icon, colored by trendDir",
+            "examples": ["+14%", "+5%", "+$34", "Balanced"],
+            "x-rendered": true
+          },
+          "trendDir": {
+            "type": "string",
+            "enum": ["up", "down", "neutral"],
+            "description": "Controls arrow direction (TrendingUp/TrendingDown/Minus) and color (emerald/rose/gray)",
+            "x-rendered": true
+          },
+          "description": {
+            "type": "string",
+            "description": "Subtext below the value in small gray text",
+            "examples": ["12-Month Rolling Avg", "Moderate Pace", "Sector Leading", "Balanced Market"],
+            "x-rendered": true
+          }
+        }
+      }
+    },
+
+    "features": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Feature tags rendered as uppercase pill badges in the narrative section",
+      "examples": [["Six Golf Courses", "8,300 Acres", "High Desert Elevation", "Guard-Gated"]],
+      "x-rendered": true,
+      "x-page-sections": ["Narrative section — feature pills"]
+    },
+
+    "amenities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Simple amenity name list. NOT rendered — present in TypeScript interface but never accessed in JSX. Use 'features' for pill display or 'signatureAmenity' for the spotlight card.",
+      "examples": [["Desert Mountain Club", "Seven Clubhouses", "Tennis Complex"]],
+      "x-rendered": false,
+      "x-page-sections": []
+    },
+
+    "lifestyleFeatures": {
+      "type": "array",
+      "description": "Lifestyle feature cards with icons and images. NOT rendered — not in the TypeScript interface. Reserved for a future lifestyle section.",
+      "x-rendered": false,
+      "x-page-sections": [],
+      "items": {
+        "type": "object",
+        "properties": {
+          "icon": { "type": "string", "enum": ["Mountain", "TreePine", "Shield", "Zap"] },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "image": { "type": "string", "format": "uri" }
+        }
+      }
+    },
+
+    "gallery": {
+      "type": "array",
+      "description": "Auto-rotating gallery in the sidebar (4-col). Rotates every 4 seconds. Hidden if empty or first item has no URL. Shows photo count badge.",
+      "x-rendered": true,
+      "x-page-sections": ["Gallery sidebar (4-col)"],
+      "x-behavior": "Auto-rotates every 4s. Click dots to navigate. Guard: gallery.length > 0 && gallery[0].url",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["url", "caption", "category"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Image URL. Recommended: 1200px wide.",
+            "x-rendered": true,
+            "x-image-spec": { "recommendedWidth": 1200, "aspectRatio": "4:3 or 16:9" }
+          },
+          "caption": {
+            "type": "string",
+            "description": "Caption shown over the image (serif font)",
+            "examples": ["Contemporary Desert Architecture"],
+            "x-rendered": true
+          },
+          "category": {
+            "type": "string",
+            "description": "Category label shown in gold above the caption",
+            "examples": ["Homes", "Nature", "Interiors", "Lifestyle", "Views", "Pools"],
+            "x-rendered": true
+          }
+        }
+      }
+    },
+
+    "demographics": {
+      "type": "object",
+      "description": "6 demographic stats in the sidebar 'At a Glance' card. All values are display strings (pre-formatted).",
+      "x-rendered": true,
+      "x-page-sections": ["Demographics sidebar — 'At a Glance' card"],
+      "required": ["population", "medianAge", "collegeEducated", "householdIncome", "homeOwnership", "avgHomeValue"],
+      "properties": {
+        "population": {
+          "type": "string",
+          "examples": ["2,450"],
+          "x-rendered": true,
+          "x-ui-label": "Population"
+        },
+        "medianAge": {
+          "type": "string",
+          "examples": ["52"],
+          "x-rendered": true,
+          "x-ui-label": "Median Age"
+        },
+        "collegeEducated": {
+          "type": "string",
+          "examples": ["78%"],
+          "x-rendered": true,
+          "x-ui-label": "College Educated"
+        },
+        "householdIncome": {
+          "type": "string",
+          "examples": ["$425K"],
+          "x-rendered": true,
+          "x-ui-label": "Median Income"
+        },
+        "homeOwnership": {
+          "type": "string",
+          "examples": ["94%"],
+          "x-rendered": true,
+          "x-ui-label": "Home Ownership"
+        },
+        "avgHomeValue": {
+          "type": "string",
+          "examples": ["$3.4M"],
+          "x-rendered": true,
+          "x-ui-label": "Avg Home Value"
+        }
+      }
+    },
+
+    "qualityOfLife": {
+      "type": "array",
+      "description": "Quality of life metrics shown in a 2-column grid with icons. Typically 6 items (fills 3 rows).",
+      "x-rendered": true,
+      "x-page-sections": ["Quality of Life bento card (4-col)"],
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["metric", "value", "icon"],
+        "properties": {
+          "metric": {
+            "type": "string",
+            "description": "Metric label in tiny uppercase text",
+            "examples": ["Air Quality", "Sunny Days", "Crime Rate", "Healthcare", "Noise Level", "Light Pollution"],
+            "x-rendered": true
+          },
+          "value": {
+            "type": "string",
+            "description": "Display value in bold",
+            "examples": ["Good", "299/yr", "Very Low", "Excellent", "Minimal", "Dark Sky"],
+            "x-rendered": true
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Numeric score 0-100. NOT rendered — reserved for future progress bar or color intensity.",
+            "x-rendered": false
+          },
+          "icon": {
+            "type": "string",
+            "enum": ["Wind", "Sun", "Shield", "Activity", "VolumeX", "Moon", "Mountain", "TreePine", "Zap"],
+            "description": "Lucide icon name. Resolved via ICON_MAP at runtime. Falls back to Activity if not found.",
+            "x-rendered": true
+          },
+          "color": {
+            "type": "string",
+            "description": "Tailwind color name. NOT rendered — icon uses gray-400 regardless. Reserved for future colored icons.",
+            "examples": ["emerald", "amber", "blue", "rose", "indigo", "purple"],
+            "x-rendered": false
+          }
+        }
+      }
+    },
+
+    "schools": {
+      "type": "array",
+      "description": "Nearby schools. Only the first 4 are displayed in a 2x2 grid.",
+      "x-rendered": true,
+      "x-page-sections": ["Top Schools bento card (6-col)"],
+      "x-display-limit": 4,
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "rating", "distance"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "School name (truncated if long)",
+            "examples": ["Pinnacle Peak Preparatory"],
+            "x-rendered": true
+          },
+          "type": {
+            "type": "string",
+            "description": "Type and grade range",
+            "examples": ["Private K-8", "Public 9-12", "Charter 5-12"],
+            "x-rendered": true
+          },
+          "rating": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10,
+            "description": "Rating displayed as '{rating}/10' in emerald badge",
+            "x-rendered": true
+          },
+          "distance": {
+            "type": "string",
+            "description": "Distance from community",
+            "examples": ["3 mi", "6 mi"],
+            "x-rendered": true
+          },
+          "students": {
+            "type": "integer",
+            "description": "Student count. NOT rendered — bonus data for future detail view.",
+            "x-rendered": false
+          },
+          "highlight": {
+            "type": "string",
+            "description": "School highlight/award. NOT rendered — bonus data for future detail view.",
+            "examples": ["Blue Ribbon School", "#1 in Arizona"],
+            "x-rendered": false
+          }
+        }
+      }
+    },
+
+    "restaurants": {
+      "type": "array",
+      "description": "Nearby restaurants. Only the first 4 are displayed in a 2x2 grid with thumbnail images.",
+      "x-rendered": true,
+      "x-page-sections": ["Fine Dining bento card (6-col)"],
+      "x-display-limit": 4,
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "cuisine", "distance", "rating", "image"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Restaurant name (truncated if long)",
+            "examples": ["Talavera"],
+            "x-rendered": true
+          },
+          "cuisine": {
+            "type": "string",
+            "description": "Cuisine type in small text",
+            "examples": ["Southwestern Fine Dining", "Modern Mexican"],
+            "x-rendered": true
+          },
+          "distance": {
+            "type": "string",
+            "description": "Drive time in small gray text",
+            "examples": ["8 min", "20 min"],
+            "x-rendered": true
+          },
+          "rating": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 5,
+            "description": "Rating displayed with gold star icon",
+            "examples": [4.8, 4.9],
+            "x-rendered": true
+          },
+          "image": {
+            "type": "string",
+            "format": "uri",
+            "description": "Thumbnail image (64x64px display). Scales on hover.",
+            "x-rendered": true,
+            "x-image-spec": { "displaySize": "64x64", "recommendedWidth": 600 }
+          },
+          "location": {
+            "type": "string",
+            "description": "Venue/location name. NOT rendered — bonus data for future detail view.",
+            "examples": ["Four Seasons Scottsdale"],
+            "x-rendered": false
+          },
+          "priceRange": {
+            "type": "string",
+            "description": "Price range. NOT rendered — bonus data.",
+            "examples": ["$$$$", "$$$"],
+            "x-rendered": false
+          },
+          "highlight": {
+            "type": "string",
+            "description": "Restaurant highlight. NOT rendered — bonus data.",
+            "examples": ["Desert Views", "Prime Steaks"],
+            "x-rendered": false
+          }
+        }
+      }
+    },
+
+    "employers": {
+      "type": "array",
+      "description": "Major employers displayed in a 4-column grid within the Economy section.",
+      "x-rendered": true,
+      "x-page-sections": ["Economy — Major Employers (8-col within 12-col dark band)"],
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "sector", "employees"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Company name (truncated if long)",
+            "examples": ["Mayo Clinic Arizona"],
+            "x-rendered": true
+          },
+          "sector": {
+            "type": "string",
+            "description": "Industry sector in small text",
+            "examples": ["Healthcare", "Aerospace", "Corporate HQ"],
+            "x-rendered": true
+          },
+          "employees": {
+            "type": "string",
+            "description": "Employee count in gold bold text",
+            "examples": ["6,500+", "2,500+"],
+            "x-rendered": true
+          },
+          "distance": {
+            "type": "string",
+            "description": "Distance from community. NOT rendered — bonus data.",
+            "examples": ["12 mi"],
+            "x-rendered": false
+          }
+        }
+      }
+    },
+
+    "economicStats": {
+      "type": "array",
+      "description": "Economic indicator stats in a 2x2 grid within the Economy section. Typically 4 items.",
+      "x-rendered": true,
+      "x-page-sections": ["Economy — Economic Indicators (4-col within 12-col dark band)"],
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "required": ["label", "value"],
+        "properties": {
+          "value": {
+            "type": "string",
+            "description": "Large serif white display value",
+            "examples": ["2.8%", "+4.2%", "$425K", "38%"],
+            "x-rendered": true
+          },
+          "label": {
+            "type": "string",
+            "description": "Tiny uppercase label below value",
+            "examples": ["Unemployment Rate", "Job Growth (YoY)", "Median Household", "Remote Work"],
+            "x-rendered": true
+          },
+          "benchmark": {
+            "type": "string",
+            "description": "Benchmark comparison. NOT rendered — present in interface but never accessed in JSX.",
+            "examples": ["vs 3.7% National", "Top 1% Nationally"],
+            "x-rendered": false
+          }
+        }
+      }
+    },
+
+    "airports": {
+      "type": "object",
+      "description": "Two airports displayed in the Air Travel bento card — private/executive and commercial.",
+      "x-rendered": true,
+      "x-page-sections": ["Air Travel bento card (4-col)"],
+      "required": ["private", "commercial"],
+      "properties": {
+        "private": {
+          "type": "object",
+          "description": "Private/executive airport. Name rendered bold, type in gold uppercase, distance as large serif text.",
+          "required": ["name", "type", "distance"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "examples": ["Scottsdale Airport (KSDL)"],
+              "x-rendered": true
+            },
+            "type": {
+              "type": "string",
+              "examples": ["Private/Executive"],
+              "x-rendered": true,
+              "x-ui-style": "Gold uppercase tracking-widest"
+            },
+            "distance": {
+              "type": "string",
+              "examples": ["25 min"],
+              "x-rendered": true
+            },
+            "details": {
+              "type": "string",
+              "description": "Additional airport details. NOT rendered.",
+              "examples": ["FBO services, Gulfstream capable runway"],
+              "x-rendered": false
+            }
+          }
+        },
+        "commercial": {
+          "type": "object",
+          "description": "Commercial airport. Same layout as private but type uses gray color instead of gold.",
+          "required": ["name", "type", "distance"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "examples": ["Phoenix Sky Harbor (PHX)"],
+              "x-rendered": true
+            },
+            "type": {
+              "type": "string",
+              "examples": ["International"],
+              "x-rendered": true,
+              "x-ui-style": "Gray uppercase tracking-widest"
+            },
+            "distance": {
+              "type": "string",
+              "examples": ["45 min"],
+              "x-rendered": true
+            },
+            "details": {
+              "type": "string",
+              "description": "Additional airport details. NOT rendered.",
+              "examples": ["Direct flights to 100+ destinations"],
+              "x-rendered": false
+            }
+          }
+        }
+      }
+    },
+
+    "keyDistances": {
+      "type": "array",
+      "description": "Drive times to key destinations. All items rendered in a vertical list.",
+      "x-rendered": true,
+      "x-page-sections": ["Key Distances bento card (4-col)"],
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["place", "time"],
+        "properties": {
+          "place": {
+            "type": "string",
+            "description": "Destination name in gray text",
+            "examples": ["Old Town Scottsdale", "Kierland Commons"],
+            "x-rendered": true
+          },
+          "time": {
+            "type": "string",
+            "description": "Drive time in large serif text",
+            "examples": ["30 min", "25 min"],
+            "x-rendered": true
+          },
+          "miles": {
+            "type": "string",
+            "description": "Distance in miles. NOT rendered — bonus data.",
+            "examples": ["22 mi"],
+            "x-rendered": false
+          }
+        }
+      }
+    },
+
+    "signatureAmenity": {
+      "type": "object",
+      "description": "Full-width split card spotlighting the community's signature amenity. Left side: icon badge, title, description text, and 2x2 stat grid. Right side: full-bleed image.",
+      "x-rendered": true,
+      "x-page-sections": ["Signature Amenity (12-col full-width dark card)"],
+      "required": ["icon", "title", "description", "stats", "image"],
+      "properties": {
+        "icon": {
+          "type": "string",
+          "enum": ["Mountain", "TreePine", "Shield", "Zap"],
+          "description": "Lucide icon name for the badge. Only these 4 are supported by the component's conditional rendering.",
+          "x-rendered": true
+        },
+        "title": {
+          "type": "string",
+          "description": "Amenity title (serif h3) and image alt text",
+          "examples": ["Six Jack Nicklaus Courses"],
+          "x-rendered": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Description text in white/60 opacity. Supports multi-paragraph but renders as single block (no \\n\\n splitting).",
+          "x-rendered": true,
+          "x-notes": "Unlike 'narrative', this does NOT split into tabs. Full text renders inline."
+        },
+        "stats": {
+          "type": "array",
+          "description": "Stat highlights in a 2-column grid. Typically 4 items.",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["value", "label"],
+            "properties": {
+              "value": {
+                "type": "string",
+                "description": "Large serif white bold value",
+                "examples": ["6", "7", "8,300", "Top 50"],
+                "x-rendered": true
+              },
+              "label": {
+                "type": "string",
+                "description": "Tiny uppercase label in white/40",
+                "examples": ["Championship Courses", "Clubhouses", "Acres", "Private Club"],
+                "x-rendered": true
+              }
+            }
+          },
+          "x-rendered": true
+        },
+        "image": {
+          "type": "string",
+          "format": "uri",
+          "description": "Full-width image (7/12 cols on desktop, 100% height). Hidden if empty/null.",
+          "x-rendered": true,
+          "x-image-spec": { "recommendedWidth": 1200, "aspectRatio": "16:9 or wider" }
+        }
+      }
+    },
+
+    "listings": {
+      "type": "array",
+      "description": "Property listings used in two sections:\n1. FEATURED LISTING: listings[0] gets a hero-style spotlight (guard: length > 0 && [0].img)\n2. LISTING GRID: all listings in a paginated 3-per-page carousel (guard: length > 1)\nThe featured listing displays address without house number (address.split(' ').slice(1).join(' ')).",
+      "x-rendered": true,
+      "x-page-sections": ["Featured Listing hero", "Listing Grid carousel"],
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "price", "ppsf", "beds", "baths", "sqft", "address", "status", "lot", "img"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Unique ID. Used as React key and in listing detail link (/listing/{id}).",
+            "x-rendered": true
+          },
+          "price": {
+            "type": "string",
+            "description": "Formatted price in large serif text",
+            "examples": ["$4,850,000"],
+            "x-rendered": true
+          },
+          "ppsf": {
+            "type": "string",
+            "description": "Price per sqft shown below price in grid cards",
+            "examples": ["$892"],
+            "x-rendered": true,
+            "x-page-sections": ["Listing Grid only (not Featured)"]
+          },
+          "beds": {
+            "type": "integer",
+            "description": "Bedroom count. Featured: '{beds}BD / {baths}BA'. Grid: icon + count.",
+            "x-rendered": true
+          },
+          "baths": {
+            "type": "number",
+            "description": "Bathroom count (supports .5 for half baths)",
+            "examples": [5.5, 4],
+            "x-rendered": true
+          },
+          "sqft": {
+            "type": "integer",
+            "description": "Square footage. Formatted with toLocaleString() (e.g. 5,430 SF).",
+            "x-rendered": true
+          },
+          "address": {
+            "type": "string",
+            "description": "Full street address. Featured listing strips house number for the headline: address.split(' ').slice(1).join(' ').",
+            "examples": ["1024 Desert Vista Dr"],
+            "x-rendered": true,
+            "x-notes": "Featured: '1024 Desert Vista Dr' → 'Desert Vista Dr' as h3"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["Active", "Pending", "Coming Soon"],
+            "description": "Status badge in listing grid cards. Color varies: Active=white, Pending=gold, Coming Soon=navy.",
+            "x-rendered": true
+          },
+          "lot": {
+            "type": "string",
+            "description": "Lot size display",
+            "examples": ["1.4 Acres", "0.8 Acres"],
+            "x-rendered": true
+          },
+          "img": {
+            "type": "string",
+            "format": "uri",
+            "description": "Listing photo URL. Featured listing uses as hero (700px tall). Grid uses 4:3 aspect ratio.",
+            "x-rendered": true,
+            "x-image-spec": { "recommendedWidth": 800, "aspectRatio": "4:3 for grid, flexible for featured" }
+          }
+        }
+      }
+    },
+
+    "exploreData": {
+      "type": "object",
+      "description": "Interactive Leaflet map with data-driven tab sidebar. Hidden if center is [0,0]. Tabs are dynamic — only tabs present in the tabs[] array are shown. Each tab has a scrollable item list + map pins with popups. Community boundary polygon overlaid when boundary=true.",
+      "x-rendered": true,
+      "x-page-sections": ["Explore the Area (12-col full-width map section)"],
+      "x-guard": "exploreData && exploreData.center && exploreData.center[0] !== 0",
+      "required": ["center", "zoom", "tabs"],
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "[lat, lng] map center. Set [0, 0] to hide the entire Explore section.",
+          "x-rendered": true
+        },
+        "zoom": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "description": "Initial map zoom level. 13 is typical for community-scale view.",
+          "examples": [13],
+          "x-rendered": true
+        },
+        "tabs": {
+          "type": "array",
+          "description": "Dynamic map tabs. Each tab defines a category of points of interest. Only tabs with data appear. Common keys: listings, dining, trails, golf, shopping, fitness, parks.",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["key", "label", "markerColor", "items"],
+            "properties": {
+              "key": {
+                "type": "string",
+                "description": "Unique tab identifier. Maps to TAB_ICON_MAP for icon selection. Known keys: listings, dining, trails, golf, shopping, fitness, parks.",
+                "examples": ["listings", "dining", "trails", "golf"]
+              },
+              "label": {
+                "type": "string",
+                "description": "Display label shown in tab button and overlay.",
+                "examples": ["Active Listings", "Dining", "Trails", "Golf"]
+              },
+              "desc": {
+                "type": "string",
+                "description": "Short description shown below the label in the tab button.",
+                "examples": ["Properties for sale", "Fine dining & casual"]
+              },
+              "markerColor": {
+                "type": "string",
+                "description": "Hex color for map teardrop markers and the count badge dot.",
+                "examples": ["#Bfa67a", "#E07A5F", "#81B29A", "#3D405B"]
+              },
+              "items": {
+                "type": "array",
+                "description": "Points of interest for this tab. All items share common fields (id, name, coords). Type-specific fields are optional and drive conditional rendering in sidebar and popup.",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "name", "coords"],
+                  "properties": {
+                    "id": { "type": "integer", "description": "Unique ID for selection state" },
+                    "name": { "type": "string", "description": "Name shown in sidebar and popup" },
+                    "coords": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2, "description": "[lat, lng] marker position" },
+                    "price": { "type": "string", "description": "Listing price (listings tab)", "examples": ["$4,250,000"] },
+                    "beds": { "type": "integer", "description": "Bedrooms (listings tab)" },
+                    "baths": { "type": "integer", "description": "Bathrooms (listings tab)" },
+                    "sqft": { "type": "integer", "description": "Square footage (listings tab)" },
+                    "cuisine": { "type": "string", "description": "Cuisine type (dining tab)", "examples": ["American Fine Dining"] },
+                    "rating": { "type": "number", "description": "Star rating (dining tab)", "examples": [4.8] },
+                    "difficulty": { "type": "string", "enum": ["Easy", "Moderate", "Difficult"], "description": "Trail difficulty (trails tab)" },
+                    "distance": { "type": "string", "description": "Trail distance (trails tab)", "examples": ["4.2 mi"] },
+                    "type": { "type": "string", "description": "Sub-type label (golf tab)", "examples": ["Jack Nicklaus Signature"] },
+                    "holes": { "type": "integer", "description": "Hole count (golf tab)", "examples": [18] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "boundary": {
+      "type": "boolean",
+      "description": "When true, the explore map fetches the community boundary polygon from /luxury-communities.geojson by matching the community id/slug. Renders as a gold dashed polygon overlay.",
+      "x-rendered": true,
+      "x-page-sections": ["Explore the Area map (polygon overlay)"],
+      "x-notes": "Polygon data is NOT embedded in the community JSON — it lives in the GeoJSON file due to size (thousands of coordinate points per polygon)."
+    },
+
+    "section": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Lifestyle section/category slug. Maps to the sections entity in the v9 schema. Used for section-based filtering on the communities page and for fallback hero images.",
+      "examples": ["guard-gated", "golf-community", "resort-style", "mountain-retreat"],
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Will drive section-based filtering, hero image fallback, and category badges when UI is wired."
+    },
+
+    "gating": {
+      "type": "string",
+      "description": "Human-readable description of the community's access/security model.",
+      "examples": ["Private guard-gated, individual villages also gated", "24/7 staffed guard gate"],
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: renders in a security/privacy card or FAQ. Used to auto-generate FAQs."
+    },
+
+    "categoryTags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Display-ready category tags for filtering and badge display. Different from 'features' (which are community-specific highlights) — these are standardized categories shared across communities.",
+      "examples": [["Guard-Gated", "Golf", "Mountain", "Active Lifestyle"]],
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: filter chips on communities page, category badges on cards. These are the taxonomy, 'features' are freeform."
+    },
+
+    "website": {
+      "type": "string",
+      "format": "uri",
+      "description": "Official community or club website URL.",
+      "examples": ["https://www.desertmountain.com/"],
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: external link in sidebar or footer. Also used in placeSchema structured data."
+    },
+
+    "priceRange": {
+      "type": "string",
+      "description": "Full price range including lot/homesite pricing. More detailed than stats.priceRange which is just resale homes. Includes context like '(homesites)' qualifier.",
+      "examples": ["$450K (homesites) - $12M+", "$2M - $30M+"],
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: hero subtitle or sidebar display. Used to auto-generate FAQ answer about pricing."
+    },
+
+    "hoa": {
+      "type": "object",
+      "description": "HOA fee details for the community. Includes both raw description and parsed numeric fields.",
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: HOA card in sidebar or bento grid. Used to auto-generate FAQ about HOA costs.",
+      "properties": {
+        "raw": {
+          "type": "string",
+          "description": "Full human-readable HOA description with all caveats and context.",
+          "x-rendered": false
+        },
+        "monthlyLow": {
+          "type": "number",
+          "description": "Low end of monthly HOA range in dollars.",
+          "examples": [200],
+          "x-rendered": false
+        },
+        "monthlyHigh": {
+          "type": "number",
+          "description": "High end of monthly HOA range in dollars.",
+          "examples": [500],
+          "x-rendered": false
+        },
+        "hasCapitalFee": {
+          "type": "boolean",
+          "description": "Whether there is a one-time capital/enhancement fee at closing.",
+          "x-rendered": false
+        }
+      }
+    },
+
+    "membership": {
+      "type": "object",
+      "description": "Club membership details (for communities with private clubs). Null/absent for communities without club memberships.",
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: membership card/section. Key selling point for golf communities.",
+      "properties": {
+        "raw": {
+          "type": "string",
+          "description": "Full human-readable membership description.",
+          "x-rendered": false
+        },
+        "initiationFee": {
+          "type": "string",
+          "description": "Initiation fee display string.",
+          "examples": ["$200K"],
+          "x-rendered": false
+        },
+        "monthlyDues": {
+          "type": "string",
+          "description": "Monthly dues display string.",
+          "examples": ["~$2,200/mo"],
+          "x-rendered": false
+        },
+        "categories": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Available membership tiers/categories.",
+          "examples": [["Full Golf", "Seven Golf", "Lifestyle"]],
+          "x-rendered": false
+        },
+        "waitlist": {
+          "type": "boolean",
+          "description": "Whether there is currently a waitlist for membership.",
+          "x-rendered": false
+        }
+      }
+    },
+
+    "golf": {
+      "type": ["object", "null"],
+      "description": "Golf course details for golf communities. Null for non-golf communities. Contains both a pipe-delimited summary and structured course data.",
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: golf section with course carousel/comparison. ~11/133 communities have golf data. Used to auto-generate FAQ.",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Pipe-delimited summary of all courses and key facts.",
+          "x-rendered": false
+        },
+        "courses": {
+          "type": "array",
+          "description": "Individual course records with structured data.",
+          "items": {
+            "type": "object",
+            "required": ["name", "designer", "par"],
+            "properties": {
+              "name": { "type": "string", "description": "Course name", "examples": ["Renegade", "Cochise"] },
+              "designer": { "type": "string", "description": "Course designer(s)", "examples": ["Jack Nicklaus"] },
+              "yardage": { "type": "integer", "description": "Total yardage (0 if unknown)", "examples": [7524] },
+              "par": { "type": "integer", "description": "Course par", "examples": [72, 54] },
+              "year": { "type": "integer", "description": "Year opened (0 if unknown)", "examples": [1987] },
+              "style": { "type": "string", "description": "Course style/character", "examples": ["Desert Target", "Scottish Links", "Mountain Elevation"] },
+              "awards": { "type": "array", "items": { "type": "string" }, "description": "Notable awards/recognitions" }
+            }
+          },
+          "x-rendered": false
+        }
+      }
+    },
+
+    "recognition": {
+      "type": ["string", "null"],
+      "description": "Awards and recognitions as a single string. Null if no awards. Period-separated list of accolades.",
+      "examples": ["Robb Report 'Best Golf Community in the World.' Platinum Club of America..."],
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: awards badge/ribbon section. Only ~1/133 communities have this currently."
+    },
+
+    "notable": {
+      "type": ["string", "null"],
+      "description": "Key facts and notable statistics about the community. Period-separated list of bullet-point-style facts.",
+      "examples": ["8,300 acres across 35 distinctive villages. Elevation of ~3,000 ft provides cooler temps..."],
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: 'Did You Know' sidebar card or fact highlights section."
+    },
+
+    "schoolDistrict": {
+      "type": "object",
+      "description": "School district assignment details. Complements the 'schools' array (which lists nearby schools) — this identifies the actual assigned district.",
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: school district card with direct link. Used to auto-generate FAQ.",
+      "properties": {
+        "raw": {
+          "type": "string",
+          "description": "Full human-readable school district description.",
+          "x-rendered": false
+        },
+        "district": {
+          "type": "string",
+          "description": "School district name.",
+          "examples": ["Cave Creek Unified", "Scottsdale Unified"],
+          "x-rendered": false
+        },
+        "highSchool": {
+          "type": "string",
+          "description": "Assigned high school name.",
+          "examples": ["Cactus Shadows HS", "Desert Mountain HS"],
+          "x-rendered": false
+        },
+        "privateSchools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Nearby private school alternatives.",
+          "examples": [["Notre Dame Prep", "Scottsdale Prep (Great Hearts)"]],
+          "x-rendered": false
+        }
+      }
+    },
+
+    "proximity": {
+      "type": "object",
+      "description": "Named drive-time distances to key landmarks. More structured than 'keyDistances' (which is display-only). Provides machine-readable named access for known landmarks.",
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: structured data for local business schema. Complements keyDistances[] for display.",
+      "properties": {
+        "raw": { "type": "string", "description": "Full human-readable proximity summary.", "x-rendered": false },
+        "scottsdaleAirport": { "type": "string", "description": "Drive time to KSDL.", "examples": ["25-35 min"], "x-rendered": false },
+        "skyHarbor": { "type": "string", "description": "Drive time to PHX.", "examples": ["40-50 min"], "x-rendered": false },
+        "fashionSquare": { "type": "string", "description": "Drive time to Fashion Square / Old Town.", "examples": ["30-40 min"], "x-rendered": false },
+        "loop101": { "type": "string", "description": "Drive time to Loop 101.", "examples": ["15-20 min via Pima Rd"], "x-rendered": false }
+      }
+    },
+
+    "nearestTrail": {
+      "type": ["object", "null"],
+      "description": "Nearest hiking/biking trail. Null if no trail data. Provides coordinates for map marker and access type for display.",
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: trail spotlight card. Coordinates can add a dedicated trail pin to the explore map.",
+      "properties": {
+        "name": { "type": "string", "description": "Trail name with details.", "examples": ["Desert Mountain Trails (private, 25+ mi)"] },
+        "latitude": { "type": "number", "description": "Trail latitude." },
+        "longitude": { "type": "number", "description": "Trail longitude." },
+        "accessType": { "type": "string", "enum": ["public", "private", "members-only"], "description": "Trail access level." }
+      }
+    },
+
+    "structuredAmenities": {
+      "type": "array",
+      "description": "Detailed amenity records with addresses, coordinates, URLs, access levels, and tags. These are the full-detail versions of the simple 'amenities' string array. Each record represents a specific facility (golf course, clubhouse, spa, trail, etc.).",
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: amenity detail cards, amenity map pins, amenity-centric pages. Maps 1:1 to the v9 amenities entity for DB migration.",
+      "items": {
+        "type": "object",
+        "required": ["name", "shortDescription", "tags", "access"],
+        "properties": {
+          "name": { "type": "string", "description": "Amenity name.", "examples": ["Renegade Golf Course & Clubhouse"] },
+          "shortDescription": { "type": "string", "description": "1-2 sentence description." },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Categorization tags for filtering. Common: golf, dining, spa, pool, fitness, tennis, hiking, family.",
+            "examples": [["golf", "championship", "jack-nicklaus", "dining"]]
+          },
+          "url": { "type": ["string", "null"], "format": "uri", "description": "Official website URL. Null if unavailable." },
+          "address": { "type": "string", "description": "Full street address." },
+          "latitude": { "type": "number", "description": "Latitude for map pin." },
+          "longitude": { "type": "number", "description": "Longitude for map pin." },
+          "access": {
+            "type": "string",
+            "enum": ["public", "residents", "members-only", "membership-required"],
+            "description": "Access level: public (anyone), residents (HOA), members-only (club), membership-required (purchasable)."
+          }
+        }
+      }
+    },
+
+    "faqs": {
+      "type": "array",
+      "description": "Frequently asked questions for FAQ structured data (FAQPage schema) and on-page FAQ accordion. Drives Google rich result snippets. Questions should target long-tail search queries.",
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: FAQ accordion section + FAQPage JSON-LD structured data. High SEO value — targets 'People Also Ask' results.",
+      "items": {
+        "type": "object",
+        "required": ["question", "answer"],
+        "properties": {
+          "question": {
+            "type": "string",
+            "description": "Question targeting a long-tail search query. Should start with How/What/Is/Does.",
+            "examples": ["How much are HOA fees at Desert Mountain?"]
+          },
+          "answer": {
+            "type": "string",
+            "description": "Comprehensive answer (2-4 sentences). Include specific numbers and facts for SEO value.",
+            "examples": ["HOA fees at Desert Mountain range from $200 to $500 per month..."]
+          }
+        }
+      }
+    },
+
+    "relatedCommunities": {
+      "type": "array",
+      "description": "Related/nearby luxury communities for internal linking. Provides cross-selling and improves SEO through internal link equity. Typically 3 communities in the same region or price tier.",
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: 'Similar Communities' carousel at page bottom. Critical for internal linking SEO strategy.",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "region", "tagline"],
+        "properties": {
+          "id": { "type": "string", "description": "Community slug for URL routing.", "examples": ["silverleaf-at-dc-ranch"] },
+          "name": { "type": "string", "description": "Display name.", "examples": ["Silverleaf at DC Ranch"] },
+          "region": { "type": "string", "description": "Region slug.", "examples": ["north-scottsdale"] },
+          "tagline": { "type": "string", "description": "Short tagline for card display." },
+          "priceRange": { "type": "string", "description": "Price range for card display.", "examples": ["$2M - $30M+"] },
+          "heroImage": { "type": "string", "format": "uri", "description": "Card thumbnail image URL." },
+          "tags": { "type": "array", "items": { "type": "string" }, "description": "Category tags for card badges." }
+        }
+      }
+    },
+
+    "recentSales": {
+      "type": "array",
+      "description": "Recently sold properties in the community. Provides market transparency and shows real transaction activity. Sorted most-recent first.",
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: 'Recent Sales' table or timeline. High value for buyer due-diligence and SEO (transaction data).",
+      "items": {
+        "type": "object",
+        "required": ["address", "soldDate", "soldPrice", "beds", "baths", "sqft"],
+        "properties": {
+          "address": { "type": "string", "description": "Property address.", "examples": ["41870 N 110th Way"] },
+          "soldDate": { "type": "string", "format": "date", "description": "Sale close date (ISO 8601).", "examples": ["2026-01-15"] },
+          "soldPrice": { "type": "string", "description": "Sold price display string.", "examples": ["$4,275,000"] },
+          "beds": { "type": "integer", "description": "Bedrooms." },
+          "baths": { "type": "number", "description": "Bathrooms (supports .5)." },
+          "sqft": { "type": "integer", "description": "Square footage." },
+          "originalPrice": { "type": "string", "description": "Original list price for price-reduction context.", "examples": ["$4,495,000"] },
+          "daysOnMarket": { "type": "integer", "description": "Days from list to close." }
+        }
+      }
+    },
+
+    "priceHistory": {
+      "type": "array",
+      "description": "Annual price history for trend visualization. Typically 5 years of data. Used for line charts showing price appreciation over time.",
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: price history line chart. Demonstrates long-term value appreciation — key for buyer confidence.",
+      "items": {
+        "type": "object",
+        "required": ["year", "medianPrice"],
+        "properties": {
+          "year": { "type": "integer", "description": "Calendar year.", "examples": [2021, 2025] },
+          "medianPrice": { "type": "integer", "description": "Median sale price in dollars.", "examples": [1850000, 3400000] },
+          "avgPpsf": { "type": "integer", "description": "Average price per square foot.", "examples": [485, 685] },
+          "totalSales": { "type": "integer", "description": "Total number of closed sales that year.", "examples": [145, 142] },
+          "avgDom": { "type": "integer", "description": "Average days on market.", "examples": [42, 48] }
+        }
+      }
+    },
+
+    "testimonials": {
+      "type": "array",
+      "description": "Resident testimonials/reviews. Supports Google Review structured data. Typically 3 testimonials for a balanced section.",
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: testimonial carousel + Review JSON-LD. Social proof for conversion. Consider AggregateRating schema.",
+      "items": {
+        "type": "object",
+        "required": ["quote", "author", "rating"],
+        "properties": {
+          "quote": { "type": "string", "description": "Testimonial text (1-3 sentences)." },
+          "author": { "type": "string", "description": "Author name(s).", "examples": ["Michael & Sarah T."] },
+          "role": { "type": "string", "description": "Context (e.g. residency duration).", "examples": ["Resident since 2019"] },
+          "rating": { "type": "integer", "minimum": 1, "maximum": 5, "description": "Star rating for Review schema." }
+        }
+      }
+    },
+
+    "videoTour": {
+      "type": ["string", "null"],
+      "format": "uri",
+      "description": "URL to a video tour (YouTube, Vimeo, etc.). Null if no video is available. Supports VideoObject structured data.",
+      "x-rendered": false,
+      "x-page-sections": [],
+      "x-notes": "Future: embedded video player section + VideoObject JSON-LD. Null until video content is produced."
+    }
+  },
+
+  "x-field-summary": {
+    "total-fields": 145,
+    "rendered": 62,
+    "not-rendered": 83,
+    "not-rendered-categories": {
+      "original-unrendered": 23,
+      "promoted-from-future": 44,
+      "new-enhancement-fields": 16
+    },
+    "not-rendered-list": [
+      "--- Original unrendered (23) ---",
+      "description — in interface, SEO uses tagline instead",
+      "coordinates — in interface, map uses exploreData.center",
+      "amenities[] — in interface, features[] is used for pills",
+      "lifestyleFeatures[] — not in interface, bonus JSON data",
+      "stats.priceRange — in interface, never accessed",
+      "stats.avgPpsf — in interface, never accessed",
+      "stats.avgDom — in interface, never accessed",
+      "metrics[].numericValue — in interface, reserved for AnimatedCounter",
+      "metrics[].suffix — in interface, reserved for AnimatedCounter",
+      "qualityOfLife[].score — in interface, reserved for progress bars",
+      "qualityOfLife[].color — in interface, reserved for colored icons",
+      "economicStats[].benchmark — in interface, never accessed",
+      "schools[].students — bonus JSON, not in interface",
+      "schools[].highlight — bonus JSON, not in interface",
+      "restaurants[].location — bonus JSON, not in interface",
+      "restaurants[].priceRange — bonus JSON, not in interface",
+      "restaurants[].highlight — bonus JSON, not in interface",
+      "employers[].distance — bonus JSON, not in interface",
+      "airports.private.details — bonus JSON, not in interface",
+      "airports.commercial.details — bonus JSON, not in interface",
+      "keyDistances[].miles — bonus JSON, not in interface",
+      "--- Promoted from _future (44 fields across 14 top-level keys) ---",
+      "section — lifestyle category slug for filtering",
+      "gating — security/access description",
+      "categoryTags[] — standardized taxonomy tags",
+      "website — official community URL",
+      "priceRange — full price range with context",
+      "hoa.raw — full HOA description",
+      "hoa.monthlyLow — low end monthly dollars",
+      "hoa.monthlyHigh — high end monthly dollars",
+      "hoa.hasCapitalFee — closing fee flag",
+      "membership.raw — full membership description",
+      "membership.initiationFee — initiation fee display",
+      "membership.monthlyDues — monthly dues display",
+      "membership.categories[] — membership tiers",
+      "membership.waitlist — waitlist flag",
+      "golf.description — pipe-delimited course summary",
+      "golf.courses[].name — course name",
+      "golf.courses[].designer — designer name",
+      "golf.courses[].yardage — total yardage",
+      "golf.courses[].par — course par",
+      "golf.courses[].year — year opened",
+      "golf.courses[].style — course style",
+      "golf.courses[].awards[] — course awards",
+      "recognition — awards string",
+      "notable — key facts string",
+      "schoolDistrict.raw — full district description",
+      "schoolDistrict.district — district name",
+      "schoolDistrict.highSchool — assigned high school",
+      "schoolDistrict.privateSchools[] — nearby private schools",
+      "proximity.raw — full proximity description",
+      "proximity.scottsdaleAirport — drive time to KSDL",
+      "proximity.skyHarbor — drive time to PHX",
+      "proximity.fashionSquare — drive time to Fashion Square",
+      "proximity.loop101 — drive time to Loop 101",
+      "nearestTrail.name — trail name with details",
+      "nearestTrail.latitude — trail lat",
+      "nearestTrail.longitude — trail lng",
+      "nearestTrail.accessType — public/private/members-only",
+      "structuredAmenities[].name — amenity name",
+      "structuredAmenities[].shortDescription — amenity description",
+      "structuredAmenities[].tags[] — amenity tags",
+      "structuredAmenities[].url — amenity website",
+      "structuredAmenities[].address — amenity address",
+      "structuredAmenities[].latitude — amenity lat",
+      "structuredAmenities[].longitude — amenity lng",
+      "structuredAmenities[].access — amenity access level",
+      "--- New enhancement fields (16 fields across 6 top-level keys) ---",
+      "faqs[].question — FAQ question for structured data",
+      "faqs[].answer — FAQ answer for structured data",
+      "relatedCommunities[].id — related community slug",
+      "relatedCommunities[].name — related community name",
+      "relatedCommunities[].region — related community region",
+      "relatedCommunities[].tagline — card tagline",
+      "relatedCommunities[].priceRange — card price range",
+      "relatedCommunities[].heroImage — card thumbnail",
+      "relatedCommunities[].tags[] — card category tags",
+      "recentSales[] — recent sold properties (8 fields each)",
+      "priceHistory[] — annual price/volume data (5 fields each)",
+      "testimonials[].quote — review text",
+      "testimonials[].author — reviewer name",
+      "testimonials[].role — reviewer context",
+      "testimonials[].rating — star rating 1-5",
+      "videoTour — video URL or null"
+    ]
+  },
+
+  "x-conditional-sections": {
+    "gallery": "Hidden if gallery.length === 0 or gallery[0].url is falsy",
+    "explore-map": "Hidden if exploreData.center[0] === 0",
+    "signature-amenity-image": "Hidden if signatureAmenity.image is falsy",
+    "featured-listing": "Hidden if listings.length === 0 or listings[0].img is falsy",
+    "listing-grid": "Hidden if listings.length <= 1",
+    "narrative-tabs": "Only shown when narrative has 3+ paragraphs (split by \\n\\n)"
+  },
+
+  "x-icon-map": {
+    "description": "Valid icon names for qualityOfLife[].icon and signatureAmenity.icon",
+    "supported-quality-icons": ["Wind", "Sun", "Shield", "Activity", "VolumeX", "Moon", "Mountain", "TreePine", "Zap"],
+    "supported-amenity-icons": ["Mountain", "TreePine", "Shield", "Zap"],
+    "fallback": "Activity (for qualityOfLife)"
+  }
+}

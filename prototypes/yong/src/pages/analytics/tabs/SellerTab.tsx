@@ -4,20 +4,15 @@ import type { RegionScope } from '../../../models/RegionScope';
 import type { ZipcodeScope } from '../../../models/ZipcodeScope';
 import type { CommunityScope } from '../../../models/CommunityScope';
 import type { ScopeLevel } from '../../../models/types';
-import { Metric, MetricDark, Divider, RankList } from '../components/widgets';
+import { Metric, Divider, RankList } from '../components/widgets';
 import PriceSegmentBars from '../../../components/market-report/PriceSegmentBars';
 import DomDistributionBars from '../../../components/market-report/DomDistributionBars';
 import SeasonalTrendsChart from '../../../components/market-report/SeasonalTrendsChart';
 import ScopeComparisonTable from '../../../components/market-report/ScopeComparisonTable';
-import YoyComparisonTable from '../../../components/market-report/YoyComparisonTable';
-import PriceTrendChart from '../../../components/market-report/PriceTrendChart';
 import LuxuryTierCards from '../../../components/market-report/LuxuryTierCards';
 import PropertyTypeTable from '../../../components/market-report/PropertyTypeTable';
 import BenchmarksSidebar from '../../../components/market-report/BenchmarksSidebar';
-import PricingSuccessTriple from '../../../components/market-report/PricingSuccessTriple';
-import ListingOutcomesDonut from '../../../components/market-report/ListingOutcomesDonut';
 import TopCommunitiesGrid from '../../../components/market-report/TopCommunitiesGrid';
-import VOWGate from '../../../components/compliance/VOWGate';
 import H3HeatmapSection from '../../../components/analytics/H3HeatmapSection';
 
 interface SellerTabProps {
@@ -37,17 +32,14 @@ const SellerTab: React.FC<SellerTabProps> = ({ scope, overview, level }) => {
   const priceTiers = scope.getPriceSegments();
   const domDist = scope.getDomDistribution();
   const avgDom = kpis[1]?.rawValue ?? 45;
-  const trendHistory = scope.getTrendHistory();
-  const sparkPrices = trendHistory.map(t => t.price);
-  const sparkVols = trendHistory.map(t => t.vol);
+  const sparkPrices = scope.getTrendHistory().map(t => t.price);
+  const sparkVols = scope.getTrendHistory().map(t => t.vol);
 
   const isMarket = level === 'market';
   const isRegion = level === 'region';
   const isZipcode = level === 'zipcode';
   const isCommunity = level === 'community';
 
-  const intelligence = isMarket ? (scope as MarketOverview).getMarketIntelligence() : null;
-  const sellerMetrics = intelligence?.sellerMetrics;
   const rankings = isMarket ? (scope as MarketOverview).getCommunityRankings() : null;
   const luxuryTiers = isMarket ? (scope as MarketOverview).getLuxuryTiers() : null;
 
@@ -150,7 +142,7 @@ const SellerTab: React.FC<SellerTabProps> = ({ scope, overview, level }) => {
           {/* ── Property Types (zipcode + community) ──────── */}
           {(isZipcode || isCommunity) && (
             <>
-              <Divider label="Property Breakdown" tier="mixed" />
+              <Divider label="Property Breakdown" tier="idx" />
               {isCommunity ? (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                   <div className="lg:col-span-2 bg-white border border-gray-100 p-3">
@@ -175,7 +167,7 @@ const SellerTab: React.FC<SellerTabProps> = ({ scope, overview, level }) => {
           {/* ── Scope Comparison (market + region) ────────── */}
           {(isMarket || isRegion) && (
             <>
-              <Divider label={isMarket ? 'Region Comparison' : 'Zipcode Comparison'} tier="mixed" />
+              <Divider label={isMarket ? 'Region Comparison' : 'Zipcode Comparison'} tier="idx" />
               <div className="bg-white border border-gray-100 p-3">
                 <ScopeComparisonTable
                   title={isMarket ? 'Regions at a Glance' : 'Zip Codes at a Glance'}
@@ -191,47 +183,6 @@ const SellerTab: React.FC<SellerTabProps> = ({ scope, overview, level }) => {
         </div>
       </div>
 
-      {/* ═══ VOW SECTION ═══════════════════════════════════════════ */}
-      <div className="bg-[#0C1C2E] py-3">
-        <div className="max-w-[1600px] mx-auto px-6 lg:px-12 space-y-1">
-          <Divider label="Sold Data & Listing Outcomes" tier="vow" dark />
-          <VOWGate>
-            <div className="space-y-3">
-              {/* ARMLS-verifiable seller metrics from transaction data */}
-              {isMarket && sellerMetrics && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  <MetricDark label="Time to Sell" value={`${sellerMetrics.avgTimeToSell}d`} sub="avg days" />
-                  <MetricDark label="Price Reduction" value={`${sellerMetrics.avgPriceReduction}%`} bar={sellerMetrics.avgPriceReduction * 10} />
-                  <MetricDark label="Above Asking" value={`${sellerMetrics.aboveAskingPercentage}%`} bar={sellerMetrics.aboveAskingPercentage} />
-                  <MetricDark label="Withdrawn Rate" value={`${sellerMetrics.withdrawnRate}%`} bar={sellerMetrics.withdrawnRate * 5} />
-                </div>
-              )}
-
-              {/* Community: Pricing Success + Listing Outcomes */}
-              {isCommunity && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  <div className="bg-white/10 backdrop-blur-sm p-3 rounded-sm">
-                    <PricingSuccessTriple data={(scope as CommunityScope).getPricingSuccess()} />
-                  </div>
-                  <div className="bg-white/10 backdrop-blur-sm p-3 rounded-sm">
-                    <ListingOutcomesDonut data={(scope as CommunityScope).getListingMetrics()} />
-                  </div>
-                </div>
-              )}
-
-              {/* YoY + Price Trend */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                <div className="bg-white/10 backdrop-blur-sm p-3 rounded-sm">
-                  <YoyComparisonTable data={scope.getYoyStats()} />
-                </div>
-                <div className="bg-white/10 backdrop-blur-sm p-3 rounded-sm">
-                  <PriceTrendChart data={trendHistory} />
-                </div>
-              </div>
-            </div>
-          </VOWGate>
-        </div>
-      </div>
     </>
   );
 };

@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
-import type { Layer, LeafletMouseEvent } from 'leaflet';
-import type { Feature, Polygon } from 'geojson';
-import 'leaflet/dist/leaflet.css';
+import MapGL, { Source, Layer } from 'react-map-gl/maplibre';
+import type { MapRef, MapLayerMouseEvent } from 'react-map-gl/maplibre';
+import type { FillLayerSpecification, LineLayerSpecification, CircleLayerSpecification } from 'maplibre-gl';
+import type { Polygon, MultiPolygon, FeatureCollection } from 'geojson';
+import { getGeometryBounds } from '../utils/mapHelpers';
 
 import {
   MapPin,
@@ -11,15 +12,6 @@ import {
   Award,
   ArrowRight,
   Home,
-  Camera,
-  Footprints,
-  Wind,
-  Activity,
-  ShieldCheck,
-  Leaf,
-  Car,
-  BedDouble,
-  Bath,
   Layers,
   Crosshair,
   ChevronDown,
@@ -28,20 +20,43 @@ import {
   Building2,
   Map,
   Hash,
+  Loader2,
+  Camera,
+  ShieldCheck,
+  Landmark,
+  GraduationCap,
+  TreePine,
+  DollarSign,
+  Footprints,
+  Wind,
+  Activity,
+  Leaf,
+  Car,
+  BedDouble,
+  Bath,
 } from 'lucide-react';
 import Navigation from '../components/Navigation';
 import SEOHead from '../components/shared/SEOHead';
 
 import {
-  marketZonesGeoJSON,
-  luxuryEnclavesGeoJSON,
+  loadGeoJSON,
   PHOENIX_CENTER,
   DEFAULT_ZOOM,
   MAP_STYLE,
   BRAND_COLORS,
-  type ZoneProperties,
-  type EnclaveProperties
+  type GeoJSONData,
 } from '../data/phoenixLuxuryZones';
+
+import {
+  getCommunityById,
+  getCommunitiesByRegion,
+  getRegions,
+  getAllCommunities,
+} from '../data/communities';
+
+import { getRegionName, getRegionDescription } from '../data/regionMapping';
+
+// --- Helpers ---
 
 // --- Extended Zone Data for Panel ---
 interface ExtendedZoneData {
@@ -194,8 +209,8 @@ const ZONE_DETAILS: Record<string, ExtendedZoneData> = {
       { id: 'mummy-mountain', name: 'Mummy Mountain', avgPrice: '$7.1M', dom: 90, inventory: 6, type: 'estate' },
     ]
   },
-  'arcadia-biltmore': {
-    id: 'arcadia-biltmore',
+  'biltmore': {
+    id: 'biltmore',
     name: 'Arcadia & Biltmore',
     description: 'Historic charm meets modern luxury. Lush citrus groves, green lawns, and proximity to high-end dining.',
     headerImage: "https://images.unsplash.com/photo-1558036117-15d82a90b9b1?auto=format&fit=crop&q=80&w=1200",
@@ -282,52 +297,8 @@ const ZONE_DETAILS: Record<string, ExtendedZoneData> = {
       { id: 'kierland', name: 'Kierland', avgPrice: '$1.6M', dom: 30, inventory: 25, type: 'urban' },
     ]
   },
-  'downtown': {
-    id: 'downtown',
-    name: 'Urban Core',
-    description: 'Vertical luxury and historic districts. Penthouse living with skyline views, arts district access.',
-    headerImage: "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?auto=format&fit=crop&q=80&w=1200",
-    lifestyle: [
-      { label: 'Vertical Living', img: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&q=80&w=400" },
-      { label: 'Arts District', img: "https://images.unsplash.com/photo-1532509854226-a2d9d8e66f8e?auto=format&fit=crop&q=80&w=400" },
-      { label: 'Walkability', img: "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&q=80&w=400" },
-      { label: 'Historic', img: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&q=80&w=400" }
-    ],
-    qualitySignals: [
-      { id: 'walk', label: 'Walkability', value: '96/100', rating: 96, detail: 'Walker\'s paradise.' },
-      { id: 'air', label: 'Air Quality', value: '65 AQI', rating: 65, detail: 'Higher density impacts.' },
-      { id: 'noise', label: 'Noise Index', value: '65 dB', rating: 50, detail: 'Active urban hum.' },
-      { id: 'safety', label: 'Safety Score', value: 'B-', rating: 75, detail: 'Patrolled urban center.' },
-      { id: 'green', label: 'Green Space', value: '15%', rating: 15, detail: 'Limited to urban parks.' },
-      { id: 'commute', label: 'Avg Commute', value: '10 min', rating: 95, detail: 'Immediate access.' },
-    ],
-    stats: { avgPrice: '$950K', inventory: 205, dom: 42, trend: '+2%', ppsf: '$510' },
-    buyerData: {
-      negotiability: "2.8% Disc.",
-      inventoryTrend: "+12% (High)",
-      forecast: "Buyer Opportunity",
-      priceDistribution: [
-        { range: '< $500k', value: 30 },
-        { range: '$500k-$1M', value: 50 },
-        { range: '$1M-$2M', value: 15 },
-        { range: '$2M+', value: 5 },
-      ]
-    },
-    sellerData: {
-      marketIndex: 40,
-      cashBuyerPercent: "22%",
-      daysToContract: "50 Days",
-      yoyAppreciation: "+2.1%",
-      saleToList: "97.8%"
-    },
-    enclaves: [
-      { id: 'roosevelt-row', name: 'Roosevelt Row', avgPrice: '$650K', dom: 35, inventory: 40, type: 'urban' },
-      { id: 'willo', name: 'Willo', avgPrice: '$1.2M', dom: 28, inventory: 8, type: 'estate' },
-      { id: 'encanto', name: 'Encanto', avgPrice: '$1.4M', dom: 45, inventory: 10, type: 'estate' },
-    ]
-  },
-  'carefree-cave-creek': {
-    id: 'carefree-cave-creek',
+  'cave-creek': {
+    id: 'cave-creek',
     name: 'Carefree & Cave Creek',
     description: 'Western charm meets luxury living. Equestrian properties, artistic communities, and rugged Sonoran beauty.',
     headerImage: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=1200",
@@ -369,8 +340,8 @@ const ZONE_DETAILS: Record<string, ExtendedZoneData> = {
       { id: 'cave-creek', name: 'Cave Creek', avgPrice: '$1.4M', dom: 48, inventory: 52, type: 'western' },
     ]
   },
-  'phoenix': {
-    id: 'phoenix',
+  'anthem': {
+    id: 'anthem',
     name: 'North Phoenix',
     description: 'Master-planned luxury in North Phoenix. Resort-style living with top schools and modern amenities.',
     headerImage: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=1200",
@@ -408,9 +379,95 @@ const ZONE_DETAILS: Record<string, ExtendedZoneData> = {
       saleToList: "99.2%"
     },
     enclaves: [
-      { id: 'desert-ridge', name: 'Desert Ridge', avgPrice: '$850K', dom: 32, inventory: 65, type: 'master-planned' },
+      { id: 'anthem-country-club', name: 'Anthem Country Club', avgPrice: '$850K', dom: 32, inventory: 65, type: 'master-planned' },
     ]
-  }
+  },
+  'fountain-hills': {
+    id: 'fountain-hills',
+    name: 'Fountain Hills',
+    description: 'Scenic mountain living with world-famous fountain views. Championship golf, desert tranquility, and artistic community.',
+    headerImage: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=1200",
+    lifestyle: [
+      { label: 'Mountain Views', img: "https://images.unsplash.com/photo-1545652985-5edd3ebc3437?auto=format&fit=crop&q=80&w=400" },
+      { label: 'Golf', img: "https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?auto=format&fit=crop&q=80&w=400" },
+      { label: 'Art Community', img: "https://images.unsplash.com/photo-1532509854226-a2d9d8e66f8e?auto=format&fit=crop&q=80&w=400" },
+      { label: 'Desert Serenity', img: "https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&q=80&w=400" }
+    ],
+    qualitySignals: [
+      { id: 'walk', label: 'Walkability', value: '18/100', rating: 18, detail: 'Car-dependent mountain community.' },
+      { id: 'air', label: 'Air Quality', value: '96 AQI', rating: 96, detail: 'Pristine desert air at elevation.' },
+      { id: 'noise', label: 'Noise Index', value: '30 dB', rating: 97, detail: 'Exceptionally quiet mountain setting.' },
+      { id: 'safety', label: 'Safety Score', value: 'A', rating: 95, detail: 'Very low crime rate.' },
+      { id: 'green', label: 'Green Space', value: '80%', rating: 80, detail: 'Natural desert preserve surrounds.' },
+      { id: 'commute', label: 'Avg Commute', value: '35 min', rating: 30, detail: 'Remote scenic location.' },
+    ],
+    stats: { avgPrice: '$1.4M', inventory: 78, dom: 48, trend: '+7%', ppsf: '$420' },
+    buyerData: {
+      negotiability: "1.8% Disc.",
+      inventoryTrend: "+6% (Good)",
+      forecast: "Steady Growth",
+      priceDistribution: [
+        { range: '< $700K', value: 20 },
+        { range: '$700K-$1.5M', value: 40 },
+        { range: '$1.5M-$3M', value: 30 },
+        { range: '$3M+', value: 10 },
+      ]
+    },
+    sellerData: {
+      marketIndex: 60,
+      cashBuyerPercent: "48%",
+      daysToContract: "30 Days",
+      yoyAppreciation: "+7.1%",
+      saleToList: "98.2%"
+    },
+    enclaves: [
+      { id: 'eagle-mountain', name: 'Eagle Mountain', avgPrice: '$1.2M', dom: 42, inventory: 28, type: 'golf' },
+      { id: 'firerock', name: 'FireRock', avgPrice: '$1.8M', dom: 55, inventory: 15, type: 'guard-gated' },
+    ]
+  },
+  'peoria': {
+    id: 'peoria',
+    name: 'Peoria & West Valley',
+    description: 'Growing luxury corridor in the West Valley. New-build estates, spring training facilities, and family-oriented communities.',
+    headerImage: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&q=80&w=1200",
+    lifestyle: [
+      { label: 'New Construction', img: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=400" },
+      { label: 'Spring Training', img: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=400" },
+      { label: 'Lake Pleasant', img: "https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?auto=format&fit=crop&q=80&w=400" },
+      { label: 'Family Living', img: "https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?auto=format&fit=crop&q=80&w=400" }
+    ],
+    qualitySignals: [
+      { id: 'walk', label: 'Walkability', value: '40/100', rating: 40, detail: 'Walkable to shopping centers.' },
+      { id: 'air', label: 'Air Quality', value: '86 AQI', rating: 86, detail: 'Good suburban air quality.' },
+      { id: 'noise', label: 'Noise Index', value: '45 dB', rating: 78, detail: 'Suburban quiet neighborhoods.' },
+      { id: 'safety', label: 'Safety Score', value: 'A-', rating: 90, detail: 'Family-safe communities.' },
+      { id: 'green', label: 'Green Space', value: '55%', rating: 55, detail: 'Parks and lake access.' },
+      { id: 'commute', label: 'Avg Commute', value: '30 min', rating: 45, detail: 'West Valley location.' },
+    ],
+    stats: { avgPrice: '$750K', inventory: 85, dom: 28, trend: '+11%', ppsf: '$295' },
+    buyerData: {
+      negotiability: "1.0% Disc.",
+      inventoryTrend: "+10% (Good)",
+      forecast: "Strong Growth",
+      priceDistribution: [
+        { range: '< $500K', value: 30 },
+        { range: '$500K-$800K', value: 40 },
+        { range: '$800K-$1.2M', value: 20 },
+        { range: '$1.2M+', value: 10 },
+      ]
+    },
+    sellerData: {
+      marketIndex: 65,
+      cashBuyerPercent: "28%",
+      daysToContract: "24 Days",
+      yoyAppreciation: "+11.2%",
+      saleToList: "99.5%"
+    },
+    enclaves: [
+      { id: 'vistancia', name: 'Vistancia', avgPrice: '$750K', dom: 28, inventory: 45, type: 'master-planned' },
+      { id: 'trilogy-at-vistancia', name: 'Trilogy at Vistancia', avgPrice: '$650K', dom: 25, inventory: 40, type: 'active-adult' },
+    ]
+  },
 };
 
 // Featured listings data for each enclave
@@ -430,7 +487,6 @@ interface EnclaveMarketData {
   avgPpsf: string;
   listToSale: string;
   hotness: 'hot' | 'warm' | 'balanced' | 'cooling';
-  // Extended analytics
   absorptionRate: string;
   medianDom: number;
   newListings30d: number;
@@ -698,83 +754,6 @@ const ENCLAVE_FEATURED_LISTINGS: Record<string, { listings: FeaturedListing[]; m
   }
 };
 
-// Map controller component
-function MapController({ selectedZone, selectedEnclave, applyNavyFilter }: { selectedZone: string | null; selectedEnclave: string | null; applyNavyFilter: boolean }) {
-  const map = useMap();
-
-  // Add navy blue overlay pane between tiles and vectors
-  useEffect(() => {
-    const container = map.getContainer();
-    const existingOverlay = container.querySelector('.navy-overlay');
-
-    if (applyNavyFilter) {
-      if (!existingOverlay) {
-        // Create overlay div
-        const overlay = document.createElement('div');
-        overlay.className = 'navy-overlay';
-        overlay.style.cssText = `
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(12, 28, 46, 0.6);
-          mix-blend-mode: multiply;
-          pointer-events: none;
-          z-index: 250;
-        `;
-
-        // Insert after tile pane
-        const mapPane = container.querySelector('.leaflet-map-pane');
-        if (mapPane) {
-          mapPane.appendChild(overlay);
-        }
-      }
-    } else {
-      if (existingOverlay) {
-        existingOverlay.remove();
-      }
-    }
-
-    return () => {
-      const overlay = container.querySelector('.navy-overlay');
-      if (overlay) overlay.remove();
-    };
-  }, [map, applyNavyFilter]);
-
-  useEffect(() => {
-    if (selectedEnclave) {
-      // Find enclave and zoom to it
-      const enclave = luxuryEnclavesGeoJSON.features.find(f => f.properties.id === selectedEnclave);
-      if (enclave) {
-        const coords = enclave.geometry.coordinates[0];
-        const lats = coords.map(c => c[1]);
-        const lngs = coords.map(c => c[0]);
-        const bounds: [[number, number], [number, number]] = [
-          [Math.min(...lats), Math.min(...lngs)],
-          [Math.max(...lats), Math.max(...lngs)]
-        ];
-        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 13 });
-      }
-    } else if (selectedZone) {
-      // Find zone and zoom to it
-      const zone = marketZonesGeoJSON.features.find(f => f.properties.id === selectedZone);
-      if (zone) {
-        const coords = zone.geometry.coordinates[0];
-        const lats = coords.map(c => c[1]);
-        const lngs = coords.map(c => c[0]);
-        const bounds: [[number, number], [number, number]] = [
-          [Math.min(...lats), Math.min(...lngs)],
-          [Math.max(...lats), Math.max(...lngs)]
-        ];
-        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
-      }
-    }
-  }, [selectedZone, selectedEnclave, map]);
-
-  return null;
-}
-
 const getSignalIcon = (id: string) => {
   switch (id) {
     case 'walk': return <Footprints size={18} />;
@@ -787,120 +766,91 @@ const getSignalIcon = (id: string) => {
   }
 };
 
-// Searchable data for fuzzy search
+// MapController removed — handled via useEffect + mapRef in main component
+
+// --- Search types ---
 interface SearchItem {
   id: string;
   name: string;
-  type: 'region' | 'community' | 'city' | 'zipcode' | 'address';
-  zoneId: string;
-  enclaveId?: string;
-  coordinates?: [number, number];
+  type: 'region' | 'community' | 'city' | 'zipcode';
+  regionId: string;
+  communitySlug?: string;
 }
 
-const SEARCHABLE_DATA: SearchItem[] = [
-  // Regions/Zones
-  { id: 'north-scottsdale', name: 'North Scottsdale', type: 'region', zoneId: 'north-scottsdale' },
-  { id: 'paradise-valley', name: 'Paradise Valley', type: 'region', zoneId: 'paradise-valley' },
-  { id: 'arcadia-biltmore', name: 'Arcadia & Biltmore', type: 'region', zoneId: 'arcadia-biltmore' },
-  { id: 'central-scottsdale', name: 'Central Scottsdale', type: 'region', zoneId: 'central-scottsdale' },
-  { id: 'downtown', name: 'Downtown Phoenix', type: 'region', zoneId: 'downtown' },
-  { id: 'carefree-cave-creek', name: 'Carefree & Cave Creek', type: 'region', zoneId: 'carefree-cave-creek' },
+function buildSearchIndex(): SearchItem[] {
+  const items: SearchItem[] = [];
 
-  // Communities (Enclaves)
-  { id: 'dc-ranch', name: 'DC Ranch', type: 'community', zoneId: 'north-scottsdale', enclaveId: 'dc-ranch' },
-  { id: 'silverleaf', name: 'Silverleaf', type: 'community', zoneId: 'north-scottsdale', enclaveId: 'silverleaf' },
-  { id: 'desert-mountain', name: 'Desert Mountain', type: 'community', zoneId: 'north-scottsdale', enclaveId: 'desert-mountain' },
-  { id: 'estancia', name: 'Estancia', type: 'community', zoneId: 'north-scottsdale', enclaveId: 'estancia' },
-  { id: 'whisper-rock', name: 'Whisper Rock', type: 'community', zoneId: 'north-scottsdale', enclaveId: 'whisper-rock' },
-  { id: 'troon', name: 'Troon', type: 'community', zoneId: 'north-scottsdale', enclaveId: 'troon' },
-  { id: 'mcdowell-mountain-ranch', name: 'McDowell Mountain Ranch', type: 'community', zoneId: 'north-scottsdale', enclaveId: 'mcdowell-mountain-ranch' },
-  { id: 'grayhawk', name: 'Grayhawk', type: 'community', zoneId: 'north-scottsdale', enclaveId: 'grayhawk' },
-  { id: 'mirabel', name: 'Mirabel', type: 'community', zoneId: 'carefree-cave-creek', enclaveId: 'mirabel' },
-  { id: 'terravita', name: 'Terravita', type: 'community', zoneId: 'north-scottsdale', enclaveId: 'terravita' },
-  { id: 'ancala', name: 'Ancala', type: 'community', zoneId: 'north-scottsdale', enclaveId: 'ancala' },
-  { id: 'mummy-mountain', name: 'Mummy Mountain', type: 'community', zoneId: 'paradise-valley', enclaveId: 'mummy-mountain' },
-  { id: 'camelback-mountain', name: 'Camelback Mountain', type: 'community', zoneId: 'paradise-valley', enclaveId: 'camelback-mountain' },
-  { id: 'arcadia', name: 'Arcadia', type: 'community', zoneId: 'arcadia-biltmore', enclaveId: 'arcadia' },
-  { id: 'biltmore', name: 'Biltmore', type: 'community', zoneId: 'arcadia-biltmore', enclaveId: 'biltmore' },
-  { id: 'gainey-ranch', name: 'Gainey Ranch', type: 'community', zoneId: 'central-scottsdale', enclaveId: 'gainey-ranch' },
-  { id: 'mccormick-ranch', name: 'McCormick Ranch', type: 'community', zoneId: 'central-scottsdale', enclaveId: 'mccormick-ranch' },
+  // Regions
+  for (const r of getRegions()) {
+    items.push({ id: r.id, name: r.name, type: 'region', regionId: r.id });
+  }
 
-  // Cities
-  { id: 'city-scottsdale', name: 'Scottsdale', type: 'city', zoneId: 'north-scottsdale' },
-  { id: 'city-paradise-valley', name: 'Paradise Valley', type: 'city', zoneId: 'paradise-valley' },
-  { id: 'city-phoenix', name: 'Phoenix', type: 'city', zoneId: 'downtown' },
-  { id: 'city-carefree', name: 'Carefree', type: 'city', zoneId: 'carefree-cave-creek' },
-  { id: 'city-cave-creek', name: 'Cave Creek', type: 'city', zoneId: 'carefree-cave-creek' },
-  { id: 'city-tempe', name: 'Tempe', type: 'city', zoneId: 'downtown' },
-  { id: 'city-mesa', name: 'Mesa', type: 'city', zoneId: 'arcadia-biltmore' },
+  // Communities
+  for (const c of getAllCommunities()) {
+    items.push({
+      id: c.slug,
+      name: c.name,
+      type: 'community',
+      regionId: c.identity.regionId,
+      communitySlug: c.slug,
+    });
+  }
 
-  // Zipcodes
-  { id: 'zip-85255', name: '85255 - North Scottsdale', type: 'zipcode', zoneId: 'north-scottsdale' },
-  { id: 'zip-85262', name: '85262 - Scottsdale/Rio Verde', type: 'zipcode', zoneId: 'north-scottsdale' },
-  { id: 'zip-85259', name: '85259 - North Scottsdale', type: 'zipcode', zoneId: 'north-scottsdale' },
-  { id: 'zip-85253', name: '85253 - Paradise Valley', type: 'zipcode', zoneId: 'paradise-valley' },
-  { id: 'zip-85254', name: '85254 - Central Scottsdale', type: 'zipcode', zoneId: 'central-scottsdale' },
-  { id: 'zip-85258', name: '85258 - Central Scottsdale', type: 'zipcode', zoneId: 'central-scottsdale' },
-  { id: 'zip-85260', name: '85260 - Central Scottsdale', type: 'zipcode', zoneId: 'central-scottsdale' },
-  { id: 'zip-85266', name: '85266 - Scottsdale', type: 'zipcode', zoneId: 'north-scottsdale' },
-  { id: 'zip-85018', name: '85018 - Arcadia', type: 'zipcode', zoneId: 'arcadia-biltmore' },
-  { id: 'zip-85016', name: '85016 - Biltmore', type: 'zipcode', zoneId: 'arcadia-biltmore' },
-  { id: 'zip-85377', name: '85377 - Carefree', type: 'zipcode', zoneId: 'carefree-cave-creek' },
-  { id: 'zip-85331', name: '85331 - Cave Creek', type: 'zipcode', zoneId: 'carefree-cave-creek' },
+  // Cities (deduplicated)
+  const cities = new Set<string>();
+  for (const c of getAllCommunities()) {
+    if (!cities.has(c.city)) {
+      cities.add(c.city);
+      items.push({
+        id: `city-${c.city.toLowerCase().replace(/\s+/g, '-')}`,
+        name: c.city,
+        type: 'city',
+        regionId: c.identity.regionId,
+      });
+    }
+  }
 
-  // Sample Addresses
-  { id: 'addr-1', name: '10040 E Happy Valley Rd, Scottsdale', type: 'address', zoneId: 'north-scottsdale', enclaveId: 'dc-ranch' },
-  { id: 'addr-2', name: '20750 N 87th St, Scottsdale', type: 'address', zoneId: 'north-scottsdale', enclaveId: 'silverleaf' },
-  { id: 'addr-3', name: '6001 E Camelback Rd, Phoenix', type: 'address', zoneId: 'arcadia-biltmore', enclaveId: 'biltmore' },
-  { id: 'addr-4', name: '5600 N 68th St, Paradise Valley', type: 'address', zoneId: 'paradise-valley', enclaveId: 'mummy-mountain' },
-  { id: 'addr-5', name: '7575 E Princess Dr, Scottsdale', type: 'address', zoneId: 'north-scottsdale', enclaveId: 'grayhawk' },
-];
+  // Zip codes (deduplicated)
+  const zips = new Set<string>();
+  for (const c of getAllCommunities()) {
+    if (!zips.has(c.zipCode)) {
+      zips.add(c.zipCode);
+      items.push({
+        id: `zip-${c.zipCode}`,
+        name: `${c.zipCode} - ${c.city}`,
+        type: 'zipcode',
+        regionId: c.identity.regionId,
+      });
+    }
+  }
 
-// Fuzzy search function
-const fuzzySearch = (query: string, items: SearchItem[]): SearchItem[] => {
+  return items;
+}
+
+function fuzzySearch(query: string, items: SearchItem[]): SearchItem[] {
   if (!query.trim()) return [];
-
   const searchTerms = query.toLowerCase().split(/\s+/);
 
   return items
     .map(item => {
       const name = item.name.toLowerCase();
       let score = 0;
-
-      // Exact match gets highest score
-      if (name === query.toLowerCase()) {
-        score = 100;
-      }
-      // Starts with query
-      else if (name.startsWith(query.toLowerCase())) {
-        score = 80;
-      }
-      // Contains query as substring
-      else if (name.includes(query.toLowerCase())) {
-        score = 60;
-      }
-      // All search terms found
-      else if (searchTerms.every(term => name.includes(term))) {
-        score = 40;
-      }
-      // Some search terms found
+      if (name === query.toLowerCase()) score = 100;
+      else if (name.startsWith(query.toLowerCase())) score = 80;
+      else if (name.includes(query.toLowerCase())) score = 60;
+      else if (searchTerms.every(term => name.includes(term))) score = 40;
       else {
-        const matchedTerms = searchTerms.filter(term => name.includes(term));
-        score = (matchedTerms.length / searchTerms.length) * 30;
+        const matched = searchTerms.filter(term => name.includes(term));
+        score = (matched.length / searchTerms.length) * 30;
       }
-
-      // Boost score for zipcodes when searching numbers
-      if (item.type === 'zipcode' && /^\d+$/.test(query)) {
-        if (item.name.includes(query)) score += 20;
-      }
-
+      if (item.type === 'zipcode' && /^\d+$/.test(query) && item.name.includes(query)) score += 20;
       return { item, score };
     })
     .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 8)
+    .slice(0, 10)
     .map(({ item }) => item);
-};
+}
 
 const getSearchIcon = (type: SearchItem['type']) => {
   switch (type) {
@@ -908,50 +858,76 @@ const getSearchIcon = (type: SearchItem['type']) => {
     case 'community': return <Home size={14} className="text-[#0C1C2E]" />;
     case 'city': return <Building2 size={14} className="text-gray-500" />;
     case 'zipcode': return <Hash size={14} className="text-gray-500" />;
-    case 'address': return <MapPin size={14} className="text-gray-500" />;
   }
 };
 
+// --- Main Component ---
+
 const InteractiveMap: React.FC = () => {
-  const [selectedZone, setSelectedZone] = useState<string | null>('north-scottsdale');
-  const [selectedEnclave, setSelectedEnclave] = useState<string | null>(null);
-  const [hoveredZone, setHoveredZone] = useState<string | null>(null);
-  const [hoveredEnclave, setHoveredEnclave] = useState<string | null>(null);
-  const [performanceView, setPerformanceView] = useState<'buyer' | 'seller'>('buyer');
+  // GeoJSON state
+  const [geoData, setGeoData] = useState<GeoJSONData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Selection state
+  const [selectedRegion, setSelectedRegion] = useState<string | null>('north-scottsdale');
+  const [selectedCommunity, setSelectedCommunity] = useState<string | null>(null);
+  const [hoveredCommunity, setHoveredCommunity] = useState<string | null>(null);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
-  const [showEnclaves, setShowEnclaves] = useState(true);
+
+  // UI state
+  const [showCommunities, setShowCommunities] = useState(true);
   const [mapStyle, setMapStyle] = useState<'dark' | 'satellite'>('dark');
-  const [expandedEnclave, setExpandedEnclave] = useState<string | null>(null);
-  const [enclaveTab, setEnclaveTab] = useState<'listings' | 'market' | 'lifestyle'>('listings');
+  const [expandedCommunity, setExpandedCommunity] = useState<string | null>(null);
+  const [cardTab, setCardTab] = useState<'listings' | 'market' | 'lifestyle'>('listings');
+  const [performanceView, setPerformanceView] = useState<'buyer' | 'seller'>('buyer');
 
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Handle search
+  // Zone data for current region
+  const currentZoneData = selectedRegion ? ZONE_DETAILS[selectedRegion] : null;
+
+  // Build search index once
+  const searchIndex = useMemo(() => buildSearchIndex(), []);
+
+  // Load GeoJSON on mount
+  useEffect(() => {
+    loadGeoJSON()
+      .then(data => {
+        setGeoData(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err instanceof Error ? err.message : 'Failed to load map data');
+        setLoading(false);
+      });
+  }, []);
+
+  // Search handlers
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    const results = fuzzySearch(query, SEARCHABLE_DATA);
-    setSearchResults(results);
+    setSearchResults(fuzzySearch(query, searchIndex));
   };
 
   const handleSearchSelect = (item: SearchItem) => {
-    setSelectedZone(item.zoneId);
-    if (item.enclaveId) {
-      setSelectedEnclave(item.enclaveId);
-      setExpandedEnclave(item.enclaveId);
+    setSelectedRegion(item.regionId);
+    if (item.communitySlug) {
+      setSelectedCommunity(item.communitySlug);
+      setExpandedCommunity(item.communitySlug);
     } else {
-      setSelectedEnclave(null);
+      setSelectedCommunity(null);
     }
     setSearchQuery('');
     setSearchResults([]);
     setIsSearchFocused(false);
   };
 
-  // Close search results when clicking outside
+  // Close search on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
@@ -962,101 +938,209 @@ const InteractiveMap: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Scroll to expanded enclave card when it changes and reset tab to listings
+  // Scroll to expanded community card
   useEffect(() => {
-    if (expandedEnclave) {
-      setEnclaveTab('listings'); // Reset to listings tab when expanding
-      const cardElement = document.getElementById(`enclave-card-${expandedEnclave}`);
-      if (cardElement) {
-        // Small delay to allow the expansion animation to start
+    if (expandedCommunity) {
+      const cardEl = document.getElementById(`community-card-${expandedCommunity}`);
+      if (cardEl) {
         setTimeout(() => {
-          // Use scrollIntoView - the scroll-mt-20 class on the card handles the offset
-          cardElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          cardEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 150);
       }
     }
-  }, [expandedEnclave]);
+  }, [expandedCommunity]);
 
-  const currentData = selectedZone ? ZONE_DETAILS[selectedZone] : null;
+  // Current region communities
+  const regionCommunities = useMemo(() => {
+    if (!selectedRegion) return [];
+    return getCommunitiesByRegion(selectedRegion);
+  }, [selectedRegion]);
 
-  // Zone styling
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const zoneStyle = (feature: any) => {
-    if (!feature) return {};
-    const isSelected = feature.properties?.id === selectedZone;
-    const isHovered = feature.properties?.id === hoveredZone;
+  const regionName = selectedRegion ? getRegionName(selectedRegion) : '';
+  const regionDescription = selectedRegion ? getRegionDescription(selectedRegion) : '';
 
+  // Filter GeoJSON communities for current region
+  const regionCommunityFeatures = useMemo(() => {
+    if (!geoData || !selectedRegion) return [];
+    return geoData.communities.features.filter(f => {
+      const community = getCommunityById(f.properties.slug);
+      return community?.region === selectedRegion;
+    });
+  }, [geoData, selectedRegion]);
+
+  // --- Map ref and helpers ---
+  const mapRef = useRef<MapRef>(null);
+
+  // Separate polygon and point communities into GeoJSON sources
+  // Polygons get regionId injected for data-driven styling
+  const polygonGeoJson = useMemo<FeatureCollection | null>(() => {
+    if (!geoData) return null;
     return {
-      fillColor: isSelected ? BRAND_COLORS.gold : BRAND_COLORS.navy,
-      fillOpacity: isSelected ? 0.5 : isHovered ? 0.3 : 0.15,
-      color: isSelected ? BRAND_COLORS.gold : isHovered ? BRAND_COLORS.goldHover : 'rgba(255,255,255,0.3)',
-      weight: isSelected ? 3 : isHovered ? 2 : 1,
+      type: 'FeatureCollection',
+      features: geoData.communities.features
+        .filter(f => f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon')
+        .map(f => ({
+          ...f,
+          properties: {
+            ...f.properties,
+            regionId: getCommunityById(f.properties.slug)?.region ?? '',
+          },
+        })),
     };
-  };
+  }, [geoData]);
 
-  // Enclave styling
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const enclaveStyle = (feature: any) => {
-    if (!feature) return {};
-    const isSelected = feature.properties?.id === selectedEnclave;
-    const isHovered = feature.properties?.id === hoveredEnclave;
-    const isInSelectedZone = feature.properties?.parentZone === selectedZone;
+  const pointGeoJson = useMemo<FeatureCollection | null>(() => {
+    if (!geoData) return null;
+    return {
+      type: 'FeatureCollection',
+      features: geoData.communities.features
+        .filter(f => f.geometry.type === 'Point')
+        .map(f => ({
+          ...f,
+          properties: {
+            ...f.properties,
+            regionId: getCommunityById(f.properties.slug)?.region ?? '',
+          },
+        })),
+    };
+  }, [geoData]);
 
-    if (!isInSelectedZone && !isSelected) {
-      return { fillOpacity: 0, color: 'transparent', weight: 0 };
+  // Fly to selected feature
+  useEffect(() => {
+    if (!geoData || !mapRef.current) return;
+    const map = mapRef.current;
+
+    if (selectedCommunity) {
+      const feature = geoData.communities.features.find(
+        f => f.properties.slug === selectedCommunity
+      );
+      if (feature) {
+        if (feature.geometry.type === 'Point') {
+          const [lng, lat] = feature.geometry.coordinates;
+          map.flyTo({ center: [lng, lat], zoom: 14, duration: 800 });
+        } else {
+          const bounds = getGeometryBounds(feature.geometry as Polygon | MultiPolygon);
+          map.fitBounds(bounds, { padding: 50, maxZoom: 14 });
+        }
+      }
+    } else if (selectedRegion) {
+      const regionFeatures = geoData.communities.features.filter(f => {
+        const c = getCommunityById(f.properties.slug);
+        return c?.region === selectedRegion;
+      });
+      if (regionFeatures.length > 0) {
+        const allLngs: number[] = [];
+        const allLats: number[] = [];
+        for (const f of regionFeatures) {
+          if (f.geometry.type === 'Point') {
+            allLngs.push(f.geometry.coordinates[0]);
+            allLats.push(f.geometry.coordinates[1]);
+          } else {
+            const b = getGeometryBounds(f.geometry as Polygon | MultiPolygon);
+            const [[minLng, minLat], [maxLng, maxLat]] = b as [[number, number], [number, number]];
+            allLngs.push(minLng, maxLng);
+            allLats.push(minLat, maxLat);
+          }
+        }
+        map.fitBounds(
+          [[Math.min(...allLngs), Math.min(...allLats)], [Math.max(...allLngs), Math.max(...allLats)]],
+          { padding: 50, maxZoom: 13 }
+        );
+      }
     }
+  }, [selectedRegion, selectedCommunity, geoData]);
 
-    return {
-      fillColor: isSelected ? BRAND_COLORS.gold : '#ffffff',
-      fillOpacity: isSelected ? 0.7 : isHovered ? 0.5 : 0.2,
-      color: isSelected ? BRAND_COLORS.gold : isHovered ? BRAND_COLORS.goldHover : 'rgba(255,255,255,0.5)',
-      weight: isSelected ? 3 : isHovered ? 2 : 1,
-      dashArray: isSelected ? '' : '3',
-    };
-  };
+  // Map event handlers
+  const onMapClick = useCallback((e: MapLayerMouseEvent) => {
+    if (!e.features || e.features.length === 0) return;
+    const slug = e.features[0].properties?.slug as string;
+    if (!slug) return;
+    const community = getCommunityById(slug);
+    setSelectedCommunity(slug);
+    if (community) setSelectedRegion(community.identity.regionId);
+    setExpandedCommunity(slug);
+  }, []);
 
-  const onEachZone = (feature: Feature<Polygon, ZoneProperties>, layer: Layer) => {
-    layer.on({
-      click: () => {
-        setSelectedZone(feature.properties.id);
-        setSelectedEnclave(null);
-      },
-      mouseover: () => setHoveredZone(feature.properties.id),
-      mouseout: () => setHoveredZone(null),
-    });
-  };
+  const onMapMouseMove = useCallback((e: MapLayerMouseEvent) => {
+    if (e.features && e.features.length > 0) {
+      const slug = e.features[0].properties?.slug as string;
+      setHoveredCommunity(slug ?? null);
+      if (mapRef.current) mapRef.current.getMap().getCanvas().style.cursor = 'pointer';
+    }
+  }, []);
 
-  const onEachEnclave = (feature: Feature<Polygon, EnclaveProperties>, layer: Layer) => {
-    layer.on({
-      click: (e: LeafletMouseEvent) => {
-        e.originalEvent.stopPropagation();
-        setSelectedEnclave(feature.properties.id);
-        setSelectedZone(feature.properties.parentZone);
-        setExpandedEnclave(feature.properties.id);
-        setEnclaveTab('listings'); // Reset to listings tab when clicking on map
-      },
-      mouseover: () => setHoveredEnclave(feature.properties.id),
-      mouseout: () => setHoveredEnclave(null),
-    });
+  const onMapMouseLeave = useCallback(() => {
+    setHoveredCommunity(null);
+    if (mapRef.current) mapRef.current.getMap().getCanvas().style.cursor = '';
+  }, []);
+
+  // --- Loading / Error states ---
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F9F8F6] flex flex-col">
+        <Navigation variant="solid" />
+        <div className="flex-1 flex items-center justify-center pt-20">
+          <div className="text-center">
+            <Loader2 size={40} className="animate-spin text-[#Bfa67a] mx-auto mb-4" />
+            <p className="text-sm text-gray-500 uppercase tracking-widest">Loading Map Data</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !geoData) {
+    return (
+      <div className="min-h-screen bg-[#F9F8F6] flex flex-col">
+        <Navigation variant="solid" />
+        <div className="flex-1 flex items-center justify-center pt-20">
+          <div className="text-center max-w-md">
+            <p className="text-lg font-serif text-[#0C1C2E] mb-2">Unable to load map data</p>
+            <p className="text-sm text-gray-500">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 px-6 py-2 bg-[#0C1C2E] text-white text-sm uppercase tracking-widest hover:bg-[#Bfa67a] transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Header image for the region
+  const regionImages: Record<string, string> = {
+    'north-scottsdale': 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&q=80&w=1200',
+    'paradise-valley': 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&q=80&w=1200',
+    'central-scottsdale': 'https://images.unsplash.com/photo-1560613276-793264eb7478?auto=format&fit=crop&q=80&w=1200',
+    'south-scottsdale': 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?auto=format&fit=crop&q=80&w=1200',
+    'cave-creek': 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=1200',
+    'carefree': 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=1200',
+    'fountain-hills': 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=1200',
+    'rio-verde': 'https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&q=80&w=1200',
+    'desert-ridge': 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=1200',
+    'biltmore': 'https://images.unsplash.com/photo-1558036117-15d82a90b9b1?auto=format&fit=crop&q=80&w=1200',
+    'anthem': 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&q=80&w=1200',
+    'peoria': 'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&q=80&w=1200',
   };
+  const headerImage = selectedRegion ? regionImages[selectedRegion] ?? regionImages['north-scottsdale'] : regionImages['north-scottsdale'];
 
   return (
-    <div className="min-h-screen bg-[#F9F8F6] text-[#111] page-zoom-90 font-sans flex flex-col h-screen overflow-hidden">
+    <div className="min-h-screen bg-[#F9F8F6] text-[#111] lg:[zoom:0.9] font-sans flex flex-col lg:h-screen lg:overflow-hidden overflow-y-auto">
       <SEOHead
         title="Interactive Market Map | Scottsdale Real Estate"
-        description="Explore communities, view pricing data, and discover available properties across the Phoenix metro area."
+        description="Explore 133 luxury communities across the Phoenix metro area with real Maricopa County boundary data."
       />
 
-      {/* Navigation */}
       <Navigation variant="solid" />
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative pt-16 lg:pt-20">
 
         {/* LEFT: Map */}
-        <div className="h-[45vh] lg:h-auto lg:w-7/12 relative shrink-0 z-0">
+        <div className="h-[40vh] lg:h-auto lg:w-7/12 relative shrink-0 z-0">
 
-          {/* Search Bar Overlay */}
+          {/* Search Bar */}
           <div ref={searchRef} className="absolute top-4 left-4 right-4 z-20 max-w-md">
             <div className="relative">
               <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -1066,14 +1150,11 @@ const InteractiveMap: React.FC = () => {
                 onChange={(e) => handleSearch(e.target.value)}
                 onFocus={() => setIsSearchFocused(true)}
                 placeholder="Search address, zip, community, or region..."
-                className="w-full pl-12 pr-12 py-3 bg-white border border-gray-200 shadow-lg text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#Bfa67a] focus:ring-2 focus:ring-[#Bfa67a]/20 transition-all"
+                className="w-full pl-12 pr-12 py-2.5 lg:py-3 bg-white border border-gray-200 shadow-lg text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#Bfa67a] focus:ring-2 focus:ring-[#Bfa67a]/20 transition-all"
               />
               {searchQuery && (
                 <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setSearchResults([]);
-                  }}
+                  onClick={() => { setSearchQuery(''); setSearchResults([]); }}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   <X size={18} />
@@ -1081,9 +1162,9 @@ const InteractiveMap: React.FC = () => {
               )}
             </div>
 
-            {/* Search Results Dropdown */}
+            {/* Search Results */}
             {isSearchFocused && searchResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 shadow-xl overflow-hidden">
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 shadow-xl overflow-hidden max-h-80 overflow-y-auto">
                 {searchResults.map((result) => (
                   <button
                     key={result.id}
@@ -1101,168 +1182,256 @@ const InteractiveMap: React.FC = () => {
               </div>
             )}
 
-            {/* No Results */}
             {isSearchFocused && searchQuery && searchResults.length === 0 && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 shadow-xl p-4">
-                <p className="text-sm text-gray-500 text-center">No results found for "{searchQuery}"</p>
+                <p className="text-sm text-gray-500 text-center">No results found for &ldquo;{searchQuery}&rdquo;</p>
               </div>
             )}
           </div>
 
-          <MapContainer
-            center={[PHOENIX_CENTER[0], PHOENIX_CENTER[1]]}
-            zoom={DEFAULT_ZOOM}
-            className="h-full w-full"
-            zoomControl={false}
-            style={{ background: '#0C1C2E', zIndex: 0 }}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-              url={mapStyle === 'dark' ? MAP_STYLE.dark : MAP_STYLE.satellite}
-            />
+          <div className={mapStyle === 'dark' ? 'h-full w-full map-navy-overlay' : 'h-full w-full'}>
+            <MapGL
+              ref={mapRef}
+              initialViewState={{
+                longitude: PHOENIX_CENTER[1],
+                latitude: PHOENIX_CENTER[0],
+                zoom: DEFAULT_ZOOM,
+              }}
+              mapStyle={mapStyle === 'dark' ? MAP_STYLE.dark : MAP_STYLE.satellite}
+              style={{ width: '100%', height: '100%', background: '#0C1C2E' }}
+              interactiveLayerIds={showCommunities ? ['community-polygons-fill', 'community-points'] : []}
+              onClick={onMapClick}
+              onMouseMove={onMapMouseMove}
+              onMouseLeave={onMapMouseLeave}
+            >
+              {/* Community Polygons */}
+              {showCommunities && polygonGeoJson && (
+                <Source id="community-polygons" type="geojson" data={polygonGeoJson}>
+                  <Layer {...{
+                    id: 'community-polygons-fill',
+                    type: 'fill',
+                    paint: {
+                      'fill-color': [
+                        'case',
+                        ['==', ['get', 'slug'], selectedCommunity ?? ''],
+                        BRAND_COLORS.gold,
+                        ['==', ['get', 'slug'], hoveredCommunity ?? ''],
+                        '#ffffff',
+                        ['==', ['get', 'regionId'], selectedRegion ?? ''],
+                        '#ffffff',
+                        '#ffffff',
+                      ],
+                      'fill-opacity': [
+                        'case',
+                        ['==', ['get', 'slug'], selectedCommunity ?? ''],
+                        0.7,
+                        ['==', ['get', 'slug'], hoveredCommunity ?? ''],
+                        0.5,
+                        ['==', ['get', 'regionId'], selectedRegion ?? ''],
+                        0.25,
+                        0.08,
+                      ],
+                    },
+                  } as FillLayerSpecification} />
+                  <Layer {...{
+                    id: 'community-polygons-line',
+                    type: 'line',
+                    paint: {
+                      'line-color': [
+                        'case',
+                        ['==', ['get', 'slug'], selectedCommunity ?? ''],
+                        BRAND_COLORS.gold,
+                        ['==', ['get', 'slug'], hoveredCommunity ?? ''],
+                        BRAND_COLORS.goldHover,
+                        ['==', ['get', 'regionId'], selectedRegion ?? ''],
+                        'rgba(191, 166, 122, 0.6)',
+                        'rgba(255,255,255,0.2)',
+                      ],
+                      'line-width': [
+                        'case',
+                        ['==', ['get', 'slug'], selectedCommunity ?? ''],
+                        3,
+                        ['==', ['get', 'slug'], hoveredCommunity ?? ''],
+                        2,
+                        ['==', ['get', 'regionId'], selectedRegion ?? ''],
+                        1.5,
+                        0.5,
+                      ],
+                    },
+                  } as LineLayerSpecification} />
+                </Source>
+              )}
 
-            {/* Market Zones */}
-            <GeoJSON
-              key={`zones-${selectedZone}-${hoveredZone}`}
-              data={marketZonesGeoJSON}
-              style={zoneStyle}
-              onEachFeature={onEachZone}
-            />
-
-            {/* Luxury Enclaves */}
-            {showEnclaves && (
-              <GeoJSON
-                key={`enclaves-${selectedZone}-${selectedEnclave}-${hoveredEnclave}`}
-                data={luxuryEnclavesGeoJSON}
-                style={enclaveStyle}
-                onEachFeature={onEachEnclave}
-              />
-            )}
-
-            <MapController selectedZone={selectedZone} selectedEnclave={selectedEnclave} applyNavyFilter={mapStyle === 'dark'} />
-          </MapContainer>
+              {/* Point-only communities as circle markers */}
+              {showCommunities && pointGeoJson && (
+                <Source id="community-points" type="geojson" data={pointGeoJson}>
+                  <Layer {...{
+                    id: 'community-points',
+                    type: 'circle',
+                    paint: {
+                      'circle-radius': [
+                        'case',
+                        ['==', ['get', 'slug'], selectedCommunity ?? ''],
+                        10,
+                        ['==', ['get', 'slug'], hoveredCommunity ?? ''],
+                        8,
+                        ['==', ['get', 'regionId'], selectedRegion ?? ''],
+                        6,
+                        4,
+                      ],
+                      'circle-color': [
+                        'case',
+                        ['==', ['get', 'slug'], selectedCommunity ?? ''],
+                        BRAND_COLORS.gold,
+                        '#ffffff',
+                      ],
+                      'circle-opacity': [
+                        'case',
+                        ['==', ['get', 'slug'], selectedCommunity ?? ''],
+                        0.9,
+                        ['==', ['get', 'slug'], hoveredCommunity ?? ''],
+                        0.7,
+                        ['==', ['get', 'regionId'], selectedRegion ?? ''],
+                        0.5,
+                        0.15,
+                      ],
+                      'circle-stroke-color': [
+                        'case',
+                        ['==', ['get', 'slug'], selectedCommunity ?? ''],
+                        BRAND_COLORS.gold,
+                        ['==', ['get', 'regionId'], selectedRegion ?? ''],
+                        'rgba(191,166,122,0.6)',
+                        'rgba(255,255,255,0.2)',
+                      ],
+                      'circle-stroke-width': [
+                        'case',
+                        ['==', ['get', 'slug'], selectedCommunity ?? ''],
+                        3,
+                        ['==', ['get', 'regionId'], selectedRegion ?? ''],
+                        1.5,
+                        0.5,
+                      ],
+                    },
+                  } as CircleLayerSpecification} />
+                </Source>
+              )}
+            </MapGL>
+          </div>
 
           {/* Map Controls */}
           <div className="absolute bottom-4 left-4 z-20 flex flex-col gap-2">
             <button
               onClick={() => setMapStyle(mapStyle === 'dark' ? 'satellite' : 'dark')}
-              className="bg-[#0C1C2E]/90 backdrop-blur text-white p-3 border border-white/10 hover:border-[#Bfa67a] transition-all"
+              className="bg-[#0C1C2E]/90 backdrop-blur text-white p-2 lg:p-3 border border-white/10 hover:border-[#Bfa67a] transition-all"
               title="Toggle map style"
             >
               <Layers size={16} />
             </button>
             <button
-              onClick={() => setShowEnclaves(!showEnclaves)}
-              className={`backdrop-blur p-3 border transition-all ${showEnclaves ? 'bg-[#Bfa67a] text-[#0C1C2E] border-[#Bfa67a]' : 'bg-[#0C1C2E]/90 text-white border-white/10 hover:border-[#Bfa67a]'}`}
-              title="Toggle enclaves"
+              onClick={() => setShowCommunities(!showCommunities)}
+              className={`backdrop-blur p-2 lg:p-3 border transition-all ${showCommunities ? 'bg-[#Bfa67a] text-[#0C1C2E] border-[#Bfa67a]' : 'bg-[#0C1C2E]/90 text-white border-white/10 hover:border-[#Bfa67a]'}`}
+              title="Toggle communities"
             >
               <Home size={16} />
             </button>
             <button
               onClick={() => {
-                setSelectedZone(null);
-                setSelectedEnclave(null);
+                setSelectedRegion(null);
+                setSelectedCommunity(null);
+                setExpandedCommunity(null);
               }}
-              className="bg-[#0C1C2E]/90 backdrop-blur text-white p-3 border border-white/10 hover:border-[#Bfa67a] transition-all"
+              className="bg-[#0C1C2E]/90 backdrop-blur text-white p-2 lg:p-3 border border-white/10 hover:border-[#Bfa67a] transition-all"
               title="Reset view"
             >
               <Crosshair size={16} />
             </button>
           </div>
 
-          {/* Map Legend */}
-          <div className="absolute bottom-4 left-4 z-[1000] bg-[#0C1C2E]/90 backdrop-blur border border-white/10 p-4 text-white text-xs">
+          {/* Legend */}
+          <div className="hidden lg:block absolute bottom-4 right-4 z-[1000] bg-[#0C1C2E]/90 backdrop-blur border border-white/10 p-4 text-white text-xs">
             <div className="font-bold uppercase tracking-widest text-[10px] mb-3 text-[#Bfa67a]">Legend</div>
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-[#Bfa67a] opacity-50 border border-[#Bfa67a]"></div>
-                <span>Selected Zone</span>
+                <div className="w-4 h-4 bg-[#Bfa67a] opacity-70 border border-[#Bfa67a]" />
+                <span>Selected Community</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-[#0C1C2E] opacity-30 border border-white/30"></div>
-                <span>Market Zone</span>
-              </div>
-              {showEnclaves && (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-white/20 border border-white/50 border-dashed"></div>
-                  <span>Luxury Enclave</span>
-                </div>
+              {showCommunities && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-white/25 border border-[#Bfa67a]/60" style={{ borderStyle: 'dashed' }} />
+                    <span>Region Community</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-white/10 border border-white/20" />
+                    <span>Other Community</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-white/50 border border-white/60" />
+                    <span>Point-Only</span>
+                  </div>
+                </>
               )}
             </div>
           </div>
 
-          {/* Hover Info */}
-          {(hoveredZone || hoveredEnclave) && (
-            <div className="absolute top-4 right-4 z-[1000] bg-[#0C1C2E]/95 backdrop-blur border border-[#Bfa67a] p-4 text-white max-w-xs">
-              {hoveredEnclave ? (
-                <>
-                  <div className="text-[10px] uppercase tracking-widest text-[#Bfa67a] mb-1">Enclave</div>
-                  <div className="font-serif text-lg">
-                    {luxuryEnclavesGeoJSON.features.find(f => f.properties.id === hoveredEnclave)?.properties.name}
-                  </div>
-                  <div className="text-sm text-gray-400 mt-1">
-                    {luxuryEnclavesGeoJSON.features.find(f => f.properties.id === hoveredEnclave)?.properties.avgPrice}
-                  </div>
-                </>
-              ) : hoveredZone ? (
-                <>
-                  <div className="text-[10px] uppercase tracking-widest text-[#Bfa67a] mb-1">Market Zone</div>
-                  <div className="font-serif text-lg">
-                    {marketZonesGeoJSON.features.find(f => f.properties.id === hoveredZone)?.properties.name}
-                  </div>
-                  <div className="text-sm text-gray-400 mt-1">
-                    {marketZonesGeoJSON.features.find(f => f.properties.id === hoveredZone)?.properties.avgPrice}
-                  </div>
-                </>
-              ) : null}
-            </div>
-          )}
+          {/* Hover tooltip */}
+          {hoveredCommunity && (() => {
+            const c = getCommunityById(hoveredCommunity);
+            return c ? (
+              <div className="hidden lg:block absolute top-4 right-4 z-[1000] bg-[#0C1C2E]/95 backdrop-blur border border-[#Bfa67a] p-4 text-white max-w-xs">
+                <div className="text-[10px] uppercase tracking-widest text-[#Bfa67a] mb-1">Community</div>
+                <div className="font-serif text-lg">{c.name}</div>
+                <div className="text-sm text-gray-400 mt-1">{c.priceRange}</div>
+              </div>
+            ) : null;
+          })()}
         </div>
 
         {/* RIGHT: Info Panel */}
         <div ref={panelRef} className="h-[55vh] lg:h-auto lg:w-5/12 bg-white flex flex-col border-l border-gray-200 overflow-hidden">
 
           {/* Sticky Header Image */}
-          {currentData && (
+          {selectedRegion && (
             <div className="relative shrink-0 z-10">
               {/* Hero Image */}
               <div className="relative h-56">
                 <img
-                  src={currentData.headerImage}
-                  alt={currentData.name}
+                  src={headerImage}
+                  alt={regionName}
                   className="absolute inset-0 w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0C1C2E] via-[#0C1C2E]/50 to-transparent" />
 
                 <div className="absolute bottom-0 left-0 w-full p-6 text-white">
                   <div className="flex items-end justify-between">
-                    {/* Left side - Zone info */}
                     <div>
                       <div className="flex items-center gap-2 text-[#Bfa67a] text-[10px] uppercase tracking-[0.25em] font-bold mb-2">
                         <Award size={14} />
-                        {selectedEnclave ? 'Luxury Enclave' : 'Market Zone'}
+                        {selectedCommunity ? 'Luxury Community' : 'Market Zone'}
                       </div>
                       <h2 className="text-3xl font-serif mb-2">
-                        {selectedEnclave
-                          ? luxuryEnclavesGeoJSON.features.find(f => f.properties.id === selectedEnclave)?.properties.name
-                          : currentData.name
+                        {selectedCommunity
+                          ? getCommunityById(selectedCommunity)?.name ?? regionName
+                          : regionName
                         }
                       </h2>
                       <p className="text-gray-300 text-sm font-light leading-relaxed max-w-sm">
-                        {currentData.description}
+                        {selectedCommunity
+                          ? getCommunityById(selectedCommunity)?.description ?? regionDescription
+                          : regionDescription
+                        }
                       </p>
                     </div>
 
-                    {/* Right side - Quick links */}
-                    <div className="flex items-center gap-6">
+                    <div className="hidden lg:flex items-center gap-6">
                       <Link
-                        to={`/phoenix/${currentData.id}`}
+                        to={`/phoenix/${selectedRegion}`}
                         className="group inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-white font-bold hover:text-[#Bfa67a] transition-all"
                       >
                         Explore Region <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
                       </Link>
                       <Link
-                        to={`/report?region=${currentData.id}`}
+                        to={`/insights/${selectedRegion}`}
                         className="group inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-white font-bold hover:text-[#Bfa67a] transition-all"
                       >
                         Market Report <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
@@ -1272,23 +1441,29 @@ const InteractiveMap: React.FC = () => {
                 </div>
               </div>
 
-              {/* Stats Bar - Updated Theme */}
+              {/* Stats Bar */}
               <div className="grid grid-cols-4 bg-[#0C1C2E]">
                 <div className="p-4 text-center border-r border-white/10">
-                  <p className="text-[9px] uppercase tracking-[0.15em] text-[#Bfa67a] font-bold mb-1">Median Price</p>
-                  <p className="text-xl font-serif text-white">{currentData.stats.avgPrice}</p>
+                  <p className="text-[9px] uppercase tracking-[0.15em] text-[#Bfa67a] font-bold mb-1">Communities</p>
+                  <p className="text-xl font-serif text-white">{regionCommunities.length}</p>
                 </div>
                 <div className="p-4 text-center border-r border-white/10">
-                  <p className="text-[9px] uppercase tracking-[0.15em] text-[#Bfa67a] font-bold mb-1">Inventory</p>
-                  <p className="text-xl font-serif text-white">{currentData.stats.inventory}</p>
+                  <p className="text-[9px] uppercase tracking-[0.15em] text-[#Bfa67a] font-bold mb-1">Guard-Gated</p>
+                  <p className="text-xl font-serif text-white">
+                    {regionCommunities.filter(c => c.gating.toLowerCase().includes('guard')).length}
+                  </p>
                 </div>
                 <div className="p-4 text-center border-r border-white/10">
-                  <p className="text-[9px] uppercase tracking-[0.15em] text-[#Bfa67a] font-bold mb-1">Avg DOM</p>
-                  <p className="text-xl font-serif text-white">{currentData.stats.dom}</p>
+                  <p className="text-[9px] uppercase tracking-[0.15em] text-[#Bfa67a] font-bold mb-1">Mapped</p>
+                  <p className="text-xl font-serif text-white">
+                    {regionCommunityFeatures.filter(f => f.geometry.type !== 'Point').length}
+                  </p>
                 </div>
                 <div className="p-4 text-center">
-                  <p className="text-[9px] uppercase tracking-[0.15em] text-[#Bfa67a] font-bold mb-1">$/Sq Ft</p>
-                  <p className="text-xl font-serif text-white">{currentData.stats.ppsf}</p>
+                  <p className="text-[9px] uppercase tracking-[0.15em] text-[#Bfa67a] font-bold mb-1">Zip Codes</p>
+                  <p className="text-xl font-serif text-white">
+                    {new Set(regionCommunities.map(c => c.zipCode)).size}
+                  </p>
                 </div>
               </div>
             </div>
@@ -1296,7 +1471,7 @@ const InteractiveMap: React.FC = () => {
 
           {/* Scrollable Content Area */}
           <div className="flex-1 flex flex-col overflow-y-auto">
-            {/* Section Header - Sticky within scroll area */}
+            {/* Section Header - Sticky */}
             <div className="sticky top-0 bg-white z-20 px-6 py-4 border-b border-gray-100 shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1304,184 +1479,342 @@ const InteractiveMap: React.FC = () => {
                   <h3 className="text-sm font-serif text-[#0C1C2E]">Luxury Communities</h3>
                 </div>
                 <span className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-medium">
-                  {currentData?.enclaves.length || 0} Enclaves
+                  {regionCommunities.length} Enclaves
                 </span>
               </div>
             </div>
 
-            {/* Enclave Cards */}
+            {/* Community Cards */}
             <div className="flex-1 p-6 pb-24 bg-gray-50/50">
+              {regionCommunities.length > 0 ? (
+                <div className="space-y-4">
+                  {regionCommunities.map((community) => {
+                    const isExpanded = expandedCommunity === community.slug;
+                    const hasPolygon = regionCommunityFeatures.some(
+                      f => f.properties.slug === community.slug && f.geometry.type !== 'Point'
+                    );
 
-            {currentData && (
-              <div className="space-y-4">
-                {currentData.enclaves.map((enclave, index) => {
-                  const isExpanded = expandedEnclave === enclave.id;
-                  const enclaveData = ENCLAVE_FEATURED_LISTINGS[enclave.id];
-
-                  return (
-                    <div
-                      key={enclave.id}
-                      id={`enclave-card-${enclave.id}`}
-                      className={`
-                        bg-white overflow-hidden
-                        transition-all duration-300 ease-out
-                        ${isExpanded
-                          ? 'shadow-xl ring-1 ring-[#Bfa67a]'
-                          : 'shadow-sm hover:shadow-lg hover:-translate-y-0.5'
-                        }
-                      `}
-                      style={{ scrollMarginTop: '80px' }}
-                    >
-                      {/* Header - Always Visible */}
+                    return (
                       <div
-                        onClick={() => {
-                          setExpandedEnclave(isExpanded ? null : enclave.id);
-                          setSelectedEnclave(enclave.id);
-                        }}
-                        className="w-full text-left px-5 py-4 cursor-pointer transition-all duration-200"
-                        style={{
-                          backgroundColor: isExpanded ? '#0C1C2E' : '#ffffff',
-                          color: isExpanded ? '#ffffff' : '#0C1C2E'
-                        }}
+                        key={community.slug}
+                        id={`community-card-${community.slug}`}
+                        className={`
+                          bg-white overflow-hidden transition-all duration-300 ease-out
+                          ${isExpanded ? 'shadow-xl ring-1 ring-[#Bfa67a]' : 'shadow-sm hover:shadow-lg hover:-translate-y-0.5'}
+                        `}
+                        style={{ scrollMarginTop: '80px' }}
                       >
-                        {/* Top Row: Type Badge + Price + Chevron */}
-                        <div className="flex items-center justify-between mb-3">
-                          <span
-                            className="text-[9px] uppercase tracking-[0.2em] font-semibold px-2 py-1"
-                            style={{
-                              backgroundColor: isExpanded ? 'rgba(191, 166, 122, 0.2)' : 'rgba(12, 28, 46, 0.05)',
-                              color: isExpanded ? '#Bfa67a' : 'rgba(12, 28, 46, 0.6)'
-                            }}
-                          >
-                            {enclave.type}
-                          </span>
-                          <div className="flex items-center gap-4">
-                            <span
-                              className="text-2xl font-serif font-light tracking-tight"
-                              style={{ color: isExpanded ? '#ffffff' : '#0C1C2E' }}
-                            >
-                              {enclave.avgPrice}
-                            </span>
-                            <div
-                              className="w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ease-out"
-                              style={{
-                                backgroundColor: isExpanded ? '#Bfa67a' : '#f3f4f6',
-                                color: isExpanded ? '#ffffff' : '#9ca3af',
-                                transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
-                              }}
-                            >
-                              <ChevronDown size={18} strokeWidth={2} />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Community Name */}
-                        <h4
-                          className="font-serif text-xl mb-3 tracking-wide"
-                          style={{ color: isExpanded ? '#ffffff' : '#0C1C2E' }}
-                        >
-                          {enclave.name}
-                        </h4>
-
-                        {/* Stats Row */}
+                        {/* Header - Always Visible */}
                         <div
-                          className="flex items-center gap-6 text-[11px]"
-                          style={{ color: isExpanded ? 'rgba(255,255,255,0.7)' : '#6b7280' }}
+                          onClick={() => {
+                            setExpandedCommunity(isExpanded ? null : community.slug);
+                            setSelectedCommunity(community.slug);
+                            setCardTab('listings');
+                          }}
+                          className="w-full text-left px-5 py-4 cursor-pointer transition-all duration-200"
+                          style={{
+                            backgroundColor: isExpanded ? '#0C1C2E' : '#ffffff',
+                            color: isExpanded ? '#ffffff' : '#0C1C2E',
+                          }}
                         >
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className="font-semibold"
-                              style={{ color: isExpanded ? '#ffffff' : '#0C1C2E' }}
-                            >
-                              {enclave.dom}
-                            </span>
-                            <span>Days on Market</span>
-                          </div>
-                          <div
-                            className="w-px h-3 opacity-30"
-                            style={{ backgroundColor: isExpanded ? '#ffffff' : '#6b7280' }}
-                          />
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className="font-semibold"
-                              style={{ color: isExpanded ? '#ffffff' : '#0C1C2E' }}
-                            >
-                              {enclave.inventory}
-                            </span>
-                            <span>Active</span>
-                          </div>
-                          {enclaveData && (
-                            <>
-                              <div
-                                className="w-px h-3 opacity-30"
-                                style={{ backgroundColor: isExpanded ? '#ffffff' : '#6b7280' }}
-                              />
+                          {/* Top Row: Type Badge + Price + Chevron */}
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
                               <span
-                                className="font-semibold"
+                                className="text-[9px] uppercase tracking-[0.2em] font-semibold px-2 py-1"
                                 style={{
-                                  color: enclaveData.marketData.priceChange.startsWith('+')
-                                    ? (isExpanded ? '#34d399' : '#059669')
-                                    : '#ef4444'
+                                  backgroundColor: isExpanded ? 'rgba(191, 166, 122, 0.2)' : 'rgba(12, 28, 46, 0.05)',
+                                  color: isExpanded ? '#Bfa67a' : 'rgba(12, 28, 46, 0.6)',
                                 }}
                               >
-                                {enclaveData.marketData.priceChange} YoY
+                                {community.section.label}
                               </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
+                              {!hasPolygon && (
+                                <span
+                                  className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                                  style={{
+                                    backgroundColor: isExpanded ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                                    color: isExpanded ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.3)',
+                                  }}
+                                >
+                                  Approx
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <span
+                                className="text-2xl font-serif font-light tracking-tight"
+                                style={{ color: isExpanded ? '#ffffff' : '#0C1C2E' }}
+                              >
+                                {community.priceRange}
+                              </span>
+                              <div
+                                className="w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ease-out"
+                                style={{
+                                  backgroundColor: isExpanded ? '#Bfa67a' : '#f3f4f6',
+                                  color: isExpanded ? '#ffffff' : '#9ca3af',
+                                  transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                }}
+                              >
+                                <ChevronDown size={18} strokeWidth={2} />
+                              </div>
+                            </div>
+                          </div>
 
-                      {/* Expanded Content */}
-                      <div className={`
-                        grid transition-all duration-300 ease-out
-                        ${isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}
-                      `}>
-                        <div className="overflow-hidden">
-                          {enclaveData && (
+                          {/* Community Name */}
+                          <h4
+                            className="font-serif text-xl mb-3 tracking-wide"
+                            style={{ color: isExpanded ? '#ffffff' : '#0C1C2E' }}
+                          >
+                            {community.name}
+                          </h4>
+
+                          {/* Stats Row */}
+                          <div
+                            className="flex items-center gap-6 text-[11px]"
+                            style={{ color: isExpanded ? 'rgba(255,255,255,0.7)' : '#6b7280' }}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className="font-semibold"
+                                style={{ color: isExpanded ? '#ffffff' : '#0C1C2E' }}
+                              >
+                                {community.city}
+                              </span>
+                            </div>
+                            <div
+                              className="w-px h-3 opacity-30"
+                              style={{ backgroundColor: isExpanded ? '#ffffff' : '#6b7280' }}
+                            />
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className="font-semibold"
+                                style={{ color: isExpanded ? '#ffffff' : '#0C1C2E' }}
+                              >
+                                {community.zipCode}
+                              </span>
+                            </div>
+                            <div
+                              className="w-px h-3 opacity-30"
+                              style={{ backgroundColor: isExpanded ? '#ffffff' : '#6b7280' }}
+                            />
+                            <span
+                              className="font-semibold"
+                              style={{ color: isExpanded ? '#Bfa67a' : '#059669' }}
+                            >
+                              {community.gating}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Expanded Content */}
+                        <div className={`
+                          grid transition-all duration-300 ease-out
+                          ${isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}
+                        `}>
+                          <div className="overflow-hidden">
+                            {/* Overview Hero — always visible when expanded */}
                             <div>
-                              {/* Tabs inside expanded card */}
-                              <div className="flex gap-1 p-2 bg-[#F8F7F5] border-b border-gray-200">
+                              {/* Key Stats Bar */}
+                              <div className="grid grid-cols-3 bg-white border-b border-gray-100">
                                 {[
-                                  { id: 'listings' as const, label: 'Featured Listings', icon: Home },
-                                  { id: 'market' as const, label: 'Market Intel', icon: TrendingUp },
-                                  { id: 'lifestyle' as const, label: 'Lifestyle', icon: Camera }
-                                ].map((tab) => {
-                                  const Icon = tab.icon;
-                                  const isActiveTab = enclaveTab === tab.id;
-                                  return (
-                                    <button
-                                      key={tab.id}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEnclaveTab(tab.id);
-                                      }}
-                                      className={`
-                                        flex-1 py-2.5 px-2 rounded
-                                        text-[9px] uppercase tracking-[0.12em] font-bold
-                                        transition-all duration-200 ease-out
-                                        flex items-center justify-center gap-1.5
-                                        ${isActiveTab
-                                          ? 'bg-white text-[#0C1C2E] shadow-sm'
-                                          : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
-                                        }
-                                      `}
-                                    >
-                                      <Icon size={12} className={isActiveTab ? 'text-[#Bfa67a]' : ''} />
-                                      {tab.label}
-                                    </button>
-                                  );
-                                })}
+                                  { label: 'Section', value: community.section.label },
+                                  { label: 'Gating', value: community.gating },
+                                  { label: 'Zip Code', value: community.zipCode },
+                                ].map((stat, i) => (
+                                  <div
+                                    key={stat.label}
+                                    className={`py-3 text-center ${i > 0 ? 'border-l border-gray-100' : ''}`}
+                                  >
+                                    <p className="text-[9px] uppercase tracking-[0.15em] text-gray-400 mb-1 font-medium">
+                                      {stat.label}
+                                    </p>
+                                    <p className="text-sm font-serif text-[#0C1C2E] truncate px-2">{stat.value}</p>
+                                  </div>
+                                ))}
                               </div>
 
-                              {/* Featured Listings Tab Content */}
-                              {enclaveTab === 'listings' && (
+                              <div className="px-5 py-4 space-y-3 border-b border-gray-100">
+                                {/* Description */}
+                                {community.description && (
+                                  <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">
+                                    {community.description}
+                                  </p>
+                                )}
+
+                                {/* Details Bento Grid */}
+                                <div className="grid grid-cols-2 gap-2">
+                                  {community.residential.schoolDistrict.district && (
+                                    <div className="bg-gray-50 border border-gray-100 p-2.5 rounded flex flex-col">
+                                      <div className="flex items-center gap-1.5 mb-1">
+                                        <GraduationCap size={11} className="text-[#Bfa67a]" />
+                                        <span className="text-[8px] uppercase tracking-widest text-gray-400 font-bold">School District</span>
+                                      </div>
+                                      <p className="text-xs font-serif text-[#0C1C2E]">{community.residential.schoolDistrict.district}</p>
+                                      {community.residential.schoolDistrict.highSchool && (
+                                        <p className="text-[10px] text-gray-400 mt-0.5">{community.residential.schoolDistrict.highSchool}</p>
+                                      )}
+                                    </div>
+                                  )}
+                                  {community.residential.hoa.monthlyLow != null && (
+                                    <div className="bg-gray-50 border border-gray-100 p-2.5 rounded flex flex-col">
+                                      <div className="flex items-center gap-1.5 mb-1">
+                                        <DollarSign size={11} className="text-[#Bfa67a]" />
+                                        <span className="text-[8px] uppercase tracking-widest text-gray-400 font-bold">HOA Fees</span>
+                                      </div>
+                                      <p className="text-xs font-serif text-[#0C1C2E]">
+                                        {community.residential.hoa.monthlyLow && community.residential.hoa.monthlyHigh
+                                          ? `$${community.residential.hoa.monthlyLow}–$${community.residential.hoa.monthlyHigh}/mo`
+                                          : 'See details'}
+                                      </p>
+                                    </div>
+                                  )}
+                                  {community.nearestTrail?.name && (
+                                    <div className="bg-gray-50 border border-gray-100 p-2.5 rounded flex flex-col">
+                                      <div className="flex items-center gap-1.5 mb-1">
+                                        <TreePine size={11} className="text-[#Bfa67a]" />
+                                        <span className="text-[8px] uppercase tracking-widest text-gray-400 font-bold">Nearest Trail</span>
+                                      </div>
+                                      <p className="text-xs font-serif text-[#0C1C2E]">{community.nearestTrail.name}</p>
+                                    </div>
+                                  )}
+                                  {community.location.keyDistances.length > 0 && (
+                                    <div className="bg-gray-50 border border-gray-100 p-2.5 rounded flex flex-col">
+                                      <div className="flex items-center gap-1.5 mb-1">
+                                        <Landmark size={11} className="text-[#Bfa67a]" />
+                                        <span className="text-[8px] uppercase tracking-widest text-gray-400 font-bold">Proximity</span>
+                                      </div>
+                                      <p className="text-[10px] text-gray-600 leading-relaxed line-clamp-2">{community.location.keyDistances.map(d => `${d.label}: ${d.distance}`).join(' · ')}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Tabs */}
+                            <div className="flex gap-1 p-2 bg-[#F8F7F5] border-b border-gray-200">
+                              {([
+                                { id: 'listings' as const, label: 'Featured Listings', icon: Home },
+                                { id: 'market' as const, label: 'Market Intel', icon: TrendingUp },
+                                { id: 'lifestyle' as const, label: 'Lifestyle', icon: Camera },
+                              ]).map((tab) => {
+                                const Icon = tab.icon;
+                                const isActiveTab = cardTab === tab.id;
+                                return (
+                                  <button
+                                    key={tab.id}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCardTab(tab.id);
+                                    }}
+                                    className={`
+                                      flex-1 py-2.5 px-2 rounded
+                                      text-[9px] uppercase tracking-[0.12em] font-bold
+                                      transition-all duration-200 ease-out
+                                      flex items-center justify-center gap-1.5
+                                      ${isActiveTab
+                                        ? 'bg-white text-[#0C1C2E] shadow-sm'
+                                        : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
+                                      }
+                                    `}
+                                  >
+                                    <Icon size={12} className={isActiveTab ? 'text-[#Bfa67a]' : ''} />
+                                    {tab.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Featured Listings Tab */}
+                            {cardTab === 'listings' && (() => {
+                              const enclaveData = ENCLAVE_FEATURED_LISTINGS[community.slug];
+                              if (enclaveData) {
+                                return (
+                                  <div>
+                                    {/* Market Data Bar */}
+                                    <div className="grid grid-cols-3 bg-white border-b border-gray-100">
+                                      {[
+                                        { label: 'Price/SqFt', value: enclaveData.marketData.avgPpsf },
+                                        { label: 'Sale-to-List', value: enclaveData.marketData.listToSale },
+                                        { label: 'YoY Growth', value: enclaveData.marketData.priceChange, highlight: true },
+                                      ].map((stat, i) => (
+                                        <div
+                                          key={stat.label}
+                                          className={`py-4 text-center ${i > 0 ? 'border-l border-gray-100' : ''}`}
+                                        >
+                                          <p className="text-[9px] uppercase tracking-[0.15em] text-gray-400 mb-1 font-medium">
+                                            {stat.label}
+                                          </p>
+                                          <p className={`text-lg font-serif ${
+                                            stat.highlight
+                                              ? (stat.value.startsWith('+') ? 'text-emerald-600' : 'text-red-500')
+                                              : 'text-[#0C1C2E]'
+                                          }`}>
+                                            {stat.value}
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+
+                                    {/* Listings */}
+                                    <div className="px-5 py-5">
+                                      <div className="grid grid-cols-3 gap-4">
+                                        {enclaveData.listings.slice(0, 3).map((listing) => (
+                                          <div key={listing.id} className="cursor-pointer group">
+                                            <div className="aspect-[4/3] relative overflow-hidden mb-3 bg-gray-100">
+                                              <img
+                                                src={listing.image}
+                                                alt={listing.address}
+                                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+                                              />
+                                              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                              {listing.status !== 'active' && (
+                                                <div className={`
+                                                  absolute top-2 left-2 text-[8px] uppercase tracking-wider font-bold px-2 py-1
+                                                  ${listing.status === 'just-listed' ? 'bg-[#0C1C2E] text-white' : 'bg-[#Bfa67a] text-white'}
+                                                `}>
+                                                  {listing.status === 'just-listed' ? 'Just Listed' : 'Pending'}
+                                                </div>
+                                              )}
+                                            </div>
+                                            <p className="text-base font-serif text-[#0C1C2E] mb-1 transition-colors duration-200 group-hover:text-[#Bfa67a]">
+                                              {listing.price}
+                                            </p>
+                                            <div className="flex items-center gap-3 text-[10px] text-gray-500">
+                                              <span className="flex items-center gap-1">
+                                                <BedDouble size={11} className="text-gray-400" />
+                                                {listing.beds} bd
+                                              </span>
+                                              <span className="flex items-center gap-1">
+                                                <Bath size={11} className="text-gray-400" />
+                                                {listing.baths} ba
+                                              </span>
+                                              <span className="text-gray-400">{listing.sqft} sf</span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+
+                                      <Link
+                                        to={`/phoenix/${community.identity.regionId}/${community.slug}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="w-full mt-5 py-3 text-[10px] uppercase tracking-[0.2em] font-semibold text-[#0C1C2E] bg-transparent border border-[#0C1C2E]/20 transition-all duration-300 ease-out hover:bg-[#0C1C2E] hover:text-white hover:border-[#0C1C2E] flex items-center justify-center gap-2 group/btn"
+                                      >
+                                        View All {enclaveData.listings.length} Listings
+                                        <ArrowRight size={14} className="transition-transform duration-200 group-hover/btn:translate-x-1" />
+                                      </Link>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              // Fallback: no data
+                              return (
                                 <div>
-                                  {/* Market Data Bar */}
                                   <div className="grid grid-cols-3 bg-white border-b border-gray-100">
                                     {[
-                                      { label: 'Price/SqFt', value: enclaveData.marketData.avgPpsf },
-                                      { label: 'Sale-to-List', value: enclaveData.marketData.listToSale },
-                                      { label: 'YoY Growth', value: enclaveData.marketData.priceChange, highlight: true },
+                                      { label: 'Price/SqFt', value: '\u2014' },
+                                      { label: 'Sale-to-List', value: '\u2014' },
+                                      { label: 'YoY Growth', value: '\u2014' },
                                     ].map((stat, i) => (
                                       <div
                                         key={stat.label}
@@ -1490,70 +1823,46 @@ const InteractiveMap: React.FC = () => {
                                         <p className="text-[9px] uppercase tracking-[0.15em] text-gray-400 mb-1 font-medium">
                                           {stat.label}
                                         </p>
-                                        <p className={`text-lg font-serif ${
-                                          stat.highlight
-                                            ? (stat.value.startsWith('+') ? 'text-emerald-600' : 'text-red-500')
-                                            : 'text-[#0C1C2E]'
-                                        }`}>
-                                          {stat.value}
-                                        </p>
+                                        <p className="text-lg font-serif text-gray-300">{stat.value}</p>
                                       </div>
                                     ))}
                                   </div>
-
-                                  {/* Listings */}
                                   <div className="px-5 py-5">
                                     <div className="grid grid-cols-3 gap-4">
-                                      {enclaveData.listings.slice(0, 3).map((listing, listingIndex) => (
-                                        <div key={listing.id} className="cursor-pointer group">
-                                          <div className="aspect-[4/3] relative overflow-hidden mb-3 bg-gray-100">
-                                            <img
-                                              src={listing.image}
-                                              alt={listing.address}
-                                              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
-                                            />
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                            {listing.status !== 'active' && (
-                                              <div className={`
-                                                absolute top-2 left-2 text-[8px] uppercase tracking-wider font-bold px-2 py-1
-                                                ${listing.status === 'just-listed' ? 'bg-[#0C1C2E] text-white' : 'bg-[#Bfa67a] text-white'}
-                                              `}>
-                                                {listing.status === 'just-listed' ? 'Just Listed' : 'Pending'}
-                                              </div>
-                                            )}
+                                      {[0, 1, 2].map((idx) => (
+                                        <div key={idx} className="group">
+                                          <div className="aspect-[4/3] relative overflow-hidden mb-3 bg-gray-100 flex items-center justify-center">
+                                            <div className="text-center">
+                                              <Home size={20} className="text-gray-300 mx-auto mb-1" />
+                                              <p className="text-[8px] text-gray-400 uppercase tracking-wider">Coming Soon</p>
+                                            </div>
                                           </div>
-                                          <p className="text-base font-serif text-[#0C1C2E] mb-1 transition-colors duration-200 group-hover:text-[#Bfa67a]">
-                                            {listing.price}
-                                          </p>
-                                          <div className="flex items-center gap-3 text-[10px] text-gray-500">
-                                            <span className="flex items-center gap-1">
-                                              <BedDouble size={11} className="text-gray-400" />
-                                              {listing.beds} bd
-                                            </span>
-                                            <span className="flex items-center gap-1">
-                                              <Bath size={11} className="text-gray-400" />
-                                              {listing.baths} ba
-                                            </span>
-                                            <span className="text-gray-400">{listing.sqft} sf</span>
-                                          </div>
+                                          <div className="h-3 bg-gray-100 rounded mb-2 w-3/4" />
+                                          <div className="h-2 bg-gray-100 rounded w-1/2" />
                                         </div>
                                       ))}
                                     </div>
-
-                                    <button className="w-full mt-5 py-3 text-[10px] uppercase tracking-[0.2em] font-semibold text-[#0C1C2E] bg-transparent border border-[#0C1C2E]/20 transition-all duration-300 ease-out hover:bg-[#0C1C2E] hover:text-white hover:border-[#0C1C2E] flex items-center justify-center gap-2 group/btn">
-                                      View All {enclave.inventory} Listings
+                                    <Link
+                                      to={`/phoenix/${community.identity.regionId}/${community.slug}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="w-full mt-5 py-3 text-[10px] uppercase tracking-[0.2em] font-semibold text-[#0C1C2E] bg-transparent border border-[#0C1C2E]/20 transition-all duration-300 ease-out hover:bg-[#0C1C2E] hover:text-white hover:border-[#0C1C2E] flex items-center justify-center gap-2 group/btn"
+                                    >
+                                      View All Listings
                                       <ArrowRight size={14} className="transition-transform duration-200 group-hover/btn:translate-x-1" />
-                                    </button>
+                                    </Link>
                                   </div>
                                 </div>
-                              )}
+                              );
+                            })()}
 
-                              {/* Market Intel Tab Content */}
-                              {enclaveTab === 'market' && (() => {
+                            {/* Market Intel Tab */}
+                            {cardTab === 'market' && (() => {
+                              const enclaveData = ENCLAVE_FEATURED_LISTINGS[community.slug];
+                              if (enclaveData && currentZoneData) {
                                 // Calculate pie chart values
-                                const newVal = enclaveData?.marketData.newListings30d || 0;
-                                const pendingVal = enclaveData?.marketData.pendingSales || 0;
-                                const soldVal = enclaveData?.marketData.closedSales30d || 0;
+                                const newVal = enclaveData.marketData.newListings30d || 0;
+                                const pendingVal = enclaveData.marketData.pendingSales || 0;
+                                const soldVal = enclaveData.marketData.closedSales30d || 0;
                                 const total = newVal + pendingVal + soldVal || 1;
                                 const newPct = (newVal / total) * 100;
                                 const pendingPct = (pendingVal / total) * 100;
@@ -1567,18 +1876,6 @@ const InteractiveMap: React.FC = () => {
                                 const newOffset = 0;
                                 const pendingOffset = -newDash;
                                 const soldOffset = -(newDash + pendingDash);
-
-                                // Recent sales for bar chart
-                                const sales = enclaveData?.marketData.recentSales || [];
-                                const salePrices = sales.map(s => parseFloat(s.price.replace(/[$,KM]/g, '')) * (s.price.includes('M') ? 1000000 : s.price.includes('K') ? 1000 : 1));
-                                const maxSalePrice = Math.max(...salePrices, 1);
-
-                                // Price trend for line chart
-                                const priceTrend = enclaveData?.marketData.pricePerSqftTrend || [];
-                                const trendValues = priceTrend.map(t => t.value);
-                                const minTrend = Math.min(...trendValues) * 0.95;
-                                const maxTrend = Math.max(...trendValues) * 1.02;
-                                const trendRange = maxTrend - minTrend || 1;
 
                                 return (
                                   <div className="p-4">
@@ -1627,26 +1924,26 @@ const InteractiveMap: React.FC = () => {
                                         <h4 className="text-[9px] uppercase tracking-widest text-gray-500 font-bold mb-3">Market Snapshot</h4>
                                         <div className="flex-1 grid grid-cols-2 gap-3">
                                           <div className="flex flex-col justify-center">
-                                            <span className="text-2xl font-serif text-[#0C1C2E]">{enclaveData?.marketData.avgPpsf}</span>
+                                            <span className="text-2xl font-serif text-[#0C1C2E]">{enclaveData.marketData.avgPpsf}</span>
                                             <span className="text-[8px] uppercase tracking-widest text-gray-400">Avg $/SqFt</span>
                                           </div>
                                           <div className="flex flex-col justify-center">
-                                            <span className="text-2xl font-serif text-[#0C1C2E]">{enclaveData?.marketData.medianDom}<span className="text-sm text-gray-400 ml-0.5">d</span></span>
+                                            <span className="text-2xl font-serif text-[#0C1C2E]">{enclaveData.marketData.medianDom}<span className="text-sm text-gray-400 ml-0.5">d</span></span>
                                             <span className="text-[8px] uppercase tracking-widest text-gray-400">Median DOM</span>
                                           </div>
                                           <div className="flex flex-col justify-center">
-                                            <span className="text-2xl font-serif text-[#0C1C2E]">{enclaveData?.marketData.listToSale}</span>
+                                            <span className="text-2xl font-serif text-[#0C1C2E]">{enclaveData.marketData.listToSale}</span>
                                             <span className="text-[8px] uppercase tracking-widest text-gray-400">List-to-Sale</span>
                                           </div>
                                           <div className="flex flex-col justify-center">
-                                            <span className="text-2xl font-serif text-[#0C1C2E]">{enclaveData?.marketData.monthsSupply}</span>
+                                            <span className="text-2xl font-serif text-[#0C1C2E]">{enclaveData.marketData.monthsSupply}</span>
                                             <span className="text-[8px] uppercase tracking-widest text-gray-400">Mo. Supply</span>
                                           </div>
                                         </div>
                                         <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
                                           <span className="text-[8px] text-gray-400">YoY Change</span>
-                                          <span className={`text-xs font-bold ${enclaveData?.marketData.priceChange.startsWith('+') ? 'text-[#Bfa67a]' : 'text-[#0C1C2E]'}`}>
-                                            {enclaveData?.marketData.priceChange}
+                                          <span className={`text-xs font-bold ${enclaveData.marketData.priceChange.startsWith('+') ? 'text-[#Bfa67a]' : 'text-[#0C1C2E]'}`}>
+                                            {enclaveData.marketData.priceChange}
                                           </span>
                                         </div>
                                       </div>
@@ -1674,7 +1971,7 @@ const InteractiveMap: React.FC = () => {
                                         <div className="p-3">
                                           {performanceView === 'buyer' ? (
                                             <div className="space-y-2">
-                                              {currentData?.buyerData.priceDistribution.map((seg, i) => (
+                                              {currentZoneData.buyerData.priceDistribution.map((seg, i) => (
                                                 <div key={i} className="flex items-center gap-2">
                                                   <span className="text-[8px] text-gray-500 w-14 shrink-0">{seg.range}</span>
                                                   <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -1686,12 +1983,12 @@ const InteractiveMap: React.FC = () => {
                                               <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2">
                                                 <div>
                                                   <span className="text-[7px] uppercase tracking-widest text-gray-400 block">Negotiability</span>
-                                                  <span className="text-xs font-serif text-[#0C1C2E]">{currentData?.buyerData.negotiability}</span>
+                                                  <span className="text-xs font-serif text-[#0C1C2E]">{currentZoneData.buyerData.negotiability}</span>
                                                 </div>
                                                 <div className="text-right">
                                                   <span className="text-[7px] uppercase tracking-widest text-gray-400 block">Inventory</span>
-                                                  <span className={`text-xs font-serif ${currentData?.buyerData.inventoryTrend.includes('-') ? 'text-rose-500' : 'text-emerald-600'}`}>
-                                                    {currentData?.buyerData.inventoryTrend}
+                                                  <span className={`text-xs font-serif ${currentZoneData.buyerData.inventoryTrend.includes('-') ? 'text-rose-500' : 'text-emerald-600'}`}>
+                                                    {currentZoneData.buyerData.inventoryTrend}
                                                   </span>
                                                 </div>
                                               </div>
@@ -1700,22 +1997,22 @@ const InteractiveMap: React.FC = () => {
                                             <div className="space-y-2">
                                               <div className="flex items-center justify-around py-1">
                                                 <div className="text-center">
-                                                  <p className="text-xl font-serif text-[#0C1C2E]">{currentData?.sellerData.marketIndex}</p>
+                                                  <p className="text-xl font-serif text-[#0C1C2E]">{currentZoneData.sellerData.marketIndex}</p>
                                                   <p className="text-[7px] uppercase tracking-widest text-gray-400">Market Index</p>
                                                 </div>
                                                 <div className="text-center">
-                                                  <p className="text-xl font-serif text-emerald-600">{currentData?.sellerData.saleToList}</p>
+                                                  <p className="text-xl font-serif text-emerald-600">{currentZoneData.sellerData.saleToList}</p>
                                                   <p className="text-[7px] uppercase tracking-widest text-gray-400">Sale/List</p>
                                                 </div>
                                               </div>
                                               <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                                                 <div>
                                                   <span className="text-[7px] uppercase tracking-widest text-gray-400 block">Cash Buyers</span>
-                                                  <span className="text-xs font-serif text-[#0C1C2E]">{currentData?.sellerData.cashBuyerPercent}</span>
+                                                  <span className="text-xs font-serif text-[#0C1C2E]">{currentZoneData.sellerData.cashBuyerPercent}</span>
                                                 </div>
                                                 <div className="text-right">
                                                   <span className="text-[7px] uppercase tracking-widest text-gray-400 block">Avg DOM</span>
-                                                  <span className="text-xs font-serif text-[#0C1C2E]">{currentData?.sellerData.daysToContract}</span>
+                                                  <span className="text-xs font-serif text-[#0C1C2E]">{currentZoneData.sellerData.daysToContract}</span>
                                                 </div>
                                               </div>
                                             </div>
@@ -1725,10 +2022,77 @@ const InteractiveMap: React.FC = () => {
                                     </div>
                                   </div>
                                 );
-                              })()}
+                              }
+                              // Fallback: blurred placeholder
+                              return (
+                                <div className="p-4">
+                                  <div className="grid grid-cols-2 gap-2.5">
+                                    <div className="bg-white border border-gray-100 shadow-sm p-3 rounded flex flex-col items-center justify-center relative overflow-hidden">
+                                      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center">
+                                        <div className="text-center">
+                                          <ShieldCheck size={20} className="text-[#Bfa67a] mx-auto mb-1" />
+                                          <p className="text-[8px] uppercase tracking-widest text-gray-500 font-bold">ARMLS Data</p>
+                                          <p className="text-[7px] text-gray-400">Coming Soon</p>
+                                        </div>
+                                      </div>
+                                      <h4 className="text-[9px] uppercase tracking-widest text-gray-500 font-bold mb-2">30-Day Activity</h4>
+                                      <div className="relative w-28 h-28 opacity-20">
+                                        <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                                          <circle cx="50" cy="50" r="40" fill="none" stroke="#f3f4f6" strokeWidth="14" />
+                                          <circle cx="50" cy="50" r="40" fill="none" stroke="#0C1C2E" strokeWidth="14"
+                                            strokeDasharray="80 251" strokeDashoffset="0" />
+                                          <circle cx="50" cy="50" r="40" fill="none" stroke="#Bfa67a" strokeWidth="14"
+                                            strokeDasharray="60 251" strokeDashoffset="-80" />
+                                        </svg>
+                                      </div>
+                                    </div>
+                                    <div className="bg-white border border-gray-100 shadow-sm p-3 rounded flex flex-col relative overflow-hidden">
+                                      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center">
+                                        <div className="text-center">
+                                          <TrendingUp size={20} className="text-[#Bfa67a] mx-auto mb-1" />
+                                          <p className="text-[8px] uppercase tracking-widest text-gray-500 font-bold">Market Intel</p>
+                                          <p className="text-[7px] text-gray-400">Coming Soon</p>
+                                        </div>
+                                      </div>
+                                      <h4 className="text-[9px] uppercase tracking-widest text-gray-500 font-bold mb-3 opacity-20">Market Snapshot</h4>
+                                      <div className="flex-1 grid grid-cols-2 gap-3 opacity-20">
+                                        <div className="flex flex-col justify-center">
+                                          <span className="text-2xl font-serif text-[#0C1C2E]">$485</span>
+                                          <span className="text-[8px] uppercase tracking-widest text-gray-400">Avg $/SqFt</span>
+                                        </div>
+                                        <div className="flex flex-col justify-center">
+                                          <span className="text-2xl font-serif text-[#0C1C2E]">62<span className="text-sm text-gray-400 ml-0.5">d</span></span>
+                                          <span className="text-[8px] uppercase tracking-widest text-gray-400">Median DOM</span>
+                                        </div>
+                                        <div className="flex flex-col justify-center">
+                                          <span className="text-2xl font-serif text-[#0C1C2E]">97.2%</span>
+                                          <span className="text-[8px] uppercase tracking-widest text-gray-400">List-to-Sale</span>
+                                        </div>
+                                        <div className="flex flex-col justify-center">
+                                          <span className="text-2xl font-serif text-[#0C1C2E]">4.8</span>
+                                          <span className="text-[8px] uppercase tracking-widest text-gray-400">Mo. Supply</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="col-span-2 bg-[#0C1C2E] p-4 rounded text-center">
+                                      <p className="text-[#Bfa67a] text-[9px] uppercase tracking-[0.2em] font-bold mb-1">Real-Time Market Intelligence</p>
+                                      <p className="text-white/60 text-[11px] mb-3">ARMLS-powered analytics for this community</p>
+                                      <Link
+                                        to={`/insights/${community.identity.regionId}/${community.zipCode}/${community.slug}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="inline-flex items-center gap-2 text-white text-[10px] uppercase tracking-[0.15em] font-bold hover:text-[#Bfa67a] transition-colors"
+                                      >
+                                        View Market Report <ArrowRight size={12} />
+                                      </Link>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
 
-                              {/* Lifestyle Tab Content */}
-                              {enclaveTab === 'lifestyle' && (
+                            {/* Lifestyle Tab */}
+                            {cardTab === 'lifestyle' && (
+                              currentZoneData ? (
                                 <div className="p-5 space-y-4">
                                   <div>
                                     <h3 className="text-xs font-serif text-[#0C1C2E] mb-3 flex items-center gap-2">
@@ -1736,7 +2100,7 @@ const InteractiveMap: React.FC = () => {
                                       Quality Signals
                                     </h3>
                                     <div className="grid grid-cols-2 gap-2">
-                                      {currentData?.qualitySignals.slice(0, 4).map((signal, i) => (
+                                      {currentZoneData.qualitySignals.slice(0, 4).map((signal, i) => (
                                         <div key={i} className="bg-white border border-gray-100 p-3 hover:border-[#Bfa67a] transition-all group">
                                           <div className="flex items-center justify-between mb-1">
                                             <div className="flex items-center gap-1.5 text-gray-600 group-hover:text-[#0C1C2E]">
@@ -1759,7 +2123,7 @@ const InteractiveMap: React.FC = () => {
                                       Signature Lifestyle
                                     </h3>
                                     <div className="grid grid-cols-2 gap-2">
-                                      {currentData?.lifestyle.map((item, i) => (
+                                      {currentZoneData.lifestyle.map((item, i) => (
                                         <div key={i} className="relative h-20 overflow-hidden group cursor-pointer">
                                           <img
                                             src={item.img}
@@ -1777,37 +2141,96 @@ const InteractiveMap: React.FC = () => {
                                     </div>
                                   </div>
                                 </div>
-                              )}
+                              ) : (
+                                <div className="p-5 space-y-4">
+                                  {community.golf && (
+                                    <div>
+                                      <h3 className="text-xs font-serif text-[#0C1C2E] mb-3 flex items-center gap-2">
+                                        <ShieldCheck size={14} className="text-[#Bfa67a]" />
+                                        Golf &amp; Recreation
+                                      </h3>
+                                      <p className="text-sm text-gray-600 leading-relaxed">{community.golf.description}</p>
+                                    </div>
+                                  )}
+                                  {community.categoryTags.length > 0 && (
+                                    <div>
+                                      <h3 className="text-xs font-serif text-[#0C1C2E] mb-3 flex items-center gap-2">
+                                        <Camera size={14} className="text-[#Bfa67a]" />
+                                        Signature Lifestyle
+                                      </h3>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        {community.categoryTags.slice(0, 8).map(tag => (
+                                          <div
+                                            key={tag}
+                                            className="bg-white border border-gray-100 p-3 hover:border-[#Bfa67a] transition-all group"
+                                          >
+                                            <span className="text-[9px] uppercase tracking-widest font-bold text-gray-600 group-hover:text-[#0C1C2E]">
+                                              {tag}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {community.amenities.length > 0 && (
+                                    <div>
+                                      <h3 className="text-xs font-serif text-[#0C1C2E] mb-3 flex items-center gap-2">
+                                        <MapPin size={14} className="text-[#Bfa67a]" />
+                                        Nearby Amenities
+                                      </h3>
+                                      <div className="space-y-2">
+                                        {community.amenities.slice(0, 4).map((amenity, i) => (
+                                          <div key={i} className="bg-white border border-gray-100 p-3 rounded flex items-start gap-3">
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-sm font-serif text-[#0C1C2E] truncate">{amenity.name}</p>
+                                              <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{amenity.description}</p>
+                                            </div>
+                                            <span className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 bg-[#0C1C2E]/5 text-[#0C1C2E]/50 shrink-0 capitalize">
+                                              {amenity.access}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            )}
 
-                              {/* Action Buttons */}
-                              <div className="px-5 pb-5 flex gap-3">
-                                <Link
-                                  to={`/${currentData.id}/${enclave.id}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="flex-1 flex items-center justify-center gap-2 bg-[#0C1C2E] text-white py-3 text-[10px] uppercase tracking-[0.15em] font-bold hover:bg-[#Bfa67a] transition-all"
-                                >
-                                  <MapPin size={14} />
-                                  Community Profile
-                                </Link>
-                                <Link
-                                  to={`/report?community=${enclave.id}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="flex-1 flex items-center justify-center gap-2 border border-[#0C1C2E] text-[#0C1C2E] py-3 text-[10px] uppercase tracking-[0.15em] font-bold hover:bg-[#0C1C2E] hover:text-white transition-all"
-                                >
-                                  <TrendingUp size={14} />
-                                  Market Report
-                                </Link>
-                              </div>
+                            {/* Action Buttons */}
+                            <div className="px-5 pb-5 flex gap-3">
+                              <Link
+                                to={`/phoenix/${community.identity.regionId}/${community.slug}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex-1 flex items-center justify-center gap-2 bg-[#0C1C2E] text-white py-3 text-[10px] uppercase tracking-[0.15em] font-bold hover:bg-[#Bfa67a] transition-all"
+                              >
+                                <MapPin size={14} />
+                                Community Profile
+                              </Link>
+                              <Link
+                                to={`/insights/${community.identity.regionId}/${community.zipCode}/${community.slug}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex-1 flex items-center justify-center gap-2 border border-[#0C1C2E] text-[#0C1C2E] py-3 text-[10px] uppercase tracking-[0.15em] font-bold hover:bg-[#0C1C2E] hover:text-white transition-all"
+                              >
+                                <TrendingUp size={14} />
+                                Market Report
+                              </Link>
                             </div>
-                          )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
+                    );
+                  })}
+                </div>
+              ) : selectedRegion ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-400 text-sm">No communities found in this region.</p>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-gray-500 text-sm font-serif">Select a region on the map to explore communities.</p>
+                </div>
+              )}
             </div>
           </div>
 
