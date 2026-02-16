@@ -177,20 +177,6 @@ function buildSchools(community: ResolvedCommunity) {
     });
   }
 
-  // Supplement from POIs
-  if (community.pois) {
-    for (const poi of community.pois) {
-      if (poi.type === 'school' && !schools.some(s => s.name === poi.name)) {
-        schools.push({
-          name: poi.name,
-          type: poi.subtype ?? 'School',
-          rating: poi.rating ?? 0,
-          distance: `${poi.distanceMi.toFixed(1)} mi`,
-        });
-      }
-    }
-  }
-
   return schools.slice(0, 6);
 }
 

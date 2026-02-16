@@ -44,6 +44,10 @@ export interface EnrichedPoi {
   lat: number;
   lng: number;
   distanceMi: number;
+  rating?: number;
+  reviewCount?: number;
+  photoUrl?: string;
+  googleType?: string;
 }
 
 // ─── Entity 1: Region ───
