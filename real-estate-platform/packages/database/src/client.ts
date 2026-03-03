@@ -1,13 +1,15 @@
-import { Pool, QueryResult } from 'pg';
+import type { QueryResultRow } from 'pg';
+import { Pool, type QueryResult } from 'pg';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 20,
+  max: 5,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 5000,
+  ssl: true,
 });
 
-export async function query<T = unknown>(text: string, params?: unknown[]): Promise<QueryResult<T>> {
+export async function query<T extends QueryResultRow = QueryResultRow>(text: string, params?: unknown[]): Promise<QueryResult<T>> {
   const start = Date.now();
   const res = await pool.query<T>(text, params);
   const duration = Date.now() - start;
@@ -20,7 +22,7 @@ export async function query<T = unknown>(text: string, params?: unknown[]): Prom
   return res;
 }
 
-export async function queryOne<T = unknown>(text: string, params?: unknown[]): Promise<T | null> {
+export async function queryOne<T extends QueryResultRow = QueryResultRow>(text: string, params?: unknown[]): Promise<T | null> {
   const res = await query<T>(text, params);
   return res.rows[0] || null;
 }
