@@ -1,166 +1,80 @@
-'use client';
+import type { Metadata } from 'next';
+import Link from 'next/link';
 
-import { useState } from 'react';
-import { useAgent } from '@/lib/agent-context';
-import { createLead } from '@/lib/api-client';
+export const metadata: Metadata = {
+  title: 'Contact Yong Choi',
+  description: 'Get in touch with Yong Choi for luxury real estate inquiries in Scottsdale, Paradise Valley, and Greater Phoenix.',
+};
 
 export default function ContactPage() {
-  const agent = useAgent();
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    message: '',
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-
-    const response = await createLead({
-      ...formData,
-      source: 'contact_page',
-    });
-
-    if (response.error) {
-      setError(response.error.message);
-    } else {
-      setSubmitted(true);
-    }
-
-    setSubmitting(false);
-  }
-
-  if (submitted) {
-    return (
-      <main className="py-16">
-        <div className="container">
-          <div className="mx-auto max-w-lg text-center">
-            <div className="mb-6 text-green-500">
-              <svg className="mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <h1 className="text-3xl font-bold text-secondary-900">Thank You!</h1>
-            <p className="mt-4 text-secondary-600">
-              Your message has been sent. {agent.name} will get back to you shortly.
-            </p>
-            <a
-              href="/"
-              className="mt-8 inline-block rounded-md bg-primary-600 px-6 py-3 text-sm font-semibold text-white hover:bg-primary-500"
-            >
-              Return Home
-            </a>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
   return (
-    <main className="py-16">
-      <div className="container">
-        <div className="mx-auto max-w-2xl">
-          <h1 className="text-4xl font-bold tracking-tight text-secondary-900">
-            Contact {agent.name}
-          </h1>
-          <p className="mt-4 text-lg text-secondary-600">
-            Have questions about buying or selling? Fill out the form below and I&apos;ll get back to you as soon as possible.
-          </p>
+    <main className="bg-cream min-h-screen">
+      <section className="py-20 lg:py-28">
+        <div className="mx-auto max-w-content-lg px-8 lg:px-20">
+          <div className="mx-auto max-w-2xl">
+            <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">
+              Contact
+            </span>
+            <h1 className="text-4xl font-serif font-medium tracking-tight text-navy lg:text-5xl">
+              Get in Touch
+            </h1>
+            <p className="mt-4 text-narrative text-navy/70">
+              Have questions about buying or selling luxury real estate in
+              Greater Phoenix? Reach out directly — I&apos;d love to hear from you.
+            </p>
 
-          {/* Contact Info */}
-          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-lg border border-secondary-200 p-4">
-              <p className="text-sm text-secondary-500">Email</p>
-              <a href={`mailto:${agent.email}`} className="text-primary-600 hover:text-primary-500">
-                {agent.email}
-              </a>
+            {/* Contact cards */}
+            <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="rounded-lg border border-navy/10 bg-white p-6">
+                <span className="text-meta uppercase tracking-widest text-navy/40 font-bold">Email</span>
+                <a
+                  href="mailto:yong.choi@russlyon.com"
+                  className="mt-2 block text-navy hover:text-gold transition-colors duration-300"
+                >
+                  yong.choi@russlyon.com
+                </a>
+              </div>
+              <div className="rounded-lg border border-navy/10 bg-white p-6">
+                <span className="text-meta uppercase tracking-widest text-navy/40 font-bold">Phone</span>
+                <a
+                  href="tel:+14805551234"
+                  className="mt-2 block text-navy hover:text-gold transition-colors duration-300"
+                >
+                  (480) 555-1234
+                </a>
+              </div>
             </div>
-            <div className="rounded-lg border border-secondary-200 p-4">
-              <p className="text-sm text-secondary-500">Phone</p>
-              <a href={`tel:${agent.phone}`} className="text-primary-600 hover:text-primary-500">
-                {agent.phone}
-              </a>
+
+            {/* Office info */}
+            <div className="mt-8 rounded-lg border border-navy/10 bg-white p-6">
+              <span className="text-meta uppercase tracking-widest text-navy/40 font-bold">Office</span>
+              <p className="mt-2 text-navy">Russ Lyon Sotheby&apos;s International Realty</p>
+              <p className="mt-1 text-sm text-navy/60">Scottsdale, Arizona</p>
+            </div>
+
+            {/* Placeholder note for future form */}
+            <div className="mt-12 rounded-lg bg-navy/5 p-8 text-center">
+              <p className="text-label uppercase tracking-md text-navy/40 font-bold mb-2">
+                Contact Form Coming Soon
+              </p>
+              <p className="text-sm text-navy/50">
+                A full contact form with server-side handling will be available in Phase 4.
+                For now, please reach out via email or phone.
+              </p>
+            </div>
+
+            {/* Back link */}
+            <div className="mt-10">
+              <Link
+                href="/"
+                className="text-sm text-navy/50 hover:text-gold transition-colors duration-300"
+              >
+                ← Back to Home
+              </Link>
             </div>
           </div>
-
-          {/* Contact Form */}
-          <form onSubmit={handleSubmit} className="mt-10 space-y-6">
-            {error && (
-              <div className="rounded-lg bg-red-50 p-4 text-red-700">
-                {error}
-              </div>
-            )}
-
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-secondary-700">
-                Name *
-              </label>
-              <input
-                type="text"
-                id="name"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="mt-1 block w-full rounded-md border border-secondary-300 px-4 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-secondary-700">
-                Email *
-              </label>
-              <input
-                type="email"
-                id="email"
-                required
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="mt-1 block w-full rounded-md border border-secondary-300 px-4 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-secondary-700">
-                Phone
-              </label>
-              <input
-                type="tel"
-                id="phone"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="mt-1 block w-full rounded-md border border-secondary-300 px-4 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="message" className="block text-sm font-medium text-secondary-700">
-                Message *
-              </label>
-              <textarea
-                id="message"
-                required
-                rows={5}
-                value={formData.message}
-                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                className="mt-1 block w-full rounded-md border border-secondary-300 px-4 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full rounded-md bg-primary-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {submitting ? 'Sending...' : 'Send Message'}
-            </button>
-          </form>
         </div>
-      </div>
+      </section>
     </main>
   );
 }

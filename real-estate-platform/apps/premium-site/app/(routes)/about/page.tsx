@@ -1,100 +1,96 @@
-'use client';
+import type { Metadata } from 'next';
+import Link from 'next/link';
 
-import { useAgent } from '@/lib/agent-context';
+export const metadata: Metadata = {
+  title: 'About Yong Choi',
+  description: 'Learn about Yong Choi, luxury real estate specialist serving Scottsdale, Paradise Valley, and Greater Phoenix.',
+};
 
 export default function AboutPage() {
-  const agent = useAgent();
-
   return (
-    <main className="py-16">
-      <div className="container">
-        <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
-          {/* Agent Photo */}
-          <div className="flex justify-center">
-            {agent.logo_url ? (
-              <img
-                src={agent.logo_url}
-                alt={agent.name}
-                className="rounded-lg object-cover w-full max-w-md"
-              />
-            ) : (
-              <div className="h-96 w-full max-w-md rounded-lg bg-secondary-200"></div>
-            )}
-          </div>
-
-          {/* Agent Info */}
-          <div>
-            <h1 className="text-4xl font-bold tracking-tight text-secondary-900">
-              About {agent.name}
-            </h1>
-
-            <p className="mt-2 text-lg text-secondary-500">
-              {agent.brokerage_name}
-            </p>
-
-            <div className="mt-8 prose prose-secondary max-w-none">
-              <p className="text-secondary-600 leading-relaxed">
-                With extensive experience in the local real estate market,
-                I am dedicated to providing exceptional service to my clients.
-                Whether you&apos;re buying your first home, upgrading to your dream property,
-                or selling your current residence, I will guide you through every step of the process.
-              </p>
-
-              <p className="text-secondary-600 leading-relaxed">
-                My commitment to understanding your unique needs and goals ensures
-                a personalized experience that leads to successful outcomes.
-                I pride myself on my attention to detail, market knowledge,
-                and negotiation skills that help my clients achieve their real estate objectives.
-              </p>
+    <main className="bg-cream min-h-screen">
+      <section className="py-20 lg:py-28">
+        <div className="mx-auto max-w-content-lg px-8 lg:px-20">
+          <div className="grid grid-cols-1 gap-16 lg:grid-cols-2">
+            {/* Portrait placeholder */}
+            <div className="flex justify-center">
+              <div className="h-[500px] w-full max-w-md rounded-lg bg-navy/5 flex items-center justify-center">
+                <span className="text-label uppercase tracking-xl text-navy/30 font-bold">
+                  Agent Portrait
+                </span>
+              </div>
             </div>
 
-            {/* Contact Info */}
-            <div className="mt-10 border-t border-secondary-200 pt-10">
-              <h2 className="text-xl font-semibold text-secondary-900">
-                Get in Touch
-              </h2>
-              <dl className="mt-4 space-y-3">
-                <div>
-                  <dt className="text-sm text-secondary-500">Email</dt>
-                  <dd>
-                    <a
-                      href={`mailto:${agent.email}`}
-                      className="text-primary-600 hover:text-primary-500"
-                    >
-                      {agent.email}
-                    </a>
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm text-secondary-500">Phone</dt>
-                  <dd>
-                    <a
-                      href={`tel:${agent.phone}`}
-                      className="text-primary-600 hover:text-primary-500"
-                    >
-                      {agent.phone}
-                    </a>
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm text-secondary-500">Brokerage</dt>
-                  <dd className="text-secondary-900">{agent.brokerage_name}</dd>
-                </div>
-              </dl>
-            </div>
+            {/* Agent info */}
+            <div>
+              <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">
+                About
+              </span>
+              <h1 className="text-4xl font-serif font-medium tracking-tight text-navy lg:text-5xl">
+                Yong Choi
+              </h1>
+              <p className="mt-2 text-lg text-navy/60">
+                Russ Lyon Sotheby&apos;s International Realty
+              </p>
 
-            {/* CTA */}
-            <div className="mt-10">
-              <a
-                href="/contact"
-                className="inline-flex items-center rounded-md bg-primary-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-primary-500"
-              >
-                Schedule a Consultation
-              </a>
+              <div className="mt-10 space-y-6">
+                <p className="text-narrative text-navy/80 leading-relaxed">
+                  With extensive experience in the Greater Phoenix luxury market,
+                  Yong Choi is dedicated to providing exceptional service to every client.
+                  Specializing in Scottsdale, Paradise Valley, and the surrounding
+                  communities, Yong brings market expertise and a commitment to
+                  understanding each client&apos;s unique goals.
+                </p>
+                <p className="text-narrative text-navy/80 leading-relaxed">
+                  Whether buying a first home, upgrading to a luxury estate, or
+                  selling a current residence, Yong guides clients through every
+                  step with attention to detail, deep market knowledge, and skilled
+                  negotiation.
+                </p>
+              </div>
+
+              {/* Contact details */}
+              <div className="mt-12 border-t border-navy/10 pt-10">
+                <h2 className="text-label uppercase tracking-xl text-gold font-bold mb-6">
+                  Get in Touch
+                </h2>
+                <dl className="space-y-4">
+                  <div>
+                    <dt className="text-meta uppercase tracking-widest text-navy/40 font-bold">Email</dt>
+                    <dd className="mt-1">
+                      <a href="mailto:yong.choi@russlyon.com" className="text-navy hover:text-gold transition-colors duration-300">
+                        yong.choi@russlyon.com
+                      </a>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-meta uppercase tracking-widest text-navy/40 font-bold">Phone</dt>
+                    <dd className="mt-1">
+                      <a href="tel:+14805551234" className="text-navy hover:text-gold transition-colors duration-300">
+                        (480) 555-1234
+                      </a>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-meta uppercase tracking-widest text-navy/40 font-bold">Brokerage</dt>
+                    <dd className="mt-1 text-navy">Russ Lyon Sotheby&apos;s International Realty</dd>
+                  </div>
+                </dl>
+              </div>
+
+              {/* CTA */}
+              <div className="mt-10">
+                <Link
+                  href="/contact"
+                  className="inline-flex items-center bg-navy px-8 py-3 text-label uppercase tracking-md font-bold text-white hover:bg-navy/90 transition-colors duration-300"
+                >
+                  Schedule a Consultation
+                </Link>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
     </main>
   );
 }
