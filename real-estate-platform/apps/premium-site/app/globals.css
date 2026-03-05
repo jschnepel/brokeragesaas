@@ -2,30 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Primary color palette - customizable per agent */
-  --color-primary-50: #f0f9ff;
-  --color-primary-100: #e0f2fe;
-  --color-primary-200: #bae6fd;
-  --color-primary-300: #7dd3fc;
-  --color-primary-400: #38bdf8;
-  --color-primary-500: #0ea5e9;
-  --color-primary-600: #0284c7;
-  --color-primary-700: #0369a1;
-  --color-primary-800: #075985;
-  --color-primary-900: #0c4a6e;
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
 
-  /* Secondary color palette */
-  --color-secondary-50: #fafafa;
-  --color-secondary-100: #f4f4f5;
-  --color-secondary-200: #e4e4e7;
-  --color-secondary-300: #d4d4d8;
-  --color-secondary-400: #a1a1aa;
-  --color-secondary-500: #71717a;
-  --color-secondary-600: #52525b;
-  --color-secondary-700: #3f3f46;
-  --color-secondary-800: #27272a;
-  --color-secondary-900: #18181b;
+:root {
+  /* Brand Primitives — Layer 1 (DESIGN_SYSTEM.md §1.1)
+     Override per agent via [data-agent="..."] selector */
+  --brand-primary: #0C1C2E;
+  --brand-accent: #BFA67A;
+  --brand-surface: #F9F8F6;
+  --brand-surface-alt: #F5F5F0;
+  --brand-highlight: #E07A5F;
+  --brand-primary-mid: #162a42;
 }
 
 @layer base {
@@ -34,12 +21,13 @@
   }
 
   body {
-    @apply bg-white text-secondary-900;
+    @apply bg-cream text-navy antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
   }
 }
 
 @layer components {
   .container {
-    @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8;
+    @apply mx-auto max-w-content-lg px-4 sm:px-6 lg:px-8;
   }
 }
