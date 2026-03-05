@@ -128,7 +128,7 @@ export class SparkReplicationClient {
    * Refresh the OAuth2 access token using the refresh token.
    */
   async refreshAccessToken(): Promise<void> {
-    const url = 'https://sparkplatform.com/oauth2/grant';
+    const url = 'https://sparkapi.com/v1/oauth2/grant';
 
     const body = new URLSearchParams({
       grant_type: 'refresh_token',
