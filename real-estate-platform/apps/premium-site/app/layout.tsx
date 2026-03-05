@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
 import { Playfair_Display, Inter } from 'next/font/google';
+import { AgentProvider } from './AgentProvider';
+import { Navigation } from './Navigation';
+import { resolveAgentConfig } from './agent-config';
 import './globals.css';
 
 const playfair = Playfair_Display({
@@ -14,12 +17,16 @@ const inter = Inter({
   display: 'swap',
 });
 
+// Resolve agent config at build/request time
+// TODO: In production, read agentId from middleware header (domain → agent lookup)
+const agentConfig = resolveAgentConfig();
+
 export const metadata: Metadata = {
   title: {
-    default: 'Yong Choi | Russ Lyon Sotheby\'s International Realty',
-    template: '%s | Yong Choi',
+    default: agentConfig.seo.defaultTitle,
+    template: agentConfig.seo.titleTemplate,
   },
-  description: 'Luxury real estate in Scottsdale, Paradise Valley, and Greater Phoenix.',
+  description: agentConfig.seo.description,
 };
 
 export default function RootLayout({
@@ -30,7 +37,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${playfair.variable} ${inter.variable} font-sans antialiased`}>
-        {children}
+        <AgentProvider config={agentConfig}>
+          <Navigation />
+          {children}
+        </AgentProvider>
       </body>
     </html>
   );

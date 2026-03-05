@@ -8,7 +8,7 @@
  * then every 4 hours for ongoing sync (IDX requires ≤12h refresh).
  */
 
-import { SyncEngine, getAllSyncStates } from '../../apps/backend/src/lib/spark/sync-engine';
+import { SyncEngine, getAllSyncStates, syncPhotos } from '../../apps/backend/src/lib/spark/sync-engine';
 
 interface LambdaEvent {
   /** Which entity to sync. If omitted, syncs all in order. */
@@ -82,6 +82,16 @@ export async function handler(
           break;
         }
       }
+    }
+
+    // After property sync, fetch photos for new listings if time permits
+    let photoResult = { listingsProcessed: 0, photosInserted: 0, errors: 0 };
+    if (Date.now() < deadlineMs - 120_000) {
+      photoResult = await syncPhotos({
+        limit: 100,
+        deadlineMs,
+      });
+      console.log(`Photo sync: ${photoResult.listingsProcessed} listings, ${photoResult.photosInserted} photos, ${photoResult.errors} errors`);
     }
 
     const totalRecords = results.reduce((sum, r) => sum + r.recordsUpserted, 0);

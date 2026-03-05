@@ -366,6 +366,34 @@ export async function getMarketStats(options: {
   );
 }
 
+// ============================================
+// PHOTOS
+// ============================================
+
+export interface ListingPhoto {
+  id: number;
+  listing_key: string;
+  media_key: string;
+  media_url: string;
+  order: number;
+  short_description: string | null;
+  is_preferred: boolean;
+}
+
+/**
+ * Get photos for a listing, ordered by preferred first, then order.
+ */
+export async function getListingPhotos(listingKey: string): Promise<ListingPhoto[]> {
+  const result = await rdsQuery<ListingPhoto>(
+    `SELECT id, listing_key, media_key, media_url, "order", short_description, is_preferred
+     FROM listing_photos
+     WHERE listing_key = $1
+     ORDER BY is_preferred DESC, "order" ASC`,
+    [listingKey]
+  );
+  return result.rows;
+}
+
 /**
  * Get count of listings by status.
  */

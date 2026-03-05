@@ -297,6 +297,91 @@ export class SyncEngine {
 }
 
 /**
+ * Sync photos for listings that have photos_count > 0 but no photos fetched yet.
+ * Calls Property('key')/Media per listing — rate-limited to avoid overwhelming API.
+ * Returns number of listings processed.
+ */
+export async function syncPhotos(options?: {
+  limit?: number;
+  deadlineMs?: number;
+}): Promise<{ listingsProcessed: number; photosInserted: number; errors: number }> {
+  const limit = options?.limit ?? 50;
+  const deadlineMs = options?.deadlineMs ?? null;
+
+  // Find listings that need photos fetched
+  const result = await rdsQuery<{ listing_key: string; photos_count: number }>(
+    `SELECT listing_key, photos_count FROM listing_records
+     WHERE is_deleted = FALSE
+       AND internet_entire_listing_display_yn = TRUE
+       AND photos_count > 0
+       AND photos_fetched_at IS NULL
+     ORDER BY list_price DESC NULLS LAST
+     LIMIT $1`,
+    [limit]
+  );
+
+  const client = new SparkReplicationClient();
+  let listingsProcessed = 0;
+  let photosInserted = 0;
+  let errors = 0;
+
+  for (const row of result.rows) {
+    if (deadlineMs && Date.now() >= deadlineMs - 60_000) break;
+
+    try {
+      const photos = await client.fetchPhotos(row.listing_key);
+
+      if (photos.length > 0) {
+        const dbClient = await getRdsClient();
+        try {
+          await dbClient.query('BEGIN');
+          for (const photo of photos) {
+            await dbClient.query(
+              `INSERT INTO listing_photos (listing_key, media_key, media_url, "order", short_description, is_preferred, raw_data)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (listing_key, media_key) DO UPDATE SET
+                 media_url = EXCLUDED.media_url,
+                 "order" = EXCLUDED."order",
+                 short_description = EXCLUDED.short_description,
+                 is_preferred = EXCLUDED.is_preferred,
+                 raw_data = EXCLUDED.raw_data`,
+              [row.listing_key, photo.mediaKey, photo.mediaUrl, photo.order, photo.shortDescription, photo.isPreferred, JSON.stringify(photo.raw)]
+            );
+          }
+          await dbClient.query(
+            `UPDATE listing_records SET photos_fetched_at = NOW() WHERE listing_key = $1`,
+            [row.listing_key]
+          );
+          await dbClient.query('COMMIT');
+          photosInserted += photos.length;
+        } catch (err) {
+          await dbClient.query('ROLLBACK');
+          throw err;
+        } finally {
+          dbClient.release();
+        }
+      } else {
+        // Mark as fetched even if no photos
+        await rdsQuery(
+          `UPDATE listing_records SET photos_fetched_at = NOW() WHERE listing_key = $1`,
+          [row.listing_key]
+        );
+      }
+
+      listingsProcessed++;
+    } catch (err) {
+      errors++;
+      if (errors <= 3) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`Photo sync error for ${row.listing_key}: ${msg.substring(0, 100)}`);
+      }
+    }
+  }
+
+  return { listingsProcessed, photosInserted, errors };
+}
+
+/**
  * Get sync status for all entities.
  */
 export async function getAllSyncStates(): Promise<SyncState[]> {

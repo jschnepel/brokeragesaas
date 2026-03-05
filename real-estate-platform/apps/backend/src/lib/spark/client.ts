@@ -155,6 +155,39 @@ export class SparkReplicationClient {
     }
   }
 
+  /**
+   * Fetch photos for a single listing via Property('key')/Media.
+   * Returns an array of media objects with URLs, order, etc.
+   */
+  async fetchPhotos(
+    listingKey: string
+  ): Promise<{ mediaKey: string; mediaUrl: string; order: number; shortDescription: string | null; isPreferred: boolean; raw: Record<string, unknown> }[]> {
+    const url = `${this.config.baseUrl}/Property('${listingKey}')/Media`;
+    const res = await this.authenticatedFetch(url);
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        await this.refreshAccessToken();
+        return this.fetchPhotos(listingKey);
+      }
+      if (res.status === 404) return [];
+      const text = await res.text();
+      throw new Error(`Photo fetch error ${res.status} for ${listingKey}: ${text.substring(0, 200)}`);
+    }
+
+    const data: ODataResponse = await res.json();
+    this.requestCount++;
+
+    return (data.value ?? []).map(item => ({
+      mediaKey: String(item.MediaKey ?? ''),
+      mediaUrl: String(item.MediaURL ?? ''),
+      order: typeof item.Order === 'number' ? item.Order : 0,
+      shortDescription: item.ShortDescription ? String(item.ShortDescription) : null,
+      isPreferred: item.PreferredPhotoYN === true || item.PreferredPhotoYN === 'true',
+      raw: item,
+    }));
+  }
+
   /** Get current request count (for monitoring) */
   getRequestCount(): number {
     return this.requestCount;
