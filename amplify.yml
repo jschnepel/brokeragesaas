@@ -27,11 +27,12 @@ applications:
         build:
           commands:
             - pnpm --filter @real-estate/platform build
+            - echo "Copying node_modules into .next for Amplify runtime..."
+            - cp -a node_modules apps/platform/.next/node_modules
       artifacts:
-        baseDirectory: .
+        baseDirectory: apps/platform/.next
         files:
-          - apps/platform/.next/**/*
-          - node_modules/**/*
+          - '**/*'
       cache:
         paths:
           - node_modules/**/*
