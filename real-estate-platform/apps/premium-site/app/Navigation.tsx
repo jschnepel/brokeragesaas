@@ -77,6 +77,31 @@ function IconArrowRight({ size = 12 }: { size?: number }) {
   );
 }
 
+/* ── Brand lockup — logo + agent name scale together ── */
+const BRAND_LOGO_HEIGHT = 'h-14 lg:h-[4.5rem]';
+const BRAND_NAME_SIZE = 'text-xl lg:text-[2rem]';
+
+function NavBrand({ isDark, name, brokerage }: { isDark: boolean; name: string; brokerage: string }) {
+  return (
+    <Link href="/" className="flex items-center gap-4 lg:gap-6 transition-opacity hover:opacity-80">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/images/rlsir-logo.png"
+        alt={brokerage}
+        className={`${BRAND_LOGO_HEIGHT} w-auto transition-all duration-500 ${isDark ? 'brightness-0' : ''}`}
+      />
+      <div className={`hidden md:block border-l transition-all duration-500 ${isDark ? 'border-navy/20' : 'border-white/30'} pl-4 lg:pl-6`}>
+        <span className={`${BRAND_NAME_SIZE} font-serif tracking-wide transition-colors duration-500 ${isDark ? 'text-navy' : 'text-white'}`}>
+          {name}
+        </span>
+      </div>
+      <span className={`md:hidden ${BRAND_NAME_SIZE} font-serif transition-colors duration-500 ${isDark ? 'text-navy' : 'text-white'}`}>
+        {name}
+      </span>
+    </Link>
+  );
+}
+
 export function Navigation() {
   const agent = useAgent();
   const [scrolled, setScrolled] = useState(false);
@@ -126,19 +151,10 @@ export function Navigation() {
       >
         <div className="max-w-[1800px] mx-auto px-6 lg:px-8 flex justify-between items-center">
           {/* Logo & Agent Name */}
-          <Link href="/" className="flex items-center gap-4 lg:gap-6 transition-opacity hover:opacity-80">
-            <div className={`hidden md:block border-l ${isDark ? 'border-navy/20' : 'border-white/30'} pl-4 lg:pl-6`}>
-              <span className={`text-xl lg:text-2xl font-serif tracking-wide ${isDark ? 'text-navy' : 'text-white'}`}>
-                {agent.name}
-              </span>
-            </div>
-            <span className={`md:hidden text-xl font-serif ${isDark ? 'text-navy' : 'text-white'}`}>
-              {agent.name}
-            </span>
-          </Link>
+          <NavBrand isDark={isDark} name={agent.name} brokerage={agent.brokerage} />
 
           {/* Desktop Nav Links */}
-          <div className={`hidden lg:flex items-center gap-10 ${isDark ? 'text-navy' : 'text-white'}`}>
+          <div className={`hidden lg:flex items-center gap-10 transition-colors duration-500 ${isDark ? 'text-navy' : 'text-white'}`}>
 
             {/* Discover — Mega Menu */}
             <div
@@ -157,13 +173,13 @@ export function Navigation() {
 
               {activeDropdown === 'discover' && (
                 <div
-                  className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-[700px] bg-white shadow-2xl border border-navy/5"
+                  className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-[860px] bg-white shadow-2xl border border-navy/5"
                   onMouseEnter={() => handleMouseEnter('discover')}
                   onMouseLeave={handleMouseLeave}
                 >
                   <div className="grid grid-cols-12 gap-0">
                     {/* Map Preview */}
-                    <div className="col-span-5 bg-navy p-6 relative overflow-hidden">
+                    <div className="col-span-4 bg-navy p-6 relative overflow-hidden">
                       <div className="absolute inset-0 opacity-20">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
@@ -194,18 +210,18 @@ export function Navigation() {
                     </div>
 
                     {/* Regions */}
-                    <div className="col-span-7 p-6">
+                    <div className="col-span-8 p-6">
                       <span className="text-[9px] uppercase tracking-[0.3em] text-navy/40 font-bold mb-3 block">
                         Explore by Region
                       </span>
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                      <div className="grid grid-cols-3 gap-x-6 gap-y-1">
                         {agent.regions.map((region) => (
                           <Link
                             key={region.name}
                             href={region.href}
                             className="group flex items-center justify-between py-2.5 border-b border-navy/5 hover:border-gold transition-colors"
                           >
-                            <span className="text-navy text-[14px] font-serif group-hover:text-gold transition-colors">
+                            <span className="text-navy text-[13px] font-serif group-hover:text-gold transition-colors">
                               {region.name}
                             </span>
                             <span className="text-navy/20 group-hover:text-gold transition-colors">
@@ -247,11 +263,45 @@ export function Navigation() {
                   onMouseEnter={() => handleMouseEnter('collection')}
                   onMouseLeave={handleMouseLeave}
                 >
+                  <Link href="/listings" className="block px-5 py-3 text-navy text-[14px] font-serif hover:text-gold hover:bg-cream/50 transition-colors">
+                    Search Listings
+                  </Link>
                   <Link href="/listings/10293-n-chiricahua-dr" className="block px-5 py-3 text-navy text-[14px] font-serif hover:text-gold hover:bg-cream/50 transition-colors">
                     Featured Estates
                   </Link>
                   <Link href="/phoenix" className="block px-5 py-3 text-navy text-[14px] font-serif hover:text-gold hover:bg-cream/50 transition-colors">
                     By Community
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* Insights — Dropdown */}
+            <div
+              className="relative"
+              onMouseEnter={() => handleMouseEnter('insights')}
+              onMouseLeave={handleMouseLeave}
+            >
+              <button
+                className={`flex items-center gap-1.5 text-[15px] tracking-wide font-serif hover:text-gold transition-colors ${
+                  activeDropdown === 'insights' ? 'text-gold' : ''
+                }`}
+              >
+                Insights
+                <IconChevronDown className={`transition-transform opacity-60 ${activeDropdown === 'insights' ? 'rotate-180' : ''}`} />
+              </button>
+
+              {activeDropdown === 'insights' && (
+                <div
+                  className="absolute top-full left-0 mt-4 w-[260px] bg-white shadow-2xl border border-navy/5 py-2"
+                  onMouseEnter={() => handleMouseEnter('insights')}
+                  onMouseLeave={handleMouseLeave}
+                >
+                  <Link href="/market" className="block px-5 py-3 text-navy text-[14px] font-serif hover:text-gold hover:bg-cream/50 transition-colors">
+                    Market Overview
+                  </Link>
+                  <Link href="/market/compare" className="block px-5 py-3 text-navy text-[14px] font-serif hover:text-gold hover:bg-cream/50 transition-colors">
+                    Community Comparison
                   </Link>
                 </div>
               )}
@@ -292,7 +342,7 @@ export function Navigation() {
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSearchOpen(true)}
-              className={`p-2 hover:text-gold transition-colors ${isDark ? 'text-navy' : 'text-white'}`}
+              className={`p-2 hover:text-gold transition-colors duration-500 ${isDark ? 'text-navy' : 'text-white'}`}
               aria-label="Search"
             >
               <IconSearch />
@@ -307,7 +357,7 @@ export function Navigation() {
 
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className={`lg:hidden p-2 ${isDark ? 'text-navy' : 'text-white'}`}
+              className={`lg:hidden p-2 transition-colors duration-500 ${isDark ? 'text-navy' : 'text-white'}`}
               aria-label="Open menu"
             >
               <IconMenu />
@@ -361,46 +411,73 @@ export function Navigation() {
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-[100] bg-navy lg:hidden overflow-y-auto">
-          {/* Header */}
-          <div className="flex justify-between items-center p-6 border-b border-white/10">
-            <span className="text-lg font-serif text-white">{agent.name}</span>
-            <button onClick={() => setMobileMenuOpen(false)} className="text-white p-2" aria-label="Close menu">
-              <IconX />
-            </button>
-          </div>
+        <div className="fixed inset-0 z-[100] lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setMobileMenuOpen(false)}
+          />
 
-          {/* Links */}
-          <div className="p-6">
-            <nav className="space-y-1">
+          {/* Slide-in Panel */}
+          <div className="absolute right-0 top-0 bottom-0 w-[85%] max-w-[380px] bg-navy overflow-y-auto">
+            {/* Agent Branding Header */}
+            <div className="relative px-8 pt-8 pb-6">
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors"
+                aria-label="Close menu"
+              >
+                <IconX />
+              </button>
+
+              <div className="flex items-center gap-4">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={agent.photoUrl}
+                  alt={agent.name}
+                  className="w-14 h-14 rounded-full object-cover ring-2 ring-gold/30"
+                />
+                <div>
+                  <p className="text-white font-serif text-lg">{agent.name}</p>
+                  <p className="text-gold/70 text-[10px] uppercase tracking-[0.2em]">{agent.title}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="mx-8 border-t border-white/10" />
+
+            {/* Navigation */}
+            <nav className="px-8 py-6 space-y-0">
               {/* Discover */}
               <div>
                 <button
                   onClick={() => setMobileSubmenu(mobileSubmenu === 'discover' ? null : 'discover')}
-                  className="flex items-center justify-between w-full py-4 border-b border-white/10 text-lg font-serif text-white hover:text-gold transition-colors"
+                  className="flex items-center justify-between w-full py-4 text-[22px] font-serif text-white hover:text-gold transition-colors"
                 >
                   Discover
-                  <IconChevronDown size={20} className={`opacity-40 transition-transform ${mobileSubmenu === 'discover' ? 'rotate-180' : ''}`} />
+                  <IconChevronDown size={16} className={`opacity-30 transition-transform duration-300 ${mobileSubmenu === 'discover' ? 'rotate-180' : ''}`} />
                 </button>
                 {mobileSubmenu === 'discover' && (
-                  <div className="pl-4 py-2 space-y-1 bg-white/5">
-                    <Link href="/phoenix" className="flex items-center gap-3 py-3 text-gold font-medium">
+                  <div className="ml-1 mb-4 border-l-2 border-gold/30 pl-5 space-y-0">
+                    <Link href="/phoenix" className="flex items-center gap-3 py-2.5 text-gold text-sm font-medium">
                       <IconMap />
                       All Communities
                     </Link>
-                    <div className="py-2">
-                      <span className="text-[9px] uppercase tracking-[0.2em] text-white/30 font-bold">By Region</span>
+                    <div className="pt-2 pb-1">
+                      <span className="text-[9px] uppercase tracking-[0.2em] text-white/25 font-bold">By Region</span>
                     </div>
-                    {agent.regions.map((region) => (
-                      <Link
-                        key={region.name}
-                        href={region.href}
-                        className="flex items-center justify-between py-2 text-white/80 hover:text-gold transition-colors"
-                      >
-                        {region.name}
-                        <span className="text-white/20"><IconChevronRight /></span>
-                      </Link>
-                    ))}
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0">
+                      {agent.regions.map((region) => (
+                        <Link
+                          key={region.name}
+                          href={region.href}
+                          className="py-2 text-[13px] text-white/60 hover:text-gold transition-colors"
+                        >
+                          {region.name}
+                        </Link>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -409,18 +486,42 @@ export function Navigation() {
               <div>
                 <button
                   onClick={() => setMobileSubmenu(mobileSubmenu === 'collection' ? null : 'collection')}
-                  className="flex items-center justify-between w-full py-4 border-b border-white/10 text-lg font-serif text-white hover:text-gold transition-colors"
+                  className="flex items-center justify-between w-full py-4 text-[22px] font-serif text-white hover:text-gold transition-colors"
                 >
                   Collection
-                  <IconChevronDown size={20} className={`opacity-40 transition-transform ${mobileSubmenu === 'collection' ? 'rotate-180' : ''}`} />
+                  <IconChevronDown size={16} className={`opacity-30 transition-transform duration-300 ${mobileSubmenu === 'collection' ? 'rotate-180' : ''}`} />
                 </button>
                 {mobileSubmenu === 'collection' && (
-                  <div className="pl-4 py-2 space-y-1 bg-white/5">
-                    <Link href="/listings/10293-n-chiricahua-dr" className="block py-3 text-white/80 hover:text-gold transition-colors">
+                  <div className="ml-1 mb-4 border-l-2 border-gold/30 pl-5 space-y-0">
+                    <Link href="/listings" className="block py-2.5 text-[13px] text-white/60 hover:text-gold transition-colors">
+                      Search Listings
+                    </Link>
+                    <Link href="/listings/10293-n-chiricahua-dr" className="block py-2.5 text-[13px] text-white/60 hover:text-gold transition-colors">
                       Featured Estates
                     </Link>
-                    <Link href="/phoenix" className="block py-3 text-white/80 hover:text-gold transition-colors">
+                    <Link href="/phoenix" className="block py-2.5 text-[13px] text-white/60 hover:text-gold transition-colors">
                       By Community
+                    </Link>
+                  </div>
+                )}
+              </div>
+
+              {/* Insights */}
+              <div>
+                <button
+                  onClick={() => setMobileSubmenu(mobileSubmenu === 'insights' ? null : 'insights')}
+                  className="flex items-center justify-between w-full py-4 text-[22px] font-serif text-white hover:text-gold transition-colors"
+                >
+                  Insights
+                  <IconChevronDown size={16} className={`opacity-30 transition-transform duration-300 ${mobileSubmenu === 'insights' ? 'rotate-180' : ''}`} />
+                </button>
+                {mobileSubmenu === 'insights' && (
+                  <div className="ml-1 mb-4 border-l-2 border-gold/30 pl-5 space-y-0">
+                    <Link href="/market" className="block py-2.5 text-[13px] text-white/60 hover:text-gold transition-colors">
+                      Market Overview
+                    </Link>
+                    <Link href="/market/compare" className="block py-2.5 text-[13px] text-white/60 hover:text-gold transition-colors">
+                      Community Comparison
                     </Link>
                   </div>
                 )}
@@ -430,15 +531,15 @@ export function Navigation() {
               <div>
                 <button
                   onClick={() => setMobileSubmenu(mobileSubmenu === 'advisor' ? null : 'advisor')}
-                  className="flex items-center justify-between w-full py-4 border-b border-white/10 text-lg font-serif text-white hover:text-gold transition-colors"
+                  className="flex items-center justify-between w-full py-4 text-[22px] font-serif text-white hover:text-gold transition-colors"
                 >
                   The Advisor
-                  <IconChevronDown size={20} className={`opacity-40 transition-transform ${mobileSubmenu === 'advisor' ? 'rotate-180' : ''}`} />
+                  <IconChevronDown size={16} className={`opacity-30 transition-transform duration-300 ${mobileSubmenu === 'advisor' ? 'rotate-180' : ''}`} />
                 </button>
                 {mobileSubmenu === 'advisor' && (
-                  <div className="pl-4 py-2 space-y-1 bg-white/5">
+                  <div className="ml-1 mb-4 border-l-2 border-gold/30 pl-5 space-y-0">
                     {(agent.nav.find((n) => n.label === 'The Advisor')?.children ?? []).map((child) => (
-                      <Link key={child.href} href={child.href} className="block py-3 text-white/80 hover:text-gold transition-colors">
+                      <Link key={child.href} href={child.href} className="block py-2.5 text-[13px] text-white/60 hover:text-gold transition-colors">
                         {child.label}
                       </Link>
                     ))}
@@ -447,31 +548,51 @@ export function Navigation() {
               </div>
             </nav>
 
-            {/* Mobile Contact Info */}
-            <div className="mt-12 pt-8 border-t border-white/10">
-              <p className="text-gold text-[10px] uppercase tracking-[0.3em] font-bold mb-6">Contact {agent.name}</p>
-              <div className="space-y-4 text-white/60 text-sm">
-                <a href={`tel:${agent.contact.phone.replace(/[^+\d]/g, '')}`} className="flex items-center gap-3 hover:text-white transition-colors">
-                  <IconPhone />
+            {/* Divider */}
+            <div className="mx-8 border-t border-white/10" />
+
+            {/* Contact Card */}
+            <div className="px-8 py-6">
+              <div className="space-y-3">
+                <a
+                  href={`tel:${agent.contact.phone.replace(/[^+\d]/g, '')}`}
+                  className="flex items-center gap-3 text-white/50 text-sm hover:text-white transition-colors"
+                >
+                  <span className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center flex-shrink-0">
+                    <IconPhone />
+                  </span>
                   {agent.contact.phone}
                 </a>
-                <a href={`mailto:${agent.contact.email}`} className="flex items-center gap-3 hover:text-white transition-colors">
-                  <IconMail />
+                <a
+                  href={`mailto:${agent.contact.email}`}
+                  className="flex items-center gap-3 text-white/50 text-sm hover:text-white transition-colors"
+                >
+                  <span className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center flex-shrink-0">
+                    <IconMail />
+                  </span>
                   {agent.contact.email}
                 </a>
-                <p className="flex items-center gap-3">
-                  <IconMapPin />
+                <p className="flex items-center gap-3 text-white/50 text-sm">
+                  <span className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center flex-shrink-0">
+                    <IconMapPin />
+                  </span>
                   {agent.contact.location}
                 </p>
               </div>
             </div>
 
-            <Link
-              href="/contact"
-              className="block w-full mt-8 bg-gold text-white py-4 text-[11px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-navy transition-all text-center"
-            >
-              Schedule Consultation
-            </Link>
+            {/* CTA */}
+            <div className="px-8 pb-10">
+              <Link
+                href="/contact"
+                className="block w-full bg-gold text-white py-4 text-[11px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-navy transition-all text-center"
+              >
+                Schedule Consultation
+              </Link>
+              <p className="text-center text-white/20 text-[10px] mt-4">
+                {agent.brokerage}
+              </p>
+            </div>
           </div>
         </div>
       )}

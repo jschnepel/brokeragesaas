@@ -17,6 +17,7 @@ export default async function RootPage() {
     case "marketing_manager":
       redirect("/triage");
       break;
+    // designer role not yet in PlatformRole — future addition
     case "executive":
       redirect("/reports");
       break;

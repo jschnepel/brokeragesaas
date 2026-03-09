@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Fragment } from 'react';
 import Link from 'next/link';
 import { getAllListings } from './listings/data';
-import { resolveAgentConfig } from '../agent-config';
+import { resolveAgentConfig } from '../agent-config/index';
 
 const agent = resolveAgentConfig();
 
@@ -87,7 +87,7 @@ export default function HomePage() {
   const listings = getAllListings();
 
   return (
-    <main>
+    <main className="-mt-[var(--nav-height)]">
       {/* Hero — Full viewport with background image */}
       <header className="relative h-screen w-full overflow-hidden">
         <div className="absolute inset-0">

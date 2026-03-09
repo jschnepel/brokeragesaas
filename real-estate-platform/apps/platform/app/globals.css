@@ -1,31 +1,46 @@
-/* Platform app — IntakeUI uses inline styles + CSS variables, minimal Tailwind needed */
-*,
-*::before,
-*::after {
+/* Google Fonts — must be first (before any rules) */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist-mono/style.css');
+
+@import "tailwindcss";
+@import "../styles/tokens/russ-lyon.css";
+@import "../styles/tokens/base.css";
+
+@theme {
+  --color-primary:        var(--brand-primary);
+  --color-accent:         var(--brand-accent);
+  --color-surface:        var(--brand-surface);
+  --color-sidebar:        var(--brand-sidebar);
+  --color-border:         #E5E0D8;
+  --font-family-display:  var(--brand-font-display);
+  --font-family-body:     var(--brand-font-body);
+  --font-family-mono:     var(--brand-font-mono);
+  --radius-DEFAULT:       var(--brand-radius);
+}
+
+* {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+  border-color: var(--color-border);
+}
+
+html {
+  font-family: var(--font-body);
+  font-size: 14px;
+  background: var(--brand-surface);
+  color: var(--brand-primary);
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
-  font-family: "DM Sans", system-ui, sans-serif;
-  background: #f5f4f1;
-  color: #0f2b4f;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  min-height: 100vh;
 }
 
-/* IntakeUI animation keyframes */
-@keyframes fadeSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+/* Scrollbar — subtle */
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #C4B9AA; }
 
 /* Login page utilities */
 .login-container {
@@ -93,4 +108,16 @@ body {
   font-size: 13px;
   color: #dc2626;
   margin-bottom: 16px;
+}
+
+/* IntakeUI animation keyframes */
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

@@ -10,23 +10,24 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "next": "^14.0.4",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
     "@platform/database": "workspace:*",
     "@platform/shared": "workspace:*",
-    "pg": "^8.11.3",
+    "@types/react-dom": "^19.2.3",
+    "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
-    "cors": "^2.8.5"
+    "next": "^16.1.6",
+    "pg": "^8.11.3",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
-    "@types/react": "^18.2.45",
     "@types/pg": "^8.10.9",
-    "typescript": "^5.3.3",
+    "@types/react": "^19.2.14",
     "eslint": "^8.55.0",
-    "eslint-config-next": "^14.0.4"
+    "eslint-config-next": "^14.0.4",
+    "typescript": "^5.3.3"
   }
 }

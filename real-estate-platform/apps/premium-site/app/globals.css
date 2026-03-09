@@ -1,12 +1,119 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+/* Scan @platform/ui components for class usage */
+@source "../../packages/ui/src";
 
+/* ── Design System Tokens ─────────────────────────────────────── */
+@theme {
+  /* 1. Colors (DESIGN_SYSTEM.md §1) */
+  --color-navy: #0C1C2E;
+  --color-gold: #BFA67A;
+  --color-cream: #F9F8F6;
+  --color-cream-alt: #F5F5F0;
+  --color-accent: #E07A5F;
+  --color-navy-mid: #162a42;
+
+  /* 2. Typography — Font families */
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans: Inter, system-ui, sans-serif;
+
+  /* 2. Typography — Font sizes */
+  --text-3xs: 0.4375rem;
+  --text-3xs--line-height: 1.2;
+  --text-2xs: 0.5rem;
+  --text-2xs--line-height: 1.2;
+  --text-meta: 0.5625rem;
+  --text-meta--line-height: 1.4;
+  --text-label: 0.625rem;
+  --text-label--line-height: 1.4;
+  --text-tab: 0.6875rem;
+  --text-tab--line-height: 1.4;
+  --text-body-lg: 0.9375rem;
+  --text-body-lg--line-height: 1.6;
+  --text-narrative: 1rem;
+  --text-narrative--line-height: 1.75;
+
+  /* 2. Typography — Letter spacing */
+  --tracking-xs: 0.15em;
+  --tracking-sm: 0.2em;
+  --tracking-md: 0.25em;
+  --tracking-lg: 0.3em;
+  --tracking-xl: 0.4em;
+
+  /* 4. Shadows */
+  --shadow-card: 0 10px 15px -3px rgb(0 0 0 / 0.05);
+  --shadow-marker: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+  /* 6. Animations */
+  --animate-fadeIn: fadeIn 0.3s ease-out;
+  --animate-slide-up: slideUp 0.8s ease-out forwards;
+  --animate-fade-in: fade-in 0.8s ease-out forwards;
+  --animate-fade-in-up: fadeInUp 0.8s ease-out forwards;
+  --animate-float: float 8s ease-in-out infinite;
+}
+
+/* ── Keyframes ─────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes fadeSlideIn {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideUp {
+  0% { opacity: 0; transform: translateY(30px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeInUp {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* ── Custom Utilities (no @theme namespace) ────────────────────── */
+@utility max-w-narrow {
+  max-width: 800px;
+}
+@utility max-w-content-sm {
+  max-width: 900px;
+}
+@utility max-w-content {
+  max-width: 1400px;
+}
+@utility max-w-content-lg {
+  max-width: 1600px;
+}
+@utility max-w-content-xl {
+  max-width: 1800px;
+}
+
+@utility z-base {
+  z-index: 0;
+}
+@utility z-overlay {
+  z-index: 10;
+}
+@utility z-float {
+  z-index: 20;
+}
+@utility z-popup {
+  z-index: 30;
+}
+@utility z-nav {
+  z-index: 50;
+}
+
+/* ── Brand CSS Variables (per-agent theming) ───────────────────── */
 :root {
-  /* Brand Primitives — Layer 1 (DESIGN_SYSTEM.md §1.1)
-     Override per agent via [data-agent="..."] selector */
+  --nav-height: 120px;
   --brand-primary: #0C1C2E;
   --brand-accent: #BFA67A;
   --brand-surface: #F9F8F6;
@@ -15,6 +122,7 @@
   --brand-primary-mid: #162a42;
 }
 
+/* ── Base Layer ────────────────────────────────────────────────── */
 @layer base {
   html {
     scroll-behavior: smooth;
@@ -26,6 +134,7 @@
   }
 }
 
+/* ── Component Layer ───────────────────────────────────────────── */
 @layer components {
   .container {
     @apply mx-auto max-w-content-lg px-4 sm:px-6 lg:px-8;

@@ -1,27 +1,28 @@
 version: 1
 applications:
-  - appRoot: real-estate-platform/apps/platform
-    frontend:
+  - frontend:
       phases:
         preBuild:
           commands:
-            - cd ../../
             - corepack enable
+            - corepack prepare pnpm@8.15.0 --activate
+            - cd ../..
             - pnpm install --frozen-lockfile
         build:
           commands:
             - cd apps/platform
             - pnpm build
       artifacts:
-        baseDirectory: .next
+        baseDirectory: apps/platform/.next
         files:
-          - "**/*"
+          - '**/*'
       cache:
         paths:
-          - ../../node_modules/**/*
-          - .next/cache/**/*
-      buildSettings:
-        env:
-          NEXTAUTH_SECRET: "${NEXTAUTH_SECRET}"
-          NEXTAUTH_URL: "${NEXTAUTH_URL}"
-          DATABASE_URL: "${DATABASE_URL}"
+          - node_modules/**/*
+          - apps/platform/.next/cache/**/*
+          - ~/.pnpm-store/**/*
+      environment:
+        variables:
+          NODE_VERSION: '20'
+          PNPM_VERSION: '8.15.0'
+    appRoot: apps/platform

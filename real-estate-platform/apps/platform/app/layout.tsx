@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Providers } from "./providers";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { ThemeService } from "@/services";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -7,11 +9,13 @@ export const metadata: Metadata = {
   description: "Agent Platform — Marketing Intake",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const theme = await ThemeService.getTheme('russ-lyon');
+
   return (
     <html lang="en">
       <head>
@@ -21,7 +25,11 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <ThemeProvider tokens={theme?.tokens ?? null}>
+            {children}
+          </ThemeProvider>
+        </Providers>
       </body>
     </html>
   );

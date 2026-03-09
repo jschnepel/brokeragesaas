@@ -1,8 +1,9 @@
 import type { QueryResultRow } from 'pg';
 import { Pool, type QueryResult } from 'pg';
+import { resolveDatabaseUrl } from './ssm';
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: resolveDatabaseUrl(),
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,

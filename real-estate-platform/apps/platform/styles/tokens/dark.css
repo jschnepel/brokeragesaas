@@ -1,0 +1,10 @@
+/* Dark mode overrides (future use — scaffold now) */
+[data-theme="dark"] {
+  --background:     var(--brand-dark);
+  --foreground:     #F9F6F1;
+  --card:           #0F2B4F;
+  --card-foreground: #F9F6F1;
+  --border:         rgba(255,255,255,0.08);
+  --muted:          rgba(255,255,255,0.05);
+  --muted-foreground: rgba(255,255,255,0.4);
+}

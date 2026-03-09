@@ -1,0 +1,55 @@
+/* Layer 2 — Semantic tokens (stable, never changes per tenant) */
+/* Layer 3 — shadcn CSS var overrides (mapped to semantic) */
+:root {
+  /* Semantic */
+  --color-primary:      var(--brand-primary);
+  --color-primary-dark: var(--brand-primary-dark);
+  --color-accent:       var(--brand-accent);
+  --color-accent-muted: var(--brand-accent-muted);
+  --color-surface:      var(--brand-surface);
+  --color-surface-alt:  var(--brand-surface-alt);
+  --color-sidebar:      var(--brand-sidebar);
+  --color-border:       #E5E0D8;
+  --color-border-dark:  rgba(255,255,255,0.08);
+
+  --font-display:       var(--brand-font-display);
+  --font-body:          var(--brand-font-body);
+  --font-mono:          var(--brand-font-mono);
+
+  /* shadcn CSS var overrides — maps shadcn primitives to our brand */
+  --background:         var(--brand-surface);
+  --foreground:         var(--brand-primary);
+  --card:               #FFFFFF;
+  --card-foreground:    var(--brand-primary);
+  --popover:            #FFFFFF;
+  --popover-foreground: var(--brand-primary);
+  --primary:            var(--brand-primary);
+  --primary-foreground: #FFFFFF;
+  --secondary:          var(--brand-surface-alt);
+  --secondary-foreground: var(--brand-primary);
+  --muted:              var(--brand-surface-alt);
+  --muted-foreground:   #9CA3AF;
+  --accent:             var(--brand-accent-muted);
+  --accent-foreground:  var(--brand-primary);
+  --destructive:        #DC2626;
+  --destructive-foreground: #FFFFFF;
+  --border:             var(--color-border);
+  --input:              var(--color-border);
+  --ring:               var(--brand-accent);
+  --radius:             var(--brand-radius);
+
+  /* Type scale — single source of truth */
+  --text-xs:    0.6875rem;  /* 11px */
+  --text-sm:    0.75rem;    /* 12px */
+  --text-base:  0.875rem;   /* 14px */
+  --text-lg:    1rem;       /* 16px */
+  --text-xl:    1.25rem;    /* 20px */
+  --text-2xl:   1.5rem;     /* 24px */
+  --text-display: 2rem;     /* 32px */
+
+  /* Layer 4 — Component-level tokens */
+  --sidebar-width:       var(--brand-sidebar-width);
+  --topbar-height:       52px;
+  --card-radius:         var(--brand-radius);
+  --glow-accent:         0 0 0 1px var(--brand-accent), 0 0 20px rgba(201,169,110,var(--brand-glow-opacity));
+}

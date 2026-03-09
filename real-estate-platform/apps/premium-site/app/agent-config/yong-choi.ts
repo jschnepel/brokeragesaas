@@ -70,11 +70,16 @@ export const YONG_CHOI_CONFIG: AgentSiteConfig = {
   regions: [
     { name: 'North Scottsdale', href: '/phoenix' },
     { name: 'Paradise Valley', href: '/phoenix' },
-    { name: 'Carefree & Cave Creek', href: '/phoenix' },
     { name: 'Central Scottsdale', href: '/phoenix' },
+    { name: 'South Scottsdale', href: '/phoenix' },
     { name: 'Arcadia', href: '/phoenix' },
-    { name: 'Fountain Hills', href: '/phoenix' },
     { name: 'Biltmore', href: '/phoenix' },
+    { name: 'Carefree', href: '/phoenix' },
+    { name: 'Cave Creek', href: '/phoenix' },
+    { name: 'Fountain Hills', href: '/phoenix' },
     { name: 'Rio Verde', href: '/phoenix' },
+    { name: 'Desert Ridge', href: '/phoenix' },
+    { name: 'Anthem', href: '/phoenix' },
+    { name: 'Peoria', href: '/phoenix' },
   ],
 };

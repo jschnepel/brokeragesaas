@@ -1,15 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { query, queryOne } from "@platform/database";
-
-interface MessageRow {
-  id: string;
-  request_id: string;
-  sender_id: string;
-  body: string;
-  created_at: string;
-  sender_name: string;
-}
+import { MessageService } from "@/services";
 
 // GET /api/messages/[requestId]?after=<ISO timestamp>
 export async function GET(
@@ -22,25 +13,10 @@ export async function GET(
   }
 
   const { requestId } = await params;
-  const after = request.nextUrl.searchParams.get("after");
+  const after = request.nextUrl.searchParams.get("after") ?? undefined;
 
-  let sql = `
-    SELECT m.*, a.name AS sender_name
-    FROM intake_messages m
-    LEFT JOIN agents a ON a.id = m.sender_id
-    WHERE m.request_id = $1
-  `;
-  const sqlParams: unknown[] = [requestId];
-
-  if (after) {
-    sql += ` AND m.created_at > $2`;
-    sqlParams.push(after);
-  }
-
-  sql += " ORDER BY m.created_at ASC";
-
-  const result = await query<MessageRow>(sql, sqlParams);
-  return NextResponse.json(result.rows);
+  const messages = await MessageService.getByRequest(requestId, after);
+  return NextResponse.json(messages);
 }
 
 // POST /api/messages/[requestId]  body: { body: string }
@@ -63,28 +39,6 @@ export async function POST(
     );
   }
 
-  const result = await queryOne<MessageRow>(
-    `INSERT INTO intake_messages (request_id, sender_id, body)
-     VALUES ($1, $2, $3)
-     RETURNING *`,
-    [requestId, session.user.id, body.trim()]
-  );
-
-  if (!result) {
-    return NextResponse.json(
-      { error: "Failed to create message" },
-      { status: 500 }
-    );
-  }
-
-  // Fetch sender name
-  const withName = await queryOne<MessageRow>(
-    `SELECT m.*, a.name AS sender_name
-     FROM intake_messages m
-     LEFT JOIN agents a ON a.id = m.sender_id
-     WHERE m.id = $1`,
-    [result.id]
-  );
-
-  return NextResponse.json(withName, { status: 201 });
+  const message = await MessageService.send(requestId, session.user.id, body.trim());
+  return NextResponse.json(message, { status: 201 });
 }

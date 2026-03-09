@@ -17,6 +17,7 @@ export interface ListingSearchFilters {
   postalCode?: string;
   subdivisionName?: string;
   propertyType?: string;
+  listingType?: 'sale' | 'rent' | 'all';
   minPrice?: number;
   maxPrice?: number;
   minBeds?: number;
@@ -24,10 +25,23 @@ export interface ListingSearchFilters {
   minBaths?: number;
   minSqft?: number;
   maxSqft?: number;
+  minLotAcres?: number;
   minYearBuilt?: number;
+  maxDom?: number;
+  maxHoa?: number;
+  minStories?: number;
+  minGarageSpaces?: number;
   hasPool?: boolean;
   hasGarage?: boolean;
-  sortBy?: 'price_asc' | 'price_desc' | 'newest' | 'beds' | 'sqft';
+  hasFireplace?: boolean;
+  isHorseProperty?: boolean;
+  keyword?: string;
+  swLat?: number;
+  swLng?: number;
+  neLat?: number;
+  neLng?: number;
+  polygon?: [number, number][];
+  sortBy?: 'price_asc' | 'price_desc' | 'newest' | 'beds' | 'sqft' | 'dom' | 'price_sqft' | 'lot_size';
   limit?: number;
   offset?: number;
 }
@@ -68,6 +82,7 @@ export interface ListingRecord extends QueryResultRow {
   days_on_market: number | null;
   modification_timestamp: string;
   listing_contract_date: string | null;
+  primary_photo_url: string | null;
 }
 
 export interface ListingDetail extends ListingRecord {
@@ -146,6 +161,9 @@ const SORT_MAP: Record<string, string> = {
   newest: 'modification_timestamp DESC',
   beds: 'bedrooms_total DESC NULLS LAST',
   sqft: 'living_area DESC NULLS LAST',
+  dom: 'days_on_market ASC NULLS LAST',
+  price_sqft: 'price_per_sqft ASC NULLS LAST',
+  lot_size: 'lot_size_acres DESC NULLS LAST',
 };
 
 /**
@@ -186,9 +204,15 @@ export async function searchListings(
     conditions.push(`subdivision_name ILIKE $${paramIndex++}`);
     params.push(`%${filters.subdivisionName}%`);
   }
-  if (filters.propertyType) {
+  if (filters.listingType === 'rent') {
+    conditions.push(`property_type = 'Residential Lease'`);
+  } else if (filters.listingType === 'all') {
+    // no filter
+  } else if (filters.propertyType) {
     conditions.push(`property_type = $${paramIndex++}`);
     params.push(filters.propertyType);
+  } else {
+    conditions.push(`property_type != 'Residential Lease'`);
   }
   if (filters.minPrice !== undefined) {
     conditions.push(`list_price >= $${paramIndex++}`);
@@ -218,9 +242,29 @@ export async function searchListings(
     conditions.push(`living_area <= $${paramIndex++}`);
     params.push(filters.maxSqft);
   }
+  if (filters.minLotAcres !== undefined) {
+    conditions.push(`lot_size_acres >= $${paramIndex++}`);
+    params.push(filters.minLotAcres);
+  }
   if (filters.minYearBuilt !== undefined) {
     conditions.push(`year_built >= $${paramIndex++}`);
     params.push(filters.minYearBuilt);
+  }
+  if (filters.maxDom !== undefined) {
+    conditions.push(`days_on_market <= $${paramIndex++}`);
+    params.push(filters.maxDom);
+  }
+  if (filters.maxHoa !== undefined) {
+    conditions.push(`(association_fee IS NULL OR association_fee <= $${paramIndex++})`);
+    params.push(filters.maxHoa);
+  }
+  if (filters.minStories !== undefined) {
+    conditions.push(`stories_total >= $${paramIndex++}`);
+    params.push(filters.minStories);
+  }
+  if (filters.minGarageSpaces !== undefined) {
+    conditions.push(`garage_spaces >= $${paramIndex++}`);
+    params.push(filters.minGarageSpaces);
   }
   if (filters.hasPool === true) {
     conditions.push('pool_private_yn = TRUE');
@@ -228,10 +272,20 @@ export async function searchListings(
   if (filters.hasGarage === true) {
     conditions.push('garage_spaces > 0');
   }
+  if (filters.hasFireplace === true) {
+    conditions.push('fireplace_yn = TRUE');
+  }
+  if (filters.isHorseProperty === true) {
+    conditions.push('horse_yn = TRUE');
+  }
+  if (filters.keyword) {
+    conditions.push(`public_remarks ILIKE $${paramIndex++}`);
+    params.push(`%${filters.keyword}%`);
+  }
 
   const whereClause = conditions.join(' AND ');
   const orderClause = SORT_MAP[filters.sortBy ?? 'newest'] ?? SORT_MAP.newest;
-  const limit = Math.min(filters.limit ?? 25, 100);
+  const limit = Math.min(filters.limit ?? 25, 200);
   const offset = filters.offset ?? 0;
 
   // Count query
@@ -241,19 +295,207 @@ export async function searchListings(
   );
   const total = parseInt(countResult.rows[0].count, 10);
 
-  // Data query
+  // Data query — cast numeric columns to float8 so pg returns JS numbers
   const dataResult = await rdsQuery<ListingRecord>(
     `SELECT id, listing_key, listing_id, standard_status, mls_status,
             unparsed_address, city, state_or_province, postal_code,
-            subdivision_name, latitude, longitude, list_price, close_price,
+            subdivision_name,
+            latitude::float8 AS latitude, longitude::float8 AS longitude,
+            list_price::float8 AS list_price, close_price::float8 AS close_price,
             property_type, property_sub_type, bedrooms_total,
             bathrooms_total_integer, bathrooms_full, bathrooms_half,
-            living_area, lot_size_acres, lot_size_square_feet, year_built,
-            stories_total, pool_private_yn, garage_spaces,
+            living_area::float8 AS living_area,
+            lot_size_acres::float8 AS lot_size_acres,
+            lot_size_square_feet::float8 AS lot_size_square_feet,
+            year_built, stories_total, pool_private_yn, garage_spaces,
             list_office_name, list_agent_full_name, list_agent_key,
             public_remarks, photos_count, days_on_market,
             modification_timestamp, listing_contract_date
      FROM listing_records
+     WHERE ${whereClause}
+     ORDER BY ${orderClause}
+     LIMIT $${paramIndex++} OFFSET $${paramIndex++}`,
+    [...params, limit, offset]
+  );
+
+  return { listings: dataResult.rows, total };
+}
+
+/**
+ * Search active listings with primary photo joined.
+ * Avoids N+1 on the search page by LEFT JOINing the preferred photo.
+ */
+export async function searchListingsWithPhotos(
+  filters: ListingSearchFilters = {}
+): Promise<{ listings: ListingRecord[]; total: number }> {
+  const conditions: string[] = [
+    'lr.is_deleted = FALSE',
+    'lr.internet_entire_listing_display_yn = TRUE',
+  ];
+  const params: unknown[] = [];
+  let paramIndex = 1;
+
+  // Status filter
+  if (filters.status) {
+    const statuses = Array.isArray(filters.status) ? filters.status : [filters.status];
+    const placeholders = statuses.map(() => `$${paramIndex++}`);
+    conditions.push(`lr.standard_status IN (${placeholders.join(', ')})`);
+    params.push(...statuses);
+  } else {
+    const placeholders = ACTIVE_STATUSES.map(() => `$${paramIndex++}`);
+    conditions.push(`lr.standard_status IN (${placeholders.join(', ')})`);
+    params.push(...ACTIVE_STATUSES);
+  }
+
+  if (filters.city) {
+    conditions.push(`lr.city ILIKE $${paramIndex++}`);
+    params.push(filters.city);
+  }
+  if (filters.postalCode) {
+    conditions.push(`lr.postal_code = $${paramIndex++}`);
+    params.push(filters.postalCode);
+  }
+  if (filters.subdivisionName) {
+    conditions.push(`lr.subdivision_name ILIKE $${paramIndex++}`);
+    params.push(`%${filters.subdivisionName}%`);
+  }
+  // Listing type: sale vs rent vs all
+  if (filters.listingType === 'rent') {
+    conditions.push(`lr.property_type = 'Residential Lease'`);
+  } else if (filters.listingType === 'all') {
+    // no filter — show everything
+  } else if (filters.propertyType) {
+    conditions.push(`lr.property_type = $${paramIndex++}`);
+    params.push(filters.propertyType);
+  } else {
+    // Default: exclude leases so search shows sales only
+    conditions.push(`lr.property_type != 'Residential Lease'`);
+  }
+  if (filters.minPrice !== undefined) {
+    conditions.push(`lr.list_price >= $${paramIndex++}`);
+    params.push(filters.minPrice);
+  }
+  if (filters.maxPrice !== undefined) {
+    conditions.push(`lr.list_price <= $${paramIndex++}`);
+    params.push(filters.maxPrice);
+  }
+  if (filters.minBeds !== undefined) {
+    conditions.push(`lr.bedrooms_total >= $${paramIndex++}`);
+    params.push(filters.minBeds);
+  }
+  if (filters.maxBeds !== undefined) {
+    conditions.push(`lr.bedrooms_total <= $${paramIndex++}`);
+    params.push(filters.maxBeds);
+  }
+  if (filters.minBaths !== undefined) {
+    conditions.push(`lr.bathrooms_total_integer >= $${paramIndex++}`);
+    params.push(filters.minBaths);
+  }
+  if (filters.minSqft !== undefined) {
+    conditions.push(`lr.living_area >= $${paramIndex++}`);
+    params.push(filters.minSqft);
+  }
+  if (filters.maxSqft !== undefined) {
+    conditions.push(`lr.living_area <= $${paramIndex++}`);
+    params.push(filters.maxSqft);
+  }
+  if (filters.minLotAcres !== undefined) {
+    conditions.push(`lr.lot_size_acres >= $${paramIndex++}`);
+    params.push(filters.minLotAcres);
+  }
+  if (filters.minYearBuilt !== undefined) {
+    conditions.push(`lr.year_built >= $${paramIndex++}`);
+    params.push(filters.minYearBuilt);
+  }
+  if (filters.maxDom !== undefined) {
+    conditions.push(`lr.days_on_market <= $${paramIndex++}`);
+    params.push(filters.maxDom);
+  }
+  if (filters.maxHoa !== undefined) {
+    conditions.push(`(lr.association_fee IS NULL OR lr.association_fee <= $${paramIndex++})`);
+    params.push(filters.maxHoa);
+  }
+  if (filters.minStories !== undefined) {
+    conditions.push(`lr.stories_total >= $${paramIndex++}`);
+    params.push(filters.minStories);
+  }
+  if (filters.minGarageSpaces !== undefined) {
+    conditions.push(`lr.garage_spaces >= $${paramIndex++}`);
+    params.push(filters.minGarageSpaces);
+  }
+  if (filters.hasPool === true) {
+    conditions.push('lr.pool_private_yn = TRUE');
+  }
+  if (filters.hasGarage === true) {
+    conditions.push('lr.garage_spaces > 0');
+  }
+  if (filters.hasFireplace === true) {
+    conditions.push('lr.fireplace_yn = TRUE');
+  }
+  if (filters.isHorseProperty === true) {
+    conditions.push('lr.horse_yn = TRUE');
+  }
+  if (filters.keyword) {
+    conditions.push(`lr.public_remarks ILIKE $${paramIndex++}`);
+    params.push(`%${filters.keyword}%`);
+  }
+  if (
+    filters.swLat !== undefined &&
+    filters.swLng !== undefined &&
+    filters.neLat !== undefined &&
+    filters.neLng !== undefined
+  ) {
+    conditions.push('lr.latitude IS NOT NULL');
+    conditions.push('lr.longitude IS NOT NULL');
+    conditions.push(`lr.latitude BETWEEN $${paramIndex++} AND $${paramIndex++}`);
+    params.push(filters.swLat, filters.neLat);
+    conditions.push(`lr.longitude BETWEEN $${paramIndex++} AND $${paramIndex++}`);
+    params.push(filters.swLng, filters.neLng);
+  }
+  if (filters.polygon && filters.polygon.length >= 3) {
+    conditions.push('lr.latitude IS NOT NULL');
+    conditions.push('lr.longitude IS NOT NULL');
+    const polyStr = filters.polygon
+      .map(([lng, lat]) => `(${lng},${lat})`)
+      .join(',');
+    conditions.push(`polygon(path '(${polyStr})') @> point(lr.longitude, lr.latitude)`);
+  }
+
+  const whereClause = conditions.join(' AND ');
+  const sortField = filters.sortBy ?? 'newest';
+  const orderClause = (SORT_MAP[sortField] ?? SORT_MAP.newest).replace(
+    /^(\w+)/,
+    'lr.$1'
+  );
+  const limit = Math.min(filters.limit ?? 25, 200);
+  const offset = filters.offset ?? 0;
+
+  // Count query
+  const countResult = await rdsQuery<{ count: string }>(
+    `SELECT COUNT(*) as count FROM listing_records lr WHERE ${whereClause}`,
+    params
+  );
+  const total = parseInt(countResult.rows[0].count, 10);
+
+  // Data query with primary photo join
+  const dataResult = await rdsQuery<ListingRecord>(
+    `SELECT lr.id, lr.listing_key, lr.listing_id, lr.standard_status, lr.mls_status,
+            lr.unparsed_address, lr.city, lr.state_or_province, lr.postal_code,
+            lr.subdivision_name,
+            lr.latitude::float8 AS latitude, lr.longitude::float8 AS longitude,
+            lr.list_price::float8 AS list_price, lr.close_price::float8 AS close_price,
+            lr.property_type, lr.property_sub_type, lr.bedrooms_total,
+            lr.bathrooms_total_integer, lr.bathrooms_full, lr.bathrooms_half,
+            lr.living_area::float8 AS living_area,
+            lr.lot_size_acres::float8 AS lot_size_acres,
+            lr.lot_size_square_feet::float8 AS lot_size_square_feet,
+            lr.year_built, lr.stories_total, lr.pool_private_yn, lr.garage_spaces,
+            lr.list_office_name, lr.list_agent_full_name, lr.list_agent_key,
+            lr.public_remarks, lr.photos_count, lr.days_on_market,
+            lr.modification_timestamp, lr.listing_contract_date,
+            lp.media_url AS primary_photo_url
+     FROM listing_records lr
+     LEFT JOIN listing_photos lp ON lp.listing_key = lr.listing_key AND lp.is_preferred = true
      WHERE ${whereClause}
      ORDER BY ${orderClause}
      LIMIT $${paramIndex++} OFFSET $${paramIndex++}`,
