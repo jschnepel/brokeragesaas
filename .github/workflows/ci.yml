@@ -7,8 +7,9 @@ on:
     branches: [main, testing, dev]
 
 jobs:
-  lint-typecheck-build:
-    name: Lint, Type Check & Build
+  # ── Prototype (Vite + React) ─────────────────────────────────────────────
+  prototype-build:
+    name: Prototype — Lint, Type Check & Build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -41,13 +42,63 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: build-${{ github.sha }}
+          name: prototype-build-${{ github.sha }}
           path: prototypes/yong/dist
           retention-days: 7
 
+  # ── Platform Monorepo (Next.js + pnpm + Turborepo) ──────────────────────
+  platform-build:
+    name: Platform — Type Check & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: real-estate-platform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.0
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('real-estate-platform/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check — platform app
+        run: pnpm --filter @real-estate/platform type-check
+
+      - name: Type check — database package
+        run: pnpm --filter @platform/database type-check
+
+      - name: Type check — shared package
+        run: pnpm --filter @platform/shared type-check
+
+      - name: Build — platform app
+        run: pnpm --filter @real-estate/platform build
+
+  # ── Compliance (prototype only, testing/main gates) ──────────────────────
   compliance:
     name: Compliance, Security & Edge Cases
-    needs: lint-typecheck-build
+    needs: prototype-build
     if: github.base_ref == 'testing' || github.ref == 'refs/heads/testing' || github.base_ref == 'main' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     defaults:
@@ -74,9 +125,10 @@ jobs:
       - name: Run compliance suite
         run: npm run test:compliance
 
+  # ── Deploy Preview (testing branch) ─────────────────────────────────────
   deploy-preview:
     name: Deploy to Preview
-    needs: [lint-typecheck-build, compliance]
+    needs: [prototype-build, platform-build, compliance]
     if: github.ref == 'refs/heads/testing' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: staging
@@ -84,26 +136,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download build artifact
+      - name: Download prototype artifact
         uses: actions/download-artifact@v4
         with:
-          name: build-${{ github.sha }}
+          name: prototype-build-${{ github.sha }}
           path: dist
-
-      # Configure your hosting provider here.
-      # Example for Vercel:
-      # - name: Deploy to Vercel (Preview)
-      #   run: npx vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
-      #   env:
-      #     VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      #     VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Deploy placeholder
         run: echo "Deploy to staging/preview environment. Configure hosting provider secrets to enable."
 
+  # ── Deploy Production (main branch) ─────────────────────────────────────
   deploy-production:
     name: Deploy to Production
-    needs: [lint-typecheck-build, compliance]
+    needs: [prototype-build, platform-build, compliance]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: production
@@ -111,19 +156,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download build artifact
+      - name: Download prototype artifact
         uses: actions/download-artifact@v4
         with:
-          name: build-${{ github.sha }}
+          name: prototype-build-${{ github.sha }}
           path: dist
-
-      # Configure your hosting provider here.
-      # Example for Vercel:
-      # - name: Deploy to Vercel (Production)
-      #   run: npx vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
-      #   env:
-      #     VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      #     VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Deploy placeholder
         run: echo "Deploy to production environment. Configure hosting provider secrets to enable."
