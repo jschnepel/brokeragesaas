@@ -27,12 +27,11 @@ applications:
         build:
           commands:
             - pnpm --filter @real-estate/platform build
-            - mkdir -p apps/platform/.next/node_modules
-            - cp -r node_modules/next apps/platform/.next/node_modules/next
       artifacts:
-        baseDirectory: apps/platform/.next
+        baseDirectory: .
         files:
-          - '**/*'
+          - apps/platform/.next/**/*
+          - node_modules/**/*
       cache:
         paths:
           - node_modules/**/*
