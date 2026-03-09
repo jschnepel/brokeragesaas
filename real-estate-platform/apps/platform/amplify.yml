@@ -1,0 +1,28 @@
+version: 1
+applications:
+  - frontend:
+      phases:
+        preBuild:
+          commands:
+            - corepack enable
+            - corepack prepare pnpm@8.15.0 --activate
+            - cd ../..
+            - pnpm install --frozen-lockfile
+        build:
+          commands:
+            - cd apps/platform
+            - pnpm build
+      artifacts:
+        baseDirectory: apps/platform/.next
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+          - apps/platform/.next/cache/**/*
+          - ~/.pnpm-store/**/*
+      environment:
+        variables:
+          NODE_VERSION: '20'
+          PNPM_VERSION: '8.15.0'
+    appRoot: apps/platform

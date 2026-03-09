@@ -1,0 +1,21 @@
+/* Layer 1 — Brand tokens for Russ Lyon Sotheby's */
+/* Admin-editable. Change these to rebrand the entire platform. */
+:root {
+  --brand-primary:       #0F2B4F;
+  --brand-primary-dark:  #0A1F3A;
+  --brand-accent:        #C9A96E;
+  --brand-accent-muted:  rgba(201, 169, 110, 0.15);
+  --brand-surface:       #FAF7F2;
+  --brand-surface-alt:   #F3EFE8;
+  --brand-dark:          #071428;
+  --brand-sidebar:       #0A1F3A;
+
+  --brand-font-display:  'Cormorant Garamond', Georgia, serif;
+  --brand-font-body:     'DM Sans', system-ui, sans-serif;
+  --brand-font-mono:     'Geist Mono', 'Fira Code', monospace;
+
+  --brand-radius:        2px;
+  --brand-glow-opacity:  0.18;
+  --brand-card-blur:     0px;
+  --brand-sidebar-width: 224px;
+}

@@ -122,3 +122,26 @@ export function omit<T extends Record<string, unknown>, K extends keyof T>(
   }
   return result;
 }
+
+/**
+ * Generate an SEO-friendly listing slug: address-slug_listingId
+ * The listing_id suffix is used for reliable DB lookup.
+ */
+export function generateListingSlug(listing: {
+  unparsed_address: string | null;
+  city: string | null;
+  state_or_province: string | null;
+  postal_code: string | null;
+  listing_id: string;
+}): string {
+  const parts = [
+    listing.unparsed_address,
+    listing.city,
+    listing.state_or_province,
+    listing.postal_code,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const addressSlug = slugify(parts);
+  return addressSlug ? `${addressSlug}_${listing.listing_id}` : listing.listing_id;
+}
