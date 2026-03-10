@@ -1,0 +1,48 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --brand-primary: #0F2B4F;
+  --brand-primary-dark: #0a1f38;
+  --brand-accent: #C9A96E;
+  --brand-surface: #FAF7F2;
+  --brand-surface-alt: #F0EDE6;
+  --brand-dark: #1a1a2e;
+  --brand-sidebar: #0C1C2E;
+  --brand-font-display: "Cormorant Garamond", serif;
+  --brand-font-body: "DM Sans", sans-serif;
+  --brand-font-mono: "Geist Mono", monospace;
+  --brand-radius: 0.5rem;
+  --brand-glow-opacity: 0.08;
+  --brand-card-blur: 12px;
+  --brand-sidebar-width: 260px;
+
+  --background: var(--brand-surface);
+  --foreground: var(--brand-primary);
+  --card: #ffffff;
+  --card-foreground: var(--brand-primary);
+  --primary: var(--brand-primary);
+  --primary-foreground: #ffffff;
+  --secondary: var(--brand-surface-alt);
+  --secondary-foreground: var(--brand-primary);
+  --accent: var(--brand-accent);
+  --accent-foreground: #ffffff;
+  --muted: var(--brand-surface-alt);
+  --muted-foreground: #6b7280;
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: var(--brand-accent);
+  --radius: var(--brand-radius);
+}
+
+body {
+  font-family: var(--brand-font-body);
+  background: var(--background);
+  color: var(--foreground);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--brand-font-display);
+}
