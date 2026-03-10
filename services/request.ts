@@ -1,6 +1,8 @@
 import { query, queryOne } from "@/lib/db";
 import type { RequestRow, RequestWithDetails, RequestFilters, MessageRow, FileRow } from "@/lib/types";
 import { SLA_HOURS } from "@/lib/constants";
+import { connectionManager } from "@/lib/sse/connection-manager";
+import type { SSEEvent } from "@/lib/sse/events";
 
 export const RequestService = {
   async getAll(filters?: RequestFilters): Promise<RequestRow[]> {
@@ -125,6 +127,23 @@ export const RequestService = {
       [row.id, data.requester_id]
     );
 
+    // Emit SSE: notify submitter + marketing managers
+    const submittedEvent: SSEEvent = {
+      type: "request:submitted",
+      requestId: row.id,
+      title: row.title,
+      message: `Request submitted: "${row.title}"`,
+      href: `/requests/${row.id}`,
+    };
+    connectionManager.sendToUser(data.requester_id, {
+      ...submittedEvent,
+      message: "Request submitted!",
+    });
+    connectionManager.sendToRole("marketing_manager", {
+      ...submittedEvent,
+      message: `New request: "${row.title}"`,
+    });
+
     return row;
   },
 
@@ -146,6 +165,30 @@ export const RequestService = {
       [requestId, current.status, newStatus, changedBy]
     );
 
+    // Emit SSE: notify the requesting agent (skip for submitted/assigned — handled by specific methods)
+    const specificStatuses = ["submitted", "assigned"];
+    const isResume = current.status === "awaiting_materials" && newStatus === "in_progress";
+    if (!specificStatuses.includes(newStatus) && !isResume) {
+      connectionManager.sendToUser(current.requester_id as string, {
+        type: "request:updated",
+        requestId: row!.id,
+        title: row!.title,
+        message: `Your request "${row!.title}" was updated to ${newStatus.replace(/_/g, " ")}`,
+        href: `/requests/${row!.id}`,
+      });
+    }
+
+    // Handle resume specifically
+    if (isResume) {
+      connectionManager.sendToUser(current.requester_id as string, {
+        type: "request:resumed",
+        requestId: row!.id,
+        title: row!.title,
+        message: `Your request "${row!.title}" is back in progress`,
+        href: `/requests/${row!.id}`,
+      });
+    }
+
     return row;
   },
 
@@ -166,6 +209,22 @@ export const RequestService = {
        VALUES ($1, $2, 'assigned', $3)`,
       [requestId, current.status, changedBy]
     );
+
+    // Emit SSE: notify assigned designer + requesting agent
+    connectionManager.sendToUser(assigneeId, {
+      type: "request:assigned",
+      requestId: row!.id,
+      title: row!.title,
+      message: `You've been assigned: "${row!.title}"`,
+      href: `/requests/${row!.id}`,
+    });
+    connectionManager.sendToUser(current.requester_id as string, {
+      type: "request:assigned",
+      requestId: row!.id,
+      title: row!.title,
+      message: `Your request "${row!.title}" has been assigned`,
+      href: `/requests/${row!.id}`,
+    });
 
     return row;
   },
