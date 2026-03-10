@@ -67,6 +67,19 @@ export function IntakeQueueRow({ req, designers, onDecision }: IntakeQueueRowPro
   const [infoNote, setInfoNote] = useState("")
   const [expanded, setExpanded] = useState(false)
 
+  // NEW badge: show if submitted < 1 hour ago and not yet viewed
+  const isNew = (() => {
+    const ageMs = Date.now() - new Date(req.submittedAt).getTime()
+    if (ageMs > 3_600_000) return false // older than 1 hour
+    if (typeof window === "undefined") return true
+    try {
+      const viewed = JSON.parse(localStorage.getItem("viewedRequests") || "[]") as string[]
+      return !viewed.includes(req.id)
+    } catch {
+      return true
+    }
+  })()
+
   const flag = getFeasibilityFlag(req)
   const submitted = new Date(req.submittedAt)
   const due = req.dueDate ? new Date(new Date(req.dueDate).toISOString().slice(0, 10) + "T23:59:00Z") : null
@@ -121,8 +134,24 @@ export function IntakeQueueRow({ req, designers, onDecision }: IntakeQueueRowPro
                 RUSH
               </span>
             )}
+            {isNew && (
+              <span className="border border-amber-300 bg-amber-50 px-[5px] py-px text-[8px] font-bold tracking-[0.06em] text-amber-700">
+                NEW
+              </span>
+            )}
             <button
-              onClick={() => setExpanded((e) => !e)}
+              onClick={() => {
+                setExpanded((e) => !e)
+                // Mark as viewed to clear NEW badge
+                try {
+                  const viewed = JSON.parse(localStorage.getItem("viewedRequests") || "[]") as string[]
+                  if (!viewed.includes(req.id)) {
+                    viewed.push(req.id)
+                    // Keep only last 200 entries to prevent unbounded growth
+                    localStorage.setItem("viewedRequests", JSON.stringify(viewed.slice(-200)))
+                  }
+                } catch { /* ignore */ }
+              }}
               className="border-none bg-transparent p-0 text-[9px] underline"
               style={{ color: BRAND_COLORS.gold }}
               data-testid={`brief-toggle-${req.id}`}
