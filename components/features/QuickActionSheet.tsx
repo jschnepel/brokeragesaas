@@ -41,10 +41,7 @@ export function QuickActionSheet({
 
   const request = Request.fromDTO(dto)
 
-  const detailRoute =
-    viewerRole === "designer"
-      ? `${ROUTES.QUEUE_DETAIL}/${request.id}`
-      : `${ROUTES.REQUEST_DETAIL}/${request.id}`
+  const detailRoute = `${ROUTES.REQUEST_DETAIL}/${request.id}`
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>

@@ -526,47 +526,50 @@ export function ChatOverlay() {
   }, [])
 
   return (
-    <div className="fixed bottom-0 right-4 z-[1000] flex items-end gap-2">
+    <div className="fixed bottom-0 right-4 z-[1000] flex items-end gap-2 pointer-events-none">
       {/* Open chat windows (left of panel) */}
       {openChats.map((chat) => {
         const contact = contacts.find((c) => c.id === chat.contactId)
         if (!contact) return null
         return (
-          <ChatWindow
-            key={chat.contactId}
-            contact={contact}
-            messages={conversations[chat.contactId] ?? []}
-            minimized={chat.minimized}
-            onSend={handleSend}
-            onMinimize={() => minimizeChat(chat.contactId)}
-            onMaximize={() => maximizeChat(chat.contactId)}
-            onClose={() => closeChat(chat.contactId)}
-            onExpand={() => {
-              closeChat(chat.contactId)
-              router.push("/messaging")
-            }}
-          />
+          <div key={chat.contactId} className="pointer-events-auto">
+            <ChatWindow
+              contact={contact}
+              messages={conversations[chat.contactId] ?? []}
+              minimized={chat.minimized}
+              onSend={handleSend}
+              onMinimize={() => minimizeChat(chat.contactId)}
+              onMaximize={() => maximizeChat(chat.contactId)}
+              onClose={() => closeChat(chat.contactId)}
+              onExpand={() => {
+                closeChat(chat.contactId)
+                router.push("/messaging")
+              }}
+            />
+          </div>
         )
       })}
 
       {/* Messaging panel (rightmost) */}
-      <MessagingPanel
-        expanded={panelExpanded}
-        onToggle={() => setPanelExpanded((v) => !v)}
-        contacts={filteredContacts}
-        totalUnread={totalUnread}
-        search={search}
-        onSearch={setSearch}
-        onSelectContact={(id) => {
-          openContact(id)
-          setPanelExpanded(false)
-        }}
-        onCompose={() => {}}
-        onOpenFullPage={() => {
-          setPanelExpanded(false)
-          router.push("/messaging")
-        }}
-      />
+      <div className="pointer-events-auto">
+        <MessagingPanel
+          expanded={panelExpanded}
+          onToggle={() => setPanelExpanded((v) => !v)}
+          contacts={filteredContacts}
+          totalUnread={totalUnread}
+          search={search}
+          onSearch={setSearch}
+          onSelectContact={(id) => {
+            openContact(id)
+            setPanelExpanded(false)
+          }}
+          onCompose={() => {}}
+          onOpenFullPage={() => {
+            setPanelExpanded(false)
+            router.push("/messaging")
+          }}
+        />
+      </div>
     </div>
   )
 }
