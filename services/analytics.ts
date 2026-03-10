@@ -1,5 +1,5 @@
 import { query, queryOne } from "@/lib/db";
-import type { KPIs, VolumeWeek, DesignerLoad, MaterialBreakdown } from "@/lib/types";
+import type { KPIs, VolumeWeek, DesignerLoad, MaterialBreakdown, TeamHealth, IntakeQueueItem } from "@/lib/types";
 
 export const AnalyticsService = {
   async getKPIs(): Promise<KPIs> {
@@ -31,17 +31,24 @@ export const AnalyticsService = {
     };
   },
 
-  async getVolumeByWeek(weeks = 12): Promise<VolumeWeek[]> {
+  async getVolumeByWeek(weeks = 12, assignedTo?: string): Promise<VolumeWeek[]> {
+    const conditions = ["created_at >= NOW() - interval '1 week' * $1"];
+    const params: unknown[] = [weeks];
+    if (assignedTo) {
+      conditions.push(`assigned_to = $2`);
+      params.push(assignedTo);
+    }
+    const where = conditions.join(" AND ");
     const res = await query<{ week: string; submitted: string; completed: string }>(
       `SELECT
          to_char(date_trunc('week', created_at), 'YYYY-MM-DD') AS week,
          count(*) AS submitted,
          count(*) FILTER (WHERE status = 'completed') AS completed
        FROM intake_requests
-       WHERE created_at >= NOW() - interval '1 week' * $1
+       WHERE ${where}
        GROUP BY date_trunc('week', created_at)
        ORDER BY week`,
-      [weeks]
+      params
     );
     return res.rows.map((r) => ({
       week: r.week,
@@ -91,5 +98,81 @@ export const AnalyticsService = {
       count: parseInt(r.count),
       percentage: parseFloat(r.pct),
     }));
+  },
+
+  async getTeamHealth(): Promise<TeamHealth> {
+    const row = await queryOne<{
+      revision_rate: string | null;
+      sla_compliance: string | null;
+      req_per_designer: string | null;
+      avg_completion_days: string | null;
+    }>(
+      `SELECT
+         (count(*) FILTER (WHERE status = 'revision'))::float / NULLIF(count(*), 0) * 100 AS revision_rate,
+         (count(*) FILTER (WHERE status = 'completed' AND sla_breached = false))::float / NULLIF(count(*) FILTER (WHERE status = 'completed'), 0) * 100 AS sla_compliance,
+         count(*) FILTER (WHERE status NOT IN ('completed','cancelled','draft'))::float / NULLIF((SELECT count(*) FROM agents WHERE role = 'designer'), 0) AS req_per_designer,
+         EXTRACT(EPOCH FROM avg(updated_at - created_at) FILTER (WHERE status = 'completed')) / 86400 AS avg_completion_days
+       FROM intake_requests`
+    );
+
+    return {
+      revisionRate: parseFloat(row?.revision_rate ?? "0"),
+      slaCompliance: parseFloat(row?.sla_compliance ?? "100"),
+      reqPerDesigner: parseFloat(row?.req_per_designer ?? "0"),
+      avgCompletionDays: parseFloat(row?.avg_completion_days ?? "0"),
+    };
+  },
+
+  async getIntakeQueue(): Promise<IntakeQueueItem[]> {
+    const res = await query<{
+      id: string;
+      queue_number: number;
+      title: string;
+      requester_name: string | null;
+      office: string;
+      material_type: string;
+      is_rush: boolean;
+      submitted_at: string;
+      due_date: string | null;
+      brief: string | null;
+      attachments: string;
+    }>(
+      `SELECT
+         r.id, r.queue_number, r.title,
+         a.name AS requester_name,
+         COALESCE(a.email, '') AS office,
+         r.material_type, r.is_rush,
+         r.created_at AS submitted_at,
+         r.due_date, r.brief,
+         (SELECT count(*) FROM intake_files f WHERE f.request_id = r.id) AS attachments
+       FROM intake_requests r
+       LEFT JOIN agents a ON a.id = r.requester_id
+       WHERE r.status = 'submitted'
+       ORDER BY r.is_rush DESC, r.created_at ASC`
+    );
+
+    return res.rows.map((r) => {
+      // Extract office from email domain or default to 'Scottsdale'
+      let office = "Scottsdale";
+      if (r.office && r.office.includes("@")) {
+        const domain = r.office.split("@")[1]?.split(".")[0];
+        if (domain) office = domain.charAt(0).toUpperCase() + domain.slice(1);
+      }
+
+      return {
+        id: r.id,
+        queueNumber: r.queue_number,
+        title: r.title,
+        requesterName: r.requester_name ?? "Unknown",
+        office,
+        materialType: r.material_type,
+        isRush: r.is_rush,
+        submittedAt: r.submitted_at,
+        dueDate: r.due_date,
+        estimatedPages: 1,
+        brief: r.brief,
+        attachments: parseInt(r.attachments),
+      };
+    });
   },
 };

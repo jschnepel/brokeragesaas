@@ -18,7 +18,7 @@ export const AgentService = {
 
   async getDesigners(): Promise<AgentRow[]> {
     const res = await query<AgentRow>(
-      `SELECT id, name, email, role, created_at FROM agents WHERE role = 'designer' ORDER BY name`
+      `SELECT id, name, email, role, created_at FROM agents WHERE role IN ('designer', 'marketing_manager') ORDER BY name`
     );
     return res.rows;
   },

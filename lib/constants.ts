@@ -30,12 +30,24 @@ export const MATERIAL_TYPES = [
 
 export const ROUTES = {
   LOGIN: "/login",
+  DASHBOARD: "/dashboard",
   REQUESTS: "/requests",
+  REQUEST_DETAIL: "/requests", // append /{id}
   TRIAGE: "/triage",
   QUEUE: "/queue",
+  QUEUE_DETAIL: "/queue", // append /{id}
   REPORTS: "/reports",
   COMPONENT_LIBRARY: "/component-library",
   DESIGN_SYSTEM: "/design-system",
+  LYONSDEN: "/lyonsden",
+  CONTACTS: "/contacts",
+  LISTINGS: "/listings",
+  PRIDES: "/prides",
+  ORGCHART: "/orgchart",
+  ANALYTICS: "/analytics",
+  SETTINGS: "/settings",
+  EMAIL: "/email",
+  MESSAGING: "/messaging",
 } as const;
 
 export const TENANT_ID = "russ-lyon";

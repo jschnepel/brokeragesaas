@@ -35,6 +35,7 @@ export interface RequestRow extends Row {
   sla_breached: boolean;
   created_at: string;
   updated_at: string;
+  hero_image_url?: string | null;
 }
 
 export interface RequestWithDetails extends RequestRow {
@@ -102,6 +103,34 @@ export interface MaterialBreakdown {
   percentage: number;
 }
 
+export interface TeamHealth {
+  revisionRate: number;
+  slaCompliance: number;
+  reqPerDesigner: number;
+  avgCompletionDays: number;
+}
+
+export interface OfficeBreakdown {
+  office: string;
+  count: number;
+  percentage: number;
+}
+
+export interface IntakeQueueItem {
+  id: string;
+  queueNumber: number;
+  title: string;
+  requesterName: string;
+  office: string;
+  materialType: string;
+  isRush: boolean;
+  submittedAt: string;
+  dueDate: string | null;
+  estimatedPages: number;
+  brief: string | null;
+  attachments: number;
+}
+
 // ── DTO Types (for client) ────────────────────────────────────────────────
 
 export interface RequestDTO {
@@ -120,6 +149,7 @@ export interface RequestDTO {
   brief: string | null;
   assignedTo: string | null;
   requesterId: string;
+  heroImageUrl?: string | null;
   messages: MessageDTO[];
   files: FileDTO[];
 }
@@ -141,6 +171,21 @@ export interface FileDTO {
   uploadedBy: string;
   uploadedAt: string;
 }
+
+// ── Detail Page Types ─────────────────────────────────────────────────────
+
+export interface StatusLogDTO {
+  id: string;
+  oldStatus: string | null;
+  newStatus: string;
+  changedBy: string;
+  changerName: string;
+  createdAt: string;
+}
+
+export type ViewerRole = "agent" | "designer" | "marketing_manager" | "executive";
+
+export type DetailTab = "thread" | "activity";
 
 // ── Filter Types ──────────────────────────────────────────────────────────
 

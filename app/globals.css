@@ -8,12 +8,13 @@
   --brand-primary: #0F2B4F;
   --brand-primary-dark: #0a1f38;
   --brand-accent: #C9A96E;
+  --brand-cream: #F9F8F6;
   --brand-surface: #FAF7F2;
   --brand-surface-alt: #F0EDE6;
   --brand-dark: #1a1a2e;
   --brand-sidebar: #0C1C2E;
-  --brand-font-display: "Cormorant Garamond", serif;
-  --brand-font-body: "DM Sans", sans-serif;
+  --brand-font-display: "Playfair Display", Georgia, serif;
+  --brand-font-body: "Outfit", system-ui, sans-serif;
   --brand-font-mono: "Geist Mono", monospace;
   --brand-radius: 0.5rem;
   --brand-glow-opacity: 0.08;

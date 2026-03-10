@@ -4,10 +4,10 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { ThemeService } from "@/services";
 import { TENANT_ID } from "@/lib/constants";
 import "./globals.css";
-import { Geist } from "next/font/google";
+import { Geist_Mono } from "next/font/google";
 import { cn } from "@/lib/utils";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const geistMono = Geist_Mono({subsets:['latin'],variable:'--font-mono'});
 
 export const metadata: Metadata = {
   title: "RLSIR Platform",
@@ -22,10 +22,10 @@ export default async function RootLayout({
   const theme = await ThemeService.getTheme(TENANT_ID);
 
   return (
-    <html lang="en" className={cn("font-sans", geist.variable)}>
+    <html lang="en" className={cn(geistMono.variable)}>
       <head>
         <link
-          href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap"
           rel="stylesheet"
         />
       </head>

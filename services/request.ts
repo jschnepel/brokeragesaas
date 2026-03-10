@@ -34,10 +34,17 @@ export const RequestService = {
     const res = await query<RequestRow>(
       `SELECT r.*,
               req.name AS requester_name,
-              des.name AS assigned_name
+              des.name AS assigned_name,
+              hero.file_url AS hero_image_url
        FROM intake_requests r
        LEFT JOIN agents req ON req.id = r.requester_id
        LEFT JOIN agents des ON des.id = r.assigned_to
+       LEFT JOIN LATERAL (
+         SELECT f.file_url FROM intake_files f
+         WHERE f.request_id = r.id
+           AND f.file_name ~* '\\.(jpg|jpeg|png|webp|gif|svg)$'
+         ORDER BY f.created_at DESC LIMIT 1
+       ) hero ON true
        ${where}
        ORDER BY r.created_at DESC`,
       params

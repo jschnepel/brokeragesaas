@@ -5,6 +5,7 @@ import { RequestService, MessageService, AgentService, AnalyticsService } from "
 import type {
   RequestDTO, MessageDTO, FileDTO, RequestFilters,
   KPIs, VolumeWeek, DesignerLoad, MaterialBreakdown,
+  TeamHealth, IntakeQueueItem,
   AgentRow, RequestRow, RequestWithDetails,
 } from "@/lib/types";
 
@@ -35,6 +36,7 @@ function toRequestDTO(row: RequestRow): RequestDTO {
     brief: row.brief,
     assignedTo: row.assigned_to,
     requesterId: row.requester_id,
+    heroImageUrl: row.hero_image_url ?? null,
     messages: [],
     files: [],
   };
@@ -125,12 +127,25 @@ export async function getVolumeByWeek(weeks?: number): Promise<VolumeWeek[]> {
   return AnalyticsService.getVolumeByWeek(weeks);
 }
 
+export async function getPersonalVolumeByWeek(weeks?: number): Promise<VolumeWeek[]> {
+  const user = await requireAuth();
+  return AnalyticsService.getVolumeByWeek(weeks, user.id);
+}
+
 export async function getDesignerLoad(): Promise<DesignerLoad[]> {
   return AnalyticsService.getByDesigner();
 }
 
 export async function getMaterialBreakdown(): Promise<MaterialBreakdown[]> {
   return AnalyticsService.getMaterialBreakdown();
+}
+
+export async function getTeamHealth(): Promise<TeamHealth> {
+  return AnalyticsService.getTeamHealth();
+}
+
+export async function getIntakeQueue(): Promise<IntakeQueueItem[]> {
+  return AnalyticsService.getIntakeQueue();
 }
 
 // ── Messages ────────────────────────────────────────────────────────────────
