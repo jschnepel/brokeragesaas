@@ -40,7 +40,7 @@ export function DesignerTableRow({ request, onSelectRequest, onCancel }: Designe
 
   return (
     <tr
-      onClick={() => onSelectRequest(request)}
+      onClick={() => router.push(`/requests/${request.id}`)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => {
         setHovered(false)
@@ -132,6 +132,10 @@ export function DesignerTableRow({ request, onSelectRequest, onCancel }: Designe
                   <span
                     className="cursor-pointer text-[10px] font-semibold"
                     style={{ color: BRAND_COLORS.gold }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      router.push(`/requests/${request.id}`)
+                    }}
                   >
                     View full thread &rarr;
                   </span>

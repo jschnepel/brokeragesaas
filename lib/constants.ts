@@ -35,7 +35,6 @@ export const ROUTES = {
   REQUEST_DETAIL: "/requests", // append /{id}
   TRIAGE: "/triage",
   QUEUE: "/queue",
-  QUEUE_DETAIL: "/queue", // append /{id}
   REPORTS: "/reports",
   COMPONENT_LIBRARY: "/component-library",
   DESIGN_SYSTEM: "/design-system",

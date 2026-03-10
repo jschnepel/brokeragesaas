@@ -164,7 +164,7 @@ export function DesignerDashboard({
                     </td>
                     <td className="px-4 py-2.5">
                       <Link
-                        href={`/queue/${r.id}`}
+                        href={`/requests/${r.id}`}
                         className="font-medium hover:underline"
                         data-testid={`queue-link-${r.id}`}
                       >
@@ -202,7 +202,7 @@ export function DesignerDashboard({
           {recentMessages.map((m) => (
             <Link
               key={m.id}
-              href={`/queue/${m.requestId}`}
+              href={`/requests/${m.requestId}`}
               className="flex items-start justify-between gap-3 border-b px-4 py-3 last:border-b-0 hover:bg-muted/50 transition-colors"
               data-testid={`message-${m.id}`}
             >

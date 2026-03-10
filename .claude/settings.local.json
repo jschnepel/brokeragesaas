@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(CLAUDE_PLUGIN_ROOT=\"C:/Users/joeys/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.0\" && bash \"$CLAUDE_PLUGIN_ROOT/lib/brainstorm-server/start-server.sh\" --project-dir \"C:/Users/joeys/Desktop/RLSIR Websites/saas\")",
+      "Bash(cd \"C:/Users/joeys/Desktop/RLSIR Websites/saas\" && npx tsc --noEmit 2>&1)",
+      "Bash(cd \"C:/Users/joeys/Desktop/RLSIR Websites/saas\" && npx tsc --noEmit 2>&1 | head -30)",
+      "Bash(cd \"C:/Users/joeys/Desktop/RLSIR Websites/saas\" && npx vercel ls 2>&1 | head -20)",
+      "Bash(cd \"C:/Users/joeys/Desktop/RLSIR Websites/saas\" && npm run build 2>&1 | tail -50)",
+      "Bash(cd \"C:/Users/joeys/Desktop/RLSIR Websites/saas\" && npx vercel whoami 2>&1)",
+      "Bash(cd \"C:/Users/joeys/Desktop/RLSIR Websites/saas\" && aws amplify list-apps 2>&1 | head -20)",
+      "Bash(aws amplify:*)",
+      "WebFetch(domain:aws-amplify-prod-us-east-1-artifacts.s3.us-east-1.amazonaws.com)"
+    ]
+  }
+}

@@ -85,8 +85,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               render={<Link href="/" />}
             >
               <div
-                className="flex size-8 items-center justify-center rounded-md text-white"
-                style={{ backgroundColor: BRAND_COLORS.navy }}
+                className="flex size-8 items-center justify-center rounded-md"
+                style={{ backgroundColor: "rgba(201, 169, 110, 0.2)", color: "#C9A96E" }}
               >
                 <span
                   className="text-xs font-bold"
@@ -97,12 +97,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span
-                  className="truncate font-semibold"
+                  className="truncate font-semibold text-white"
                   style={{ fontFamily: BRAND_FONTS.display }}
                 >
                   {BRAND.name}
                 </span>
-                <span className="truncate text-xs text-muted-foreground">
+                <span className="truncate text-xs text-sidebar-foreground/50">
                   {BRAND.tagline}
                 </span>
               </div>
@@ -167,25 +167,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 render={
                   <SidebarMenuButton
                     size="lg"
-                    className="aria-expanded:bg-muted"
+                    className="aria-expanded:bg-sidebar-accent"
                   />
                 }
               >
                 <Avatar className="size-8 rounded-lg">
                   <AvatarFallback
-                    className="rounded-lg text-white text-xs"
-                    style={{ backgroundColor: BRAND_COLORS.navy }}
+                    className="rounded-lg text-xs"
+                    style={{ backgroundColor: "rgba(201, 169, 110, 0.2)", color: "#C9A96E" }}
                   >
                     {getInitials(userName)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{userName}</span>
-                  <span className="truncate text-xs text-muted-foreground">
+                  <span className="truncate font-medium text-sidebar-foreground">{userName}</span>
+                  <span className="truncate text-xs text-sidebar-foreground/50">
                     {formatRole(role)}
                   </span>
                 </div>
-                <ChevronsUpDown className="ml-auto size-4" />
+                <ChevronsUpDown className="ml-auto size-4 text-sidebar-foreground/50" />
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 className="min-w-56"
