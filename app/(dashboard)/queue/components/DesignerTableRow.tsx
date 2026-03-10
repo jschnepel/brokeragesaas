@@ -1,10 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import type { RequestDTO } from "@/lib/types"
 import { Request } from "@/lib/models"
 import { StatusBadge } from "@/components/primitives/StatusBadge"
 import { BRAND_COLORS } from "@/lib/config/brand"
+import { updateRequestStatus } from "@/actions/intake"
+import { toast } from "sonner"
 
 interface DesignerTableRowProps {
   request: RequestDTO
@@ -24,6 +27,7 @@ function timeAgo(dateStr: string): string {
 export function DesignerTableRow({ request, onSelectRequest, onCancel }: DesignerTableRowProps) {
   const [hovered, setHovered] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
+  const router = useRouter()
   const req = Request.fromDTO(request)
 
   const lastComment = req.messages.length > 0 ? req.messages[req.messages.length - 1] : null
@@ -141,6 +145,21 @@ export function DesignerTableRow({ request, onSelectRequest, onCancel }: Designe
       </td>
       {/* Cancel */}
       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+        {request.status === "awaiting_materials" && (
+          <button
+            onClick={async (e) => {
+              e.stopPropagation()
+              await updateRequestStatus(request.id, "in_progress")
+              toast.success(`Resumed: "${request.title}"`)
+              router.push(`/requests/${request.id}`)
+            }}
+            title="Resume work on this request"
+            className="mr-1 whitespace-nowrap border border-green-300 bg-green-50 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.06em] text-green-700 transition-opacity duration-150 hover:opacity-70"
+            data-testid={`resume-btn-${req.id}`}
+          >
+            Resume
+          </button>
+        )}
         {req.isActive && !req.isCancelled && (
           <button
             onClick={(e) => {
