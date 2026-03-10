@@ -2,8 +2,10 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
-import { ChatOverlay } from "@/components/features/ChatOverlay"
+import { RightPanel } from "@/components/features/RightPanel"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { SSEProvider } from "@/components/features/SSEProvider"
+import { Toaster } from "@/components/ui/sonner"
 
 export default async function DashboardLayout({
   children,
@@ -27,11 +29,14 @@ export default async function DashboardLayout({
         <SiteHeader />
         <div className="flex flex-1 flex-col">
           <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
-            {children}
+            <SSEProvider>
+              {children}
+            </SSEProvider>
           </div>
         </div>
       </SidebarInset>
-      <ChatOverlay />
+      <RightPanel />
+      <Toaster position="bottom-right" />
     </SidebarProvider>
   )
 }
