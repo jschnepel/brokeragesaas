@@ -69,12 +69,13 @@ export function PropertyHighlights({ listing }: PropertyHighlightsProps) {
   if (highlights.length === 0) return null;
 
   return (
-    <div className="mb-8">
-      <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-navy/30 mb-4">Property Highlights</h2>
+    <div className="mb-16 lg:mb-20">
+      <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">Property Highlights</span>
+      <div className="w-12 h-0.5 bg-gold mb-8" />
       <div className="grid grid-cols-2 lg:grid-cols-3 border-t border-navy/8">
         {highlights.map((item) => (
-          <div key={item.label} className="border-b border-navy/8 py-3 pr-4">
-            <span className="block text-[10px] uppercase tracking-[0.3em] text-navy/30 mb-1">{item.label}</span>
+          <div key={item.label} className="border-b border-navy/8 py-4 pr-6">
+            <span className="block text-label uppercase tracking-lg text-gold font-bold mb-1">{item.label}</span>
             <span className="block text-sm text-navy font-medium">{item.value}</span>
           </div>
         ))}

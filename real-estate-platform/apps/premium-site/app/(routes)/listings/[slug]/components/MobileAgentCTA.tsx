@@ -13,13 +13,13 @@ export function MobileAgentCTA({ phone, contactHref }: MobileAgentCTAProps) {
       <div className="flex h-14">
         <a
           href={`tel:${phone.replace(/[^+\d]/g, '')}`}
-          className="flex-1 flex items-center justify-center bg-gold text-white text-[10px] uppercase tracking-[0.25em] font-bold"
+          className="flex-1 flex items-center justify-center bg-gold text-white text-label uppercase tracking-md font-bold hover:bg-white hover:text-navy transition-all duration-500"
         >
           Call {phone}
         </a>
         <Link
           href={contactHref}
-          className="flex-1 flex items-center justify-center bg-navy text-white text-[10px] uppercase tracking-[0.25em] font-bold"
+          className="flex-1 flex items-center justify-center border border-navy/20 text-navy text-label uppercase tracking-md font-bold hover:bg-navy hover:text-white transition-all duration-500"
         >
           Schedule Showing
         </Link>

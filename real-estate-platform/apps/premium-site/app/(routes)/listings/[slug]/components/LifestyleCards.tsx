@@ -34,14 +34,15 @@ export function LifestyleCards({ data }: LifestyleCardsProps) {
   if (cards.length === 0) return null;
 
   return (
-    <div className="mb-8">
-      <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-navy/30 mb-4">Lifestyle Intelligence</h2>
+    <div className="mb-16 lg:mb-20">
+      <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">Lifestyle Intelligence</span>
+      <div className="w-12 h-0.5 bg-gold mb-8" />
       <div className="grid grid-cols-2 lg:grid-cols-3 border-t border-navy/8">
         {cards.map((card) => (
-          <div key={card.label} className="border-b border-navy/8 py-3 pr-4">
-            <span className="block text-[10px] uppercase tracking-[0.3em] text-navy/30 mb-1">{card.label}</span>
+          <div key={card.label} className="border-b border-navy/8 py-4 pr-6">
+            <span className="block text-label uppercase tracking-lg text-gold font-bold mb-1">{card.label}</span>
             <span className="block text-sm text-navy font-medium">{card.value}</span>
-            {card.detail && <span className="block text-[11px] text-navy/40 mt-0.5">{card.detail}</span>}
+            {card.detail && <span className="block text-tab text-navy/40 mt-0.5">{card.detail}</span>}
           </div>
         ))}
       </div>

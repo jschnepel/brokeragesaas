@@ -17,12 +17,13 @@ export function PropertyDetails({ listing }: PropertyDetailsProps) {
   if (details.length === 0) return null;
 
   return (
-    <div className="mb-8">
-      <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-navy/30 mb-4">Property Details</h2>
+    <div className="mb-16 lg:mb-20">
+      <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">Property Details</span>
+      <div className="w-12 h-0.5 bg-gold mb-8" />
       <div className="grid grid-cols-1 md:grid-cols-2 border-t border-navy/8">
         {details.map((d) => (
           <div key={d.label} className="flex justify-between py-2 border-b border-navy/5 pr-8">
-            <span className="text-[10px] uppercase tracking-[0.2em] text-navy/30">{d.label}</span>
+            <span className="text-label uppercase tracking-sm text-navy/40">{d.label}</span>
             <span className="text-sm text-navy">{d.value}</span>
           </div>
         ))}

@@ -20,7 +20,7 @@ export function DestinationsTable({ commuteData }: DestinationsTableProps) {
 
   return (
     <div>
-      <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-navy/30 mb-3">Distances</h3>
+      <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">Distances</span>
       <div className="border-t border-navy/8">
         {allDestinations.map((dest) => (
           <div key={dest.name} className="flex items-center justify-between py-2.5 border-b border-navy/5">

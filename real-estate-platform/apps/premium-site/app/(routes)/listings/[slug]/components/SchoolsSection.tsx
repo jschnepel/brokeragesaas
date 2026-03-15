@@ -14,12 +14,13 @@ export function SchoolsSection({ listing }: SchoolsSectionProps) {
   if (schools.length === 0) return null;
 
   return (
-    <div className="mb-8">
-      <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-navy/30 mb-4">Schools</h2>
+    <div className="mb-16 lg:mb-20">
+      <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">Schools</span>
+      <div className="w-12 h-0.5 bg-gold mb-8" />
       <div className="grid grid-cols-2 lg:grid-cols-3 border-t border-navy/8">
         {schools.map((school) => (
-          <div key={school.label} className="border-b border-navy/8 py-3 pr-4">
-            <span className="block text-[10px] uppercase tracking-[0.3em] text-navy/30 mb-1">{school.label}</span>
+          <div key={school.label} className="border-b border-navy/8 py-4 pr-6">
+            <span className="block text-label uppercase tracking-lg text-gold font-bold mb-1">{school.label}</span>
             <span className="block text-sm text-navy font-medium">{school.value}</span>
           </div>
         ))}

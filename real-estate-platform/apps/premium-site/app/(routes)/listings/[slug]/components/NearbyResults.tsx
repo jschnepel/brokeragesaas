@@ -13,12 +13,13 @@ export function NearbyResults({ data }: NearbyResultsProps) {
   if (categories.length === 0) return null;
 
   return (
-    <div className="mb-8">
-      <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-navy/30 mb-4">Nearby</h2>
+    <div className="mb-16 lg:mb-20">
+      <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">Nearby</span>
+      <div className="w-12 h-0.5 bg-gold mb-8" />
       <div className="space-y-4">
         {categories.map(([key, items]) => (
           <div key={key}>
-            <h3 className="text-[10px] uppercase tracking-[0.2em] text-gold font-bold mb-2">{CATEGORY_LABELS[key] ?? key}</h3>
+            <h3 className="text-label uppercase tracking-lg text-gold font-bold mb-2">{CATEGORY_LABELS[key] ?? key}</h3>
             <div className="border-t border-navy/8">
               {items.map((item) => (
                 <div key={item.name} className="flex justify-between py-2 border-b border-navy/5">

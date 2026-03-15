@@ -79,8 +79,9 @@ export function CommuteMap({ lat, lng, address }: CommuteMapProps) {
 
   // address prop consumed for aria-label accessibility
   return (
-    <div className="mb-8">
-      <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-navy/30 mb-4">Location</h2>
+    <div className="mb-16 lg:mb-20">
+      <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">Location</span>
+      <div className="w-12 h-0.5 bg-gold mb-8" />
       <div className="relative">
         <Map
           initialViewState={{ latitude: lat, longitude: lng, zoom: 12 }}
@@ -99,8 +100,11 @@ export function CommuteMap({ lat, lng, address }: CommuteMapProps) {
           )}
         </Map>
         <div className="md:absolute md:top-4 md:left-4 md:w-72 mt-3 md:mt-0">
-          <div className="bg-white/95 backdrop-blur-sm border border-navy/10 p-4 shadow-sm">
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-navy/30 mb-2">Your Commute</h3>
+          <div
+            className="bg-white/95 backdrop-blur-sm border border-navy/10 p-4 shadow-lg shadow-black/5"
+            style={{ borderRadius: 4 }}
+          >
+            <h3 className="text-label uppercase tracking-xl text-gold font-bold mb-3">Your Commute</h3>
             <form onSubmit={handleSubmit} className="flex gap-2">
               <input
                 ref={inputRef}
@@ -109,12 +113,13 @@ export function CommuteMap({ lat, lng, address }: CommuteMapProps) {
                 onChange={(e) => setWorkAddress(e.target.value)}
                 placeholder="Enter work address..."
                 aria-label="Work address for commute calculation"
-                className="flex-1 text-sm border border-navy/15 px-3 py-2 text-navy placeholder:text-navy/25 focus:outline-none focus:border-gold"
+                className="flex-1 text-sm border border-navy/15 px-3 py-2 text-navy placeholder:text-navy/25 focus:outline-none focus:border-gold transition-all duration-500"
               />
               <button
                 type="submit"
                 disabled={loading}
-                className="bg-navy text-white px-3 py-2 text-[10px] uppercase tracking-widest font-bold hover:bg-gold transition-colors disabled:opacity-50"
+                className="bg-gold text-white px-4 py-2 text-label uppercase tracking-md font-bold hover:bg-white hover:text-navy transition-all duration-500 disabled:opacity-50"
+                style={{ borderRadius: 4 }}
               >
                 {loading ? '...' : 'Go'}
               </button>
