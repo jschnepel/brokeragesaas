@@ -193,7 +193,7 @@ export async function searchListings(
   }
 
   if (filters.cities && filters.cities.length > 0) {
-    conditions.push(`city ILIKE ANY($${paramIndex++}::text[])`);
+    conditions.push(`city = ANY($${paramIndex++}::text[])`);
     params.push(filters.cities);
   }
   if (filters.postalCode) {
@@ -349,7 +349,7 @@ export async function searchListingsWithPhotos(
   }
 
   if (filters.cities && filters.cities.length > 0) {
-    conditions.push(`lr.city ILIKE ANY($${paramIndex++}::text[])`);
+    conditions.push(`lr.city = ANY($${paramIndex++}::text[])`);
     params.push(filters.cities);
   }
   if (filters.postalCode) {
