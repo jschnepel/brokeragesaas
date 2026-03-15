@@ -143,50 +143,55 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
 
       <ListingHeader insights={insights} />
 
-      <section className="mx-auto max-w-[1600px] px-4 md:px-8 lg:px-20 py-8 lg:py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-          <div className="lg:col-span-8">
-            <ListingDescription remarks={listing.public_remarks} />
-            <PropertyHighlights listing={listing} />
-            <FeaturesAccordion sections={featureSections} />
+      {/* Main content — white background with sidebar */}
+      <section className="bg-white py-12 lg:py-16">
+        <div className="mx-auto max-w-[1600px] px-4 md:px-8 lg:px-20">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+            <div className="lg:col-span-8">
+              <ListingDescription remarks={listing.public_remarks} />
+              <PropertyHighlights listing={listing} />
+              <FeaturesAccordion sections={featureSections} />
 
-            {hasCoordinates && (
-              <Suspense fallback={<div className="mb-8 h-64 bg-cream-alt animate-pulse" />}>
-                <LocationCommute
+              {hasCoordinates && (
+                <Suspense fallback={<div className="mb-16 h-64 bg-cream-alt animate-pulse" style={{ borderRadius: 4 }} />}>
+                  <LocationCommute
+                    listingKey={listing.listing_key}
+                    lat={listing.latitude!}
+                    lng={listing.longitude!}
+                    address={address}
+                  />
+                </Suspense>
+              )}
+
+              <SchoolsSection listing={listing} />
+
+              <Suspense fallback={<div className="mb-16 h-32 bg-cream-alt animate-pulse" style={{ borderRadius: 4 }} />}>
+                <NearbySection
                   listingKey={listing.listing_key}
-                  lat={listing.latitude!}
-                  lng={listing.longitude!}
-                  address={address}
+                  lat={listing.latitude}
+                  lng={listing.longitude}
                 />
               </Suspense>
-            )}
+            </div>
 
-            {hasCoordinates && (
-              <Suspense fallback={<div className="mb-8 h-32 bg-cream-alt animate-pulse" />}>
-                <LifestyleIntel
-                  listingKey={listing.listing_key}
-                  lat={listing.latitude!}
-                  lng={listing.longitude!}
-                />
-              </Suspense>
-            )}
-
-            <SchoolsSection listing={listing} />
-
-            <Suspense fallback={<div className="mb-8 h-32 bg-cream-alt animate-pulse" />}>
-              <NearbySection
-                listingKey={listing.listing_key}
-                lat={listing.latitude}
-                lng={listing.longitude}
-              />
-            </Suspense>
-
-            <PropertyDetails listing={listing} />
+            <AgentSidebar agent={agent} contactHref={contactHref} />
           </div>
-
-          <AgentSidebar agent={agent} contactHref={contactHref} />
         </div>
       </section>
+
+      {/* Lifestyle Intelligence — full-width navy band */}
+      {hasCoordinates && (
+        <Suspense fallback={<div className="bg-navy py-16 lg:py-20"><div className="mx-auto max-w-[1600px] px-4 md:px-8 lg:px-20 h-32 bg-navy-mid/30 animate-pulse" /></div>}>
+          <LifestyleIntel
+            listingKey={listing.listing_key}
+            lat={listing.latitude!}
+            lng={listing.longitude!}
+          />
+        </Suspense>
+      )}
+
+      {/* Property Details — full-width navy band */}
+      <PropertyDetails listing={listing} />
 
       <IdxFooter listing={listing} brokerageName={agent.brokerage} />
       <MobileAgentCTA phone={agent.contact.phone} contactHref={contactHref} />
