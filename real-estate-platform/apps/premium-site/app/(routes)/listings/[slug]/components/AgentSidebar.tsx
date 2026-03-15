@@ -13,7 +13,7 @@ interface AgentSidebarProps {
 
 export function AgentSidebar({ agent, contactHref }: AgentSidebarProps) {
   return (
-    <aside className="hidden xl:block absolute top-8 right-0 w-[280px]">
+    <aside className="hidden xl:block absolute top-8 w-[280px]" style={{ left: 'calc(1100px + 2rem)' }}>
       <div className="sticky top-24 space-y-4">
         <div
           className="bg-white border border-navy/8 p-6 md:p-8 shadow-lg shadow-black/5"
