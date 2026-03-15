@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { ListingSearchFilters } from '@platform/database/src/queries/listings';
+import { DEFAULT_CITIES, DEFAULT_PROPERTY_TYPE, DEFAULT_SORT } from './listing-defaults';
 
 export interface MapBounds {
   swLat: number;
@@ -12,7 +13,7 @@ export interface MapBounds {
 }
 
 export interface FilterState {
-  city: string;
+  cities: string;
   minPrice: string;
   maxPrice: string;
   minBeds: string;
@@ -37,7 +38,7 @@ export interface FilterState {
 }
 
 const FILTER_KEYS: (keyof FilterState)[] = [
-  'city', 'minPrice', 'maxPrice', 'minBeds', 'minBaths', 'minSqft',
+  'cities', 'minPrice', 'maxPrice', 'minBeds', 'minBaths', 'minSqft',
   'propertyType', 'listingType', 'sortBy', 'hasPool', 'hasGarage',
   'hasFireplace', 'isHorseProperty', 'minYearBuilt', 'maxDom', 'maxHoa',
   'minLotAcres', 'minStories', 'minGarageSpaces', 'keyword',
@@ -48,7 +49,7 @@ const BOUND_KEYS = ['swLat', 'swLng', 'neLat', 'neLng'] as const;
 
 function parseFilters(params: URLSearchParams): FilterState {
   return {
-    city: params.get('city') ?? '',
+    cities: params.get('cities') ?? params.get('city') ?? '',
     minPrice: params.get('minPrice') ?? '',
     maxPrice: params.get('maxPrice') ?? '',
     minBeds: params.get('minBeds') ?? '',
@@ -98,16 +99,20 @@ export function filtersToSearchFilters(
 ): ListingSearchFilters {
   const filters: ListingSearchFilters = {
     status: ['Active', 'Active Under Contract', 'Coming Soon'],
-    sortBy: (state.sortBy as ListingSearchFilters['sortBy']) || 'price_desc',
+    sortBy: (state.sortBy as ListingSearchFilters['sortBy']) || DEFAULT_SORT,
   };
 
-  if (state.city) filters.city = state.city;
+  // Cities: empty = defaults, 'all' = no filter, otherwise split comma string
+  const citiesRaw = state.cities || DEFAULT_CITIES.join(',');
+  if (citiesRaw !== 'all') {
+    filters.cities = citiesRaw.split(',').map((c) => c.trim()).filter(Boolean);
+  }
   if (state.minPrice) filters.minPrice = parseInt(state.minPrice, 10);
   if (state.maxPrice) filters.maxPrice = parseInt(state.maxPrice, 10);
   if (state.minBeds) filters.minBeds = parseInt(state.minBeds, 10);
   if (state.minBaths) filters.minBaths = parseInt(state.minBaths, 10);
   if (state.minSqft) filters.minSqft = parseInt(state.minSqft, 10);
-  if (state.propertyType) filters.propertyType = state.propertyType;
+  filters.propertyType = state.propertyType || DEFAULT_PROPERTY_TYPE;
   if (state.listingType && (state.listingType === 'sale' || state.listingType === 'rent' || state.listingType === 'all')) {
     filters.listingType = state.listingType;
   }
@@ -172,15 +177,33 @@ export function useListingsSearch() {
   }, [searchParams]);
 
   const hasActiveFilters = useMemo(() => {
-    return FILTER_KEYS.some(
-      (k) => k !== 'sortBy' && k !== 'page' && filterState[k] !== ''
-    );
+    return FILTER_KEYS.some((k) => {
+      if (k === 'sortBy' || k === 'page') return false;
+      if (k === 'cities') {
+        const current = filterState.cities || DEFAULT_CITIES.join(',');
+        return current !== DEFAULT_CITIES.join(',') && current !== 'all';
+      }
+      if (k === 'propertyType') {
+        const current = filterState.propertyType || DEFAULT_PROPERTY_TYPE;
+        return current !== DEFAULT_PROPERTY_TYPE;
+      }
+      return filterState[k] !== '';
+    });
   }, [filterState]);
 
   const activeFilterCount = useMemo(() => {
-    return FILTER_KEYS.filter(
-      (k) => k !== 'sortBy' && k !== 'page' && filterState[k] !== ''
-    ).length;
+    return FILTER_KEYS.filter((k) => {
+      if (k === 'sortBy' || k === 'page') return false;
+      if (k === 'cities') {
+        const current = filterState.cities || DEFAULT_CITIES.join(',');
+        return current !== DEFAULT_CITIES.join(',') && current !== 'all';
+      }
+      if (k === 'propertyType') {
+        const current = filterState.propertyType || DEFAULT_PROPERTY_TYPE;
+        return current !== DEFAULT_PROPERTY_TYPE;
+      }
+      return filterState[k] !== '';
+    }).length;
   }, [filterState]);
 
   const buildUrl = useCallback(
