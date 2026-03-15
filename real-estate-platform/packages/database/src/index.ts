@@ -16,3 +16,21 @@ export {
   getPortfolioTrends,
   getFeaturePriceImpact,
 } from './queries/analytics';
+
+// Community queries
+export {
+  getCommunityBySlug,
+  getCommunityAmenities,
+  getCommunitiesByRegion,
+  getAllCommunities,
+  getAllRegionsWithCounts,
+  getCommunityListingFilters,
+} from './queries/communities';
+export type {
+  CommunityRow,
+  CommunityAmenityRow,
+  CommunitySummaryRow,
+  CommunityIdRow,
+  RegionWithCountRow,
+  CommunityListingFilter,
+} from './queries/communities';
