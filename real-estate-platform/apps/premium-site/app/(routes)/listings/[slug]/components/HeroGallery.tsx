@@ -88,13 +88,13 @@ export function HeroGallery({
 function HeroContent({ streetAddress, cityStateZip, area, price, quickStats }: { listing: ListingDetail; streetAddress: string; cityStateZip: string; area: string; price: string; quickStats: string[] }) {
   return (
     <div>
-      <span className="text-[11px] uppercase tracking-[0.4em] font-bold text-gold">{area}</span>
+      <span className="text-sm uppercase tracking-[0.4em] font-bold text-gold">{area}</span>
       <h1 className="text-3xl md:text-4xl lg:text-6xl font-serif text-white leading-[0.9] tracking-tight mt-2">{streetAddress}</h1>
-      <p className="text-white/70 text-sm mt-2">{cityStateZip}</p>
+      <p className="text-white/70 text-base mt-2">{cityStateZip}</p>
       <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 mt-4">
         <span className="text-2xl md:text-3xl font-serif text-white">{price}</span>
-        <div className="flex flex-wrap gap-x-3 gap-y-1">
-          {quickStats.map((stat) => (<span key={stat} className="text-sm text-white/60">{stat}</span>))}
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {quickStats.map((stat) => (<span key={stat} className="text-base text-white/60">{stat}</span>))}
         </div>
       </div>
     </div>
