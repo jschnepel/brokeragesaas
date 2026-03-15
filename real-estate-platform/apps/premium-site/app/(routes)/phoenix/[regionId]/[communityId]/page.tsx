@@ -12,6 +12,21 @@ import { searchListingsWithPhotos } from '@platform/database/src/queries/listing
 import type { ListingSearchFilters } from '@platform/database/src/queries/listings';
 import { adaptCommunityData } from './lib/adapter';
 import { buildPlaceSchema, buildBreadcrumbSchema } from './structured-data';
+import { CommunityHero } from './components/CommunityHero';
+import { CommunityKpiCards } from './components/CommunityKpiCards';
+import { CommunityNarrative } from './components/CommunityNarrative';
+import { CommunitySidebar } from './components/CommunitySidebar';
+import { CommunityExploreMap } from './components/CommunityExploreMap';
+import { CommunitySignatureAmenity } from './components/CommunitySignatureAmenity';
+import { CommunityTransportation } from './components/CommunityTransportation';
+import { CommunityQualityOfLife } from './components/CommunityQualityOfLife';
+import { CommunitySchools } from './components/CommunitySchools';
+import { CommunityDining } from './components/CommunityDining';
+import { CommunityEconomy } from './components/CommunityEconomy';
+import { CommunityFeaturedListing } from './components/CommunityFeaturedListing';
+import { CommunityListingsGrid } from './components/CommunityListingsGrid';
+import { CommunityCta } from './components/CommunityCta';
+import { CommunitySimilar } from './components/CommunitySimilar';
 
 // ── ISR: revalidate every hour ──────────────────────
 export const revalidate = 3600;
@@ -100,63 +115,103 @@ export default async function CommunityDetailPage({
         dangerouslySetInnerHTML={{ __html: structuredDataHtml }}
       />
 
-      {/* Hero placeholder */}
-      <section className="relative w-full" style={{ height: '50vh', minHeight: 400 }}>
-        {data.heroImage ? (
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${data.heroImage})` }}
-          >
-            <div className="absolute inset-0 bg-black/40" />
+      {/* Hero */}
+      <CommunityHero
+        name={data.name}
+        city={data.city}
+        zipCode={data.zipCode}
+        elevation={data.elevation}
+        heroImage={data.heroImage}
+        regionId={data.regionId}
+        regionName={data.regionName}
+        tagline={data.narrative.tagline}
+      />
+
+      {/* KPI Cards */}
+      {data.metrics.length > 0 && (
+        <CommunityKpiCards metrics={data.metrics} />
+      )}
+
+      {/* Bento Layout: Narrative (8 cols) + Sidebar (4 cols) */}
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10 py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Left column — narrative + explore + signature */}
+          <div className="lg:col-span-8 space-y-12">
+            <CommunityNarrative
+              narrative={data.narrative}
+              features={data.tags}
+              communityId={data.id}
+            />
+
+            <CommunityExploreMap
+              exploreData={data.exploreData}
+              boundaryGeoJson={data.boundaryGeoJson}
+            />
+
+            <CommunitySignatureAmenity
+              signatureAmenity={data.signatureAmenity}
+            />
           </div>
-        ) : (
-          <div className="absolute inset-0 bg-navy/10" />
-        )}
-        <div className="relative z-10 flex h-full flex-col items-center justify-center text-center text-white px-4">
-          <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl font-bold mb-3">
-            {data.name}
-          </h1>
-          <p className="text-lg md:text-xl opacity-90">
-            {data.city}{data.zipCode ? ` · ${data.zipCode}` : ''} · {data.regionName}
-          </p>
-        </div>
-      </section>
 
-      {/* Placeholder content */}
-      <main className="mx-auto max-w-7xl px-4 py-12 space-y-16">
-        <div className="text-center">
-          <p className="text-sm uppercase tracking-widest text-gray-500 mb-2">
-            {data.regionName}
-          </p>
-          <h2 className="font-serif text-3xl font-semibold text-gray-900 mb-4">
-            {data.name}
-          </h2>
-          {data.narrative.tagline && (
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              {data.narrative.tagline}
-            </p>
-          )}
-        </div>
-
-        {/* Summary stats */}
-        {data.stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <StatCard label="Median Price" value={data.stats.avgPrice} />
-            <StatCard label="Price/Sq Ft" value={data.stats.avgPpsf} />
-            <StatCard label="Avg DOM" value={`${data.stats.avgDom} days`} />
-            <StatCard label="Inventory" value={String(data.stats.inventory)} />
+          {/* Right column — sidebar */}
+          <div className="lg:col-span-4">
+            <CommunitySidebar
+              gallery={data.gallery}
+              demographics={data.demographics}
+              stats={data.stats}
+              communityId={data.id}
+              communityName={data.name}
+              inventory={data.stats?.inventory ?? 0}
+            />
           </div>
-        )}
-
-        {/* Component sections — coming next */}
-        <div className="rounded-xl border border-dashed border-gray-300 p-12 text-center">
-          <p className="text-gray-500 text-sm">
-            Components coming soon — {listings.length} listings loaded,{' '}
-            {similarCommunities.length} similar communities,{' '}
-            {amenities.length} amenities
-          </p>
         </div>
-      </main>
+      </div>
+
+      {/* Full-width sections */}
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10 pb-12">
+        <div className="grid grid-cols-12 gap-6">
+          <CommunityTransportation
+            airports={data.airports}
+            keyDistances={data.keyDistances}
+          />
+
+          <CommunityQualityOfLife qualityOfLife={data.qualityOfLife} />
+
+          <CommunitySchools schools={data.schools} />
+
+          <CommunityDining restaurants={data.restaurants} />
+
+          <CommunityEconomy
+            employers={data.employers}
+            economicStats={data.economicStats}
+          />
+        </div>
+      </div>
+
+      {/* Featured Listing */}
+      {listings.length > 0 && (
+        <CommunityFeaturedListing listing={listings[0]} />
+      )}
+
+      {/* Listings Grid */}
+      {listings.length > 1 && (
+        <CommunityListingsGrid listings={listings.slice(1)} />
+      )}
+
+      {/* CTA */}
+      <CommunityCta
+        communityName={data.name}
+        communityId={data.id}
+      />
+
+      {/* Similar Communities */}
+      {similarCommunities.length > 0 && (
+        <CommunitySimilar
+          communities={similarCommunities}
+          regionId={data.regionId}
+          regionName={data.regionName}
+        />
+      )}
     </>
   );
 }
@@ -184,11 +239,3 @@ async function fetchListings(
   return searchListingsWithPhotos(searchFilters);
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-gray-50 p-6 text-center">
-      <p className="text-sm text-gray-500 uppercase tracking-wide mb-1">{label}</p>
-      <p className="font-serif text-2xl font-semibold text-gray-900">{value}</p>
-    </div>
-  );
-}
