@@ -62,7 +62,7 @@ export async function generateMetadata({
   if (params.minPrice) parts.push(`Over ${formatPriceLabel(params.minPrice)}`);
   if (params.maxPrice && !params.minPrice) parts.push(`Under ${formatPriceLabel(params.maxPrice)}`);
 
-  const title = `${parts.join(' ')} | Yong Choi`;
+  const title = parts.join(' ');
 
   return {
     title,
