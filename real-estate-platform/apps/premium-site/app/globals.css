@@ -111,6 +111,14 @@
   z-index: 50;
 }
 
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* ── Brand CSS Variables (per-agent theming) ───────────────────── */
 :root {
   --nav-height: 120px;
