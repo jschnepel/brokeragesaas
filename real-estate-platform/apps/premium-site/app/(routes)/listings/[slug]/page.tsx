@@ -142,7 +142,7 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
   const hasCoordinates = listing.latitude != null && listing.longitude != null;
 
   return (
-    <main className="bg-white">
+    <main className="min-h-screen bg-cream text-navy font-sans antialiased">
       <ListingDetailClient gallery={gallery} address={address}>
         <HeroGallery
           listing={listing}
@@ -167,15 +167,19 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
         </Suspense>
       )}
 
-      <section className="relative max-w-[1600px] mx-auto px-4 md:px-8 lg:px-20 py-8 lg:py-12">
-        <div className="max-w-[1100px] mx-auto xl:mx-0">
+      {/* ─── Bento Layout: Content + Agent Sidebar ─── */}
+      <section className="py-10 md:py-16 max-w-[1600px] mx-auto px-4 md:px-8 lg:px-20">
+        <div className="grid grid-cols-12 gap-3 md:gap-4 items-start">
+
+          {/* Main Content Card */}
+          <div className="col-span-12 lg:col-span-8 bg-white p-6 md:p-8 lg:p-10 shadow-lg shadow-black/5">
             <ListingDescription remarks={listing.public_remarks} />
             <PropertyHighlights listing={listing} />
             <SchoolsSection listing={listing} />
             <FeaturesAccordion sections={featureSections} />
 
             {hasCoordinates && (
-              <Suspense fallback={<div className="mb-8 h-64 bg-cream-alt animate-pulse" />}>
+              <Suspense fallback={<div className="mb-16 h-64 bg-cream-alt animate-pulse" style={{ borderRadius: 4 }} />}>
                 <LocationCommute
                   listingKey={listing.listing_key}
                   lat={listing.latitude!}
@@ -185,7 +189,7 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
               </Suspense>
             )}
 
-            <Suspense fallback={<div className="mb-8 h-32 bg-cream-alt animate-pulse" />}>
+            <Suspense fallback={<div className="mb-16 h-32 bg-cream-alt animate-pulse" style={{ borderRadius: 4 }} />}>
               <NearbySection
                 listingKey={listing.listing_key}
                 lat={listing.latitude}
@@ -194,8 +198,11 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
             </Suspense>
 
             <PropertyDetails listing={listing} />
+          </div>
+
+          {/* Right Column: Agent Card */}
+          <AgentSidebar agent={agent} contactHref={contactHref} />
         </div>
-        <AgentSidebar agent={agent} contactHref={contactHref} />
       </section>
 
       <IdxFooter listing={listing} brokerageName={agent.brokerage} />
