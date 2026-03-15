@@ -79,17 +79,14 @@ export function CommuteMap({ lat, lng, address }: CommuteMapProps) {
 
   // address prop consumed for aria-label accessibility
   return (
-    <div className="mb-16 lg:mb-20">
-      <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">Location</span>
-      <div className="w-12 h-0.5 bg-gold mb-8" />
-      <div className="relative">
-        <Map
-          initialViewState={{ latitude: lat, longitude: lng, zoom: 12 }}
-          style={{ width: '100%', height: '400px' }}
-          mapStyle={`https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`}
-          attributionControl={false}
-          aria-label={`Map showing location of ${address}`}
-        >
+    <div className="relative">
+      <Map
+        initialViewState={{ latitude: lat, longitude: lng, zoom: 12 }}
+        style={{ width: '100%', height: '100%', minHeight: '400px' }}
+        mapStyle={`https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`}
+        attributionControl={false}
+        aria-label={`Map showing location of ${address}`}
+      >
           <Marker latitude={lat} longitude={lng}>
             <div className="w-3 h-3 bg-gold rounded-full border-2 border-white shadow-lg" />
           </Marker>
@@ -129,7 +126,6 @@ export function CommuteMap({ lat, lng, address }: CommuteMapProps) {
             )}
           </div>
         </div>
-      </div>
     </div>
   );
 }
