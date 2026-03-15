@@ -157,9 +157,8 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
 
       <ListingHeader insights={insights} />
 
-      <section className="mx-auto max-w-[1600px] px-4 md:px-8 lg:px-20 py-8 lg:py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-          <div className="lg:col-span-8">
+      <section className="relative mx-auto max-w-content px-4 md:px-8 lg:px-20 py-8 lg:py-12">
+        <div className="max-w-[800px] mx-auto">
             <ListingDescription remarks={listing.public_remarks} />
             <PropertyHighlights listing={listing} />
             <SchoolsSection listing={listing} />
@@ -195,10 +194,8 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
             </Suspense>
 
             <PropertyDetails listing={listing} />
-          </div>
-
-          <AgentSidebar agent={agent} contactHref={contactHref} />
         </div>
+        <AgentSidebar agent={agent} contactHref={contactHref} />
       </section>
 
       <IdxFooter listing={listing} brokerageName={agent.brokerage} />
