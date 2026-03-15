@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import type { CalculatedInsights } from '../lib/types';
 
 interface ListingHeaderProps {
@@ -19,14 +18,6 @@ export function ListingHeader({ insights }: ListingHeaderProps) {
 
   return (
     <>
-      <div className="bg-cream-alt border-b border-navy/10 py-3">
-        <div className="mx-auto max-w-[1600px] px-4 md:px-8 lg:px-20">
-          <Link href="/listings" className="text-xs text-navy/40 hover:text-gold transition-all duration-500 flex items-center gap-1.5">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-            Back to Listings
-          </Link>
-        </div>
-      </div>
       {cards.length > 0 && (
         <div className="mx-auto max-w-[1600px] px-4 md:px-8 lg:px-20 py-6">
           <div className="flex gap-4">
