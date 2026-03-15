@@ -148,6 +148,7 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
           <div className="lg:col-span-8">
             <ListingDescription remarks={listing.public_remarks} />
             <PropertyHighlights listing={listing} />
+            <SchoolsSection listing={listing} />
             <FeaturesAccordion sections={featureSections} />
 
             {hasCoordinates && (
@@ -170,8 +171,6 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
                 />
               </Suspense>
             )}
-
-            <SchoolsSection listing={listing} />
 
             <Suspense fallback={<div className="mb-8 h-32 bg-cream-alt animate-pulse" />}>
               <NearbySection

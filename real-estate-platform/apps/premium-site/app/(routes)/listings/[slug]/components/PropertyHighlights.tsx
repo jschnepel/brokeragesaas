@@ -15,12 +15,6 @@ function buildHighlights(listing: ListingDetail): HighlightItem[] {
     items.push({ label: 'Pool', value: detail });
   }
 
-  if (listing.fireplace_yn) {
-    const features = parseJsonbArray(listing.fireplace_features);
-    const count = features.length;
-    items.push({ label: 'Fireplace', value: count > 1 ? `${count} Fireplaces` : 'Fireplace' });
-  }
-
   const communityFeatures = parseJsonbArray(listing.community_features);
   const gatedKeywords = communityFeatures.filter((f) => /guard.?gated|gated|age.?restrict/i.test(f));
   if (gatedKeywords.length > 0) {
