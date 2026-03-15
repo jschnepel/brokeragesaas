@@ -65,16 +65,16 @@ export function HeroGallery({
               <img src={url} alt={`${address} photo ${i + 2}`} className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-500" data-photo-index={i + 1} />
             </div>
           ))}
-          <div className="relative aspect-[16/9] overflow-hidden cursor-pointer">
+          <div className="relative aspect-[16/9] overflow-hidden cursor-pointer" data-photo-index={4}>
             {gallery.length > 4 ? (
               <>
-                <img src={gallery[4]} alt={`${address} photo 5`} className="w-full h-full object-cover" data-photo-index={4} />
-                <div className="absolute inset-0 bg-navy/60 flex items-center justify-center">
+                <img src={gallery[4]} alt={`${address} photo 5`} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-navy/60 flex items-center justify-center pointer-events-none">
                   <span className="text-white text-sm font-medium">+{gallery.length - 4} Photos</span>
                 </div>
               </>
             ) : gallery[4] ? (
-              <img src={gallery[4]} alt={`${address} photo 5`} className="w-full h-full object-cover" data-photo-index={4} />
+              <img src={gallery[4]} alt={`${address} photo 5`} className="w-full h-full object-cover" />
             ) : null}
           </div>
         </div>
