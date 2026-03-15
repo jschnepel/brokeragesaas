@@ -10,7 +10,7 @@ interface RelocateClientProps {
   agentId: string;
 }
 
-export function RelocateClient({ agentId }: RelocateClientProps) {
+export function RelocateClient({ agentId: _agentId }: RelocateClientProps) {
   const [quizOpen, setQuizOpen] = useState(false);
 
   return (
