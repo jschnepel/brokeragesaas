@@ -34,20 +34,18 @@ export function LifestyleCards({ data }: LifestyleCardsProps) {
   if (cards.length === 0) return null;
 
   return (
-    <section className="bg-navy py-16 lg:py-20">
-      <div className="max-w-[1600px] mx-auto px-4 md:px-8 lg:px-20">
-        <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">Lifestyle Intelligence</span>
-        <div className="w-12 h-0.5 bg-gold mb-8" />
-        <div className="grid grid-cols-2 lg:grid-cols-3 border-t border-white/10">
-          {cards.map((card) => (
-            <div key={card.label} className="border-b border-white/10 py-5 pr-6">
-              <span className="block text-label uppercase tracking-lg text-gold font-bold mb-1">{card.label}</span>
-              <span className="block text-sm text-white font-medium">{card.value}</span>
-              {card.detail && <span className="block text-tab text-white/40 mt-0.5">{card.detail}</span>}
-            </div>
-          ))}
-        </div>
+    <div className="mb-16 lg:mb-20">
+      <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">Lifestyle Intelligence</span>
+      <div className="w-12 h-0.5 bg-gold mb-8" />
+      <div className="grid grid-cols-2 lg:grid-cols-3 border-t border-navy/8">
+        {cards.map((card) => (
+          <div key={card.label} className="border-b border-navy/8 py-4 pr-6">
+            <span className="block text-label uppercase tracking-lg text-gold font-bold mb-1">{card.label}</span>
+            <span className="block text-sm text-navy font-medium">{card.value}</span>
+            {card.detail && <span className="block text-tab text-navy/40 mt-0.5">{card.detail}</span>}
+          </div>
+        ))}
       </div>
-    </section>
+    </div>
   );
 }

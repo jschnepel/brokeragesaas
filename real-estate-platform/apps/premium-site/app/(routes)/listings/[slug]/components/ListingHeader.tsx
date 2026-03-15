@@ -28,8 +28,8 @@ export function ListingHeader({ insights }: ListingHeaderProps) {
         </div>
       </div>
       {cards.length > 0 && (
-        <div className="bg-cream py-8">
-          <div className="mx-auto max-w-[1600px] px-4 md:px-8 lg:px-20 flex gap-4">
+        <div className="mx-auto max-w-[1600px] px-4 md:px-8 lg:px-20 py-6">
+          <div className="flex gap-4">
             {cards.map((card) => (
               <div
                 key={card.label}
