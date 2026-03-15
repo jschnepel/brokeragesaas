@@ -94,6 +94,19 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
   ]);
 
   const address = listing.unparsed_address ?? `MLS# ${listing.listing_id}`;
+  // Build street-only address from parsed components for the hero title
+  const streetAddress = [
+    listing.street_number,
+    listing.street_dir_prefix,
+    listing.street_name,
+    listing.street_suffix,
+    listing.unit_number ? `#${listing.unit_number}` : null,
+  ].filter(Boolean).join(' ') || address;
+  const cityStateZip = [
+    listing.city,
+    listing.state_or_province ? `, ${listing.state_or_province}` : null,
+    listing.postal_code ? ` ${listing.postal_code}` : null,
+  ].filter(Boolean).join('');
   const area = listing.subdivision_name ?? listing.city ?? 'Arizona';
   const price = formatPrice(listing.list_price);
   const gallery = photos.map((p) => p.media_url);
@@ -134,7 +147,8 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
         <HeroGallery
           listing={listing}
           gallery={gallery}
-          address={address}
+          streetAddress={streetAddress}
+          cityStateZip={cityStateZip}
           area={area}
           price={price}
           quickStats={quickStats}
