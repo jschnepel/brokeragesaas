@@ -157,8 +157,18 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
 
       <ListingHeader insights={insights} />
 
+      {hasCoordinates && (
+        <Suspense fallback={<div className="mb-8 h-32 bg-cream-alt animate-pulse" />}>
+          <LifestyleIntel
+            listingKey={listing.listing_key}
+            lat={listing.latitude!}
+            lng={listing.longitude!}
+          />
+        </Suspense>
+      )}
+
       <section className="relative mx-auto max-w-content px-4 md:px-8 lg:px-20 py-8 lg:py-12">
-        <div className="max-w-[800px] mx-auto">
+        <div className="max-w-[960px] mx-auto">
             <ListingDescription remarks={listing.public_remarks} />
             <PropertyHighlights listing={listing} />
             <SchoolsSection listing={listing} />
@@ -171,16 +181,6 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
                   lat={listing.latitude!}
                   lng={listing.longitude!}
                   address={address}
-                />
-              </Suspense>
-            )}
-
-            {hasCoordinates && (
-              <Suspense fallback={<div className="mb-8 h-32 bg-cream-alt animate-pulse" />}>
-                <LifestyleIntel
-                  listingKey={listing.listing_key}
-                  lat={listing.latitude!}
-                  lng={listing.longitude!}
                 />
               </Suspense>
             )}
