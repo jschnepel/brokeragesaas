@@ -303,6 +303,9 @@ export function Navigation() {
                   <Link href="/market/compare" className="block px-5 py-3 text-navy text-[14px] font-serif hover:text-gold hover:bg-cream/50 transition-colors">
                     Community Comparison
                   </Link>
+                  <Link href="/market/relocate" className="block px-5 py-3 text-navy text-[14px] font-serif hover:text-gold hover:bg-cream/50 transition-colors">
+                    Relocation Guide
+                  </Link>
                 </div>
               )}
             </div>
@@ -522,6 +525,9 @@ export function Navigation() {
                     </Link>
                     <Link href="/market/compare" className="block py-2.5 text-[13px] text-white/60 hover:text-gold transition-colors">
                       Community Comparison
+                    </Link>
+                    <Link href="/market/relocate" className="block py-2.5 text-[13px] text-white/60 hover:text-gold transition-colors">
+                      Relocation Guide
                     </Link>
                   </div>
                 )}
