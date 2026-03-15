@@ -167,8 +167,8 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
         </Suspense>
       )}
 
-      <section className="relative mx-auto max-w-content px-4 md:px-8 lg:px-20 py-8 lg:py-12">
-        <div className="max-w-[960px] mx-auto">
+      <section className="relative max-w-[1600px] mx-auto px-4 md:px-8 lg:px-20 py-8 lg:py-12">
+        <div className="max-w-[1100px] mx-auto">
             <ListingDescription remarks={listing.public_remarks} />
             <PropertyHighlights listing={listing} />
             <SchoolsSection listing={listing} />
