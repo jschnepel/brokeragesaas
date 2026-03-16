@@ -1,29 +1,44 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { RelocateHero } from './components/RelocateHero';
 import { LifestyleGrid } from './components/LifestyleGrid';
+import { InlineQuiz } from './components/InlineQuiz';
+import { InlineQuizResults } from './components/InlineQuizResults';
 import { BottomCTA } from './components/BottomCTA';
-import { QuizModal } from './components/QuizModal';
+import { computeMatches } from './data';
+import type { FactorId, ZoneId } from './data';
 
 interface RelocateClientProps {
   agentId: string;
 }
 
 export function RelocateClient({ agentId: _agentId }: RelocateClientProps) {
-  const [quizOpen, setQuizOpen] = useState(false);
+  const [matchedZones, setMatchedZones] = useState<[ZoneId, ZoneId] | null>(null);
+
+  const handleQuizComplete = useCallback((answers: Record<FactorId, number>) => {
+    const matches = computeMatches(answers);
+    setMatchedZones(matches);
+  }, []);
+
+  const handleRetake = useCallback(() => {
+    setMatchedZones(null);
+    // Scroll back to quiz section
+    const quizSection = document.querySelector('[data-testid="inline-quiz"]');
+    if (quizSection) {
+      quizSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, []);
 
   return (
-    <main className="bg-white min-h-screen pt-28 lg:pt-32">
-      <div className="max-w-[1600px] mx-auto px-6 lg:px-20">
-        <RelocateHero onOpenQuiz={() => setQuizOpen(true)} />
-        <LifestyleGrid className="pb-16" />
-        <BottomCTA onOpenQuiz={() => setQuizOpen(true)} />
-      </div>
-
-      {quizOpen && (
-        <QuizModal onClose={() => setQuizOpen(false)} />
+    <main className="min-h-screen">
+      <RelocateHero />
+      <LifestyleGrid />
+      <InlineQuiz onComplete={handleQuizComplete} />
+      {matchedZones && (
+        <InlineQuizResults matchedZones={matchedZones} onRetake={handleRetake} />
       )}
+      <BottomCTA />
     </main>
   );
 }

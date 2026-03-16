@@ -1,30 +1,40 @@
 'use client';
 
 interface RelocateHeroProps {
-  onOpenQuiz: () => void;
   className?: string;
 }
 
-export function RelocateHero({ onOpenQuiz, className = '' }: RelocateHeroProps) {
+export function RelocateHero({ className = '' }: RelocateHeroProps) {
   return (
-    <section className={`text-center py-20 lg:py-28 ${className}`}>
-      <p className="text-gold text-[10px] uppercase tracking-[0.3em] font-bold mb-4">
-        Arizona Relocation Guide
-      </p>
-      <h1 className="font-serif text-navy text-3xl lg:text-5xl leading-tight mb-6 max-w-3xl mx-auto">
-        Find Your Arizona Lifestyle
-      </h1>
-      <p className="text-navy/60 text-[15px] lg:text-base leading-relaxed max-w-2xl mx-auto mb-10">
-        From mountain retreats to desert luxury, urban energy to suburban comfort —
-        compare four distinct ways to live in Arizona and discover which one fits you.
-      </p>
-      <button
-        onClick={onOpenQuiz}
-        data-testid="hero-compare-btn"
-        className="bg-gold text-white px-8 py-3.5 text-[11px] uppercase tracking-[0.2em] font-bold hover:bg-navy transition-colors"
-      >
-        Compare Your Area
-      </button>
+    <section className={`relative overflow-hidden ${className}`} style={{ minHeight: 400 }}>
+      {/* Background image */}
+      <div className="absolute inset-0">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="https://images.unsplash.com/photo-1474044159687-1ee9f3a51722?auto=format&fit=crop&q=80&w=1800"
+          alt="Arizona desert landscape at sunset"
+          className="w-full h-full object-cover"
+        />
+      </div>
+      {/* Gradient overlay */}
+      <div
+        className="absolute inset-0"
+        style={{ background: 'linear-gradient(to top, rgba(12,28,46,0.85) 0%, rgba(12,28,46,0.4) 50%, rgba(12,28,46,0.25) 100%)' }}
+      />
+
+      <div className="relative mx-auto max-w-content-lg px-8 lg:px-20 flex flex-col justify-end" style={{ minHeight: 400, paddingTop: 120, paddingBottom: 64 }}>
+        <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">
+          Arizona Relocation Guide
+        </span>
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-serif text-white tracking-tight leading-tight max-w-2xl">
+          Find Your Arizona Lifestyle
+        </h1>
+        <div className="w-16 h-0.5 bg-gold mt-6 mb-6" />
+        <p className="text-white/70 max-w-xl leading-relaxed" style={{ fontSize: 15 }}>
+          From mountain retreats to desert luxury, urban energy to suburban comfort &mdash;
+          compare four distinct ways to live in Arizona and discover which one fits you.
+        </p>
+      </div>
     </section>
   );
 }

@@ -1,5 +1,5 @@
 // data.ts — Relocation Tool data layer
-// Zone profiles, quiz configuration, ZIP mapping, and matching logic
+// Zone profiles, quiz configuration, and matching logic
 
 export const ZONE_IDS = ['mountain', 'desert-luxury', 'urban-core', 'suburban'] as const;
 export type ZoneId = typeof ZONE_IDS[number];
@@ -21,11 +21,22 @@ export interface FactorData {
   tags: string[];       // quiz matching keywords
 }
 
+export interface ZoneStats {
+  medianPrice: string;
+  avgLotSize: string;
+  elevation: string;
+  avgSummerHigh: string;
+  avgWinterLow: string;
+  driveToAirport: string;
+  topSchoolDistrict: string;
+}
+
 export interface ZoneProfile {
   id: ZoneId;
   name: string;
   tagline: string;
   thumbnail: string;
+  stats: ZoneStats;
   factors: Record<FactorId, FactorData>;
 }
 
@@ -54,11 +65,6 @@ export interface QuizConfig {
   }[];
 }
 
-export interface ZipProfile {
-  name: string;
-  factors: Record<FactorId, FactorData>;
-}
-
 // ---------------------------------------------------------------------------
 // Factor metadata
 // ---------------------------------------------------------------------------
@@ -83,6 +89,15 @@ export const ZONES: ZoneProfile[] = [
     name: 'Mountain Living',
     tagline: 'Pine forests, four seasons, and small-town charm',
     thumbnail: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
+    stats: {
+      medianPrice: '$850K',
+      avgLotSize: '1-5 acres',
+      elevation: '7,000 ft',
+      avgSummerHigh: '82\u00B0F',
+      avgWinterLow: '18\u00B0F',
+      driveToAirport: '2+ hours to PHX',
+      topSchoolDistrict: 'Flagstaff Unified',
+    },
     factors: {
       'climate-terrain': {
         rating: 5,
@@ -106,7 +121,7 @@ export const ZONES: ZoneProfile[] = [
       },
       'proximity-access': {
         rating: 1,
-        description: '2+ hours to Phoenix Sky Harbor. Small regional airport. Limited big-box retail — most major shopping requires a drive.',
+        description: '2+ hours to Phoenix Sky Harbor. Small regional airport. Limited big-box retail \u2014 most major shopping requires a drive.',
         tags: ['remote', 'drive', 'limited'],
       },
       'space-privacy': {
@@ -126,10 +141,19 @@ export const ZONES: ZoneProfile[] = [
     name: 'Desert Luxury',
     tagline: 'Club life, golf, and foothills grandeur',
     thumbnail: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80',
+    stats: {
+      medianPrice: '$2.5M',
+      avgLotSize: '1-3 acres',
+      elevation: '2,500 ft',
+      avgSummerHigh: '105\u00B0F',
+      avgWinterLow: '42\u00B0F',
+      driveToAirport: '35 min to PHX',
+      topSchoolDistrict: 'Scottsdale Unified',
+    },
     factors: {
       'climate-terrain': {
         rating: 3,
-        description: 'Sonoran desert foothills at 2,500 ft. Hot summers (105°+), mild winters in the 60s–70s. Dramatic mountain and desert views.',
+        description: 'Sonoran desert foothills at 2,500 ft. Hot summers (105\u00B0+), mild winters in the 60s\u201370s. Dramatic mountain and desert views.',
         tags: ['hot', 'desert', 'mild-winter', 'foothills'],
       },
       'social-club': {
@@ -149,12 +173,12 @@ export const ZONES: ZoneProfile[] = [
       },
       'proximity-access': {
         rating: 3,
-        description: '35–45 min to Sky Harbor. 20 min to Scottsdale shopping and medical. Gated communities mean deliberate trips.',
+        description: '35\u201345 min to Sky Harbor. 20 min to Scottsdale shopping and medical. Gated communities mean deliberate trips.',
         tags: ['moderate', 'scottsdale', 'planned'],
       },
       'space-privacy': {
         rating: 5,
-        description: 'Custom estates on 1–5+ acre lots. Gated communities with guard houses. Maximum privacy and architectural freedom.',
+        description: 'Custom estates on 1\u20135+ acre lots. Gated communities with guard houses. Maximum privacy and architectural freedom.',
         tags: ['estate', 'gated', 'custom', 'acreage'],
       },
       'schools-family': {
@@ -169,10 +193,19 @@ export const ZONES: ZoneProfile[] = [
     name: 'Urban Core',
     tagline: 'Walkable energy, culture, and city living',
     thumbnail: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&w=800&q=80',
+    stats: {
+      medianPrice: '$650K',
+      avgLotSize: '3,000-5,000 sqft',
+      elevation: '1,100 ft',
+      avgSummerHigh: '107\u00B0F',
+      avgWinterLow: '44\u00B0F',
+      driveToAirport: '10 min to PHX',
+      topSchoolDistrict: 'Phoenix Union',
+    },
     factors: {
       'climate-terrain': {
         rating: 2,
-        description: 'Valley floor at 1,100 ft. Intense summers (110°+), beautiful winters. Urban heat island effect. Flat terrain.',
+        description: 'Valley floor at 1,100 ft. Intense summers (110\u00B0+), beautiful winters. Urban heat island effect. Flat terrain.',
         tags: ['hot', 'flat', 'urban-heat', 'mild-winter'],
       },
       'social-club': {
@@ -212,6 +245,15 @@ export const ZONES: ZoneProfile[] = [
     name: 'Suburban Life',
     tagline: 'Family-first neighborhoods with everything nearby',
     thumbnail: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=800&q=80',
+    stats: {
+      medianPrice: '$550K',
+      avgLotSize: '6,000-10,000 sqft',
+      elevation: '1,200 ft',
+      avgSummerHigh: '106\u00B0F',
+      avgWinterLow: '43\u00B0F',
+      driveToAirport: '25 min to PHX',
+      topSchoolDistrict: 'Gilbert Unified (A-rated)',
+    },
     factors: {
       'climate-terrain': {
         rating: 2,
@@ -235,12 +277,12 @@ export const ZONES: ZoneProfile[] = [
       },
       'proximity-access': {
         rating: 4,
-        description: '25–35 min to Sky Harbor. Major hospitals, shopping centers, and employment corridors all within 15 min.',
+        description: '25\u201335 min to Sky Harbor. Major hospitals, shopping centers, and employment corridors all within 15 min.',
         tags: ['convenient', 'shopping', 'medical', 'moderate'],
       },
       'space-privacy': {
         rating: 3,
-        description: 'Standard suburban lots (5,000–10,000 sqft). Planned communities with consistent setbacks. Some privacy, some neighbors.',
+        description: 'Standard suburban lots (5,000\u201310,000 sqft). Planned communities with consistent setbacks. Some privacy, some neighbors.',
         tags: ['suburban-lot', 'planned', 'moderate'],
       },
       'schools-family': {
@@ -322,7 +364,7 @@ export const QUIZ_CONFIG: QuizConfig = {
         options: [
           { label: 'Walking distance to daily needs', zoneWeights: { mountain: 0, 'desert-luxury': 0, 'urban-core': 3, suburban: 1 } },
           { label: 'Short drive is fine for more space', zoneWeights: { mountain: 0, 'desert-luxury': 2, 'urban-core': 0, suburban: 3 } },
-          { label: 'Remote is the point — I want distance', zoneWeights: { mountain: 3, 'desert-luxury': 1, 'urban-core': 0, suburban: 0 } },
+          { label: 'Remote is the point \u2014 I want distance', zoneWeights: { mountain: 3, 'desert-luxury': 1, 'urban-core': 0, suburban: 0 } },
         ],
       },
     },
@@ -335,7 +377,7 @@ export const QUIZ_CONFIG: QuizConfig = {
         options: [
           { label: 'Custom estate on acreage', zoneWeights: { mountain: 2, 'desert-luxury': 3, 'urban-core': 0, suburban: 0 } },
           { label: 'Standard lot in a nice neighborhood', zoneWeights: { mountain: 0, 'desert-luxury': 0, 'urban-core': 0, suburban: 3 } },
-          { label: 'Condo or townhome — low maintenance', zoneWeights: { mountain: 0, 'desert-luxury': 0, 'urban-core': 3, suburban: 1 } },
+          { label: 'Condo or townhome \u2014 low maintenance', zoneWeights: { mountain: 0, 'desert-luxury': 0, 'urban-core': 3, suburban: 1 } },
           { label: 'Secluded cabin or forest property', zoneWeights: { mountain: 3, 'desert-luxury': 0, 'urban-core': 0, suburban: 0 } },
         ],
       },
@@ -356,103 +398,6 @@ export const QUIZ_CONFIG: QuizConfig = {
     },
   ],
 };
-
-// ---------------------------------------------------------------------------
-// ZIP mapping and profile lookup
-// ---------------------------------------------------------------------------
-
-function buildFallbackFactors(description: string): Record<FactorId, FactorData> {
-  const entry: FactorData = { rating: 3, description, tags: [] };
-  return {
-    'climate-terrain': entry,
-    'social-club': entry,
-    'dining-entertainment': entry,
-    'outdoor-lifestyle': entry,
-    'proximity-access': entry,
-    'space-privacy': entry,
-    'schools-family': entry,
-  };
-}
-
-const ZIP_REGION_MAP: Record<string, string> = {
-  '860': 'Northern Arizona',
-  '861': 'Northern Arizona',
-  '852': 'Scottsdale Area',
-  '850': 'Phoenix Metro',
-  '851': 'East Valley',
-  '853': 'West Valley',
-  '856': 'Southern Arizona',
-  '857': 'Southern Arizona',
-};
-
-export function getZipProfile(zip: string): ZipProfile {
-  const prefix = zip.slice(0, 3);
-  const regionName = ZIP_REGION_MAP[prefix];
-
-  if (!regionName) {
-    return {
-      name: 'Your Area',
-      factors: buildFallbackFactors('Enter an Arizona ZIP code for a more detailed comparison.'),
-    };
-  }
-
-  const mountainZone = ZONES.find(z => z.id === 'mountain');
-  const desertLuxuryZone = ZONES.find(z => z.id === 'desert-luxury');
-  const urbanCoreZone = ZONES.find(z => z.id === 'urban-core');
-  const suburbanZone = ZONES.find(z => z.id === 'suburban');
-
-  // All four zones are statically defined above — these assertions are safe
-  const mountainFactors = mountainZone!.factors;
-  const desertLuxuryFactors = desertLuxuryZone!.factors;
-  const urbanCoreFactors = urbanCoreZone!.factors;
-  const suburbanFactors = suburbanZone!.factors;
-
-  const profiles: Record<string, ZipProfile> = {
-    'Northern Arizona': {
-      name: 'Northern Arizona',
-      factors: mountainFactors,
-    },
-    'Scottsdale Area': {
-      name: 'Scottsdale Area',
-      factors: desertLuxuryFactors,
-    },
-    'Phoenix Metro': {
-      name: 'Phoenix Metro',
-      factors: urbanCoreFactors,
-    },
-    'East Valley': {
-      name: 'East Valley',
-      factors: suburbanFactors,
-    },
-    'West Valley': {
-      name: 'West Valley',
-      factors: {
-        ...suburbanFactors,
-        'proximity-access': {
-          rating: 3,
-          description: 'Growing retail and medical access. 30–40 min to Sky Harbor. Expanding freeway network.',
-          tags: ['growing', 'moderate'],
-        },
-      },
-    },
-    'Southern Arizona': {
-      name: 'Southern Arizona',
-      factors: {
-        ...suburbanFactors,
-        'climate-terrain': {
-          rating: 3,
-          description: 'Slightly cooler than Phoenix at 2,400 ft. Sonoran desert with saguaros and mountain surrounds.',
-          tags: ['desert', 'moderate', 'mountains'],
-        },
-      },
-    },
-  };
-
-  return profiles[regionName] ?? {
-    name: 'Your Area',
-    factors: buildFallbackFactors('Data not available for this area.'),
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Quiz matching logic
