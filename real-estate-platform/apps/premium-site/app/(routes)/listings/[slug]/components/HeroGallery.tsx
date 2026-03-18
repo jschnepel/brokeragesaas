@@ -23,7 +23,7 @@ export function HeroGallery({
     return (
       <section className="relative w-full bg-navy flex items-end" style={{ height: '50vh', minHeight: '320px' }}>
         <div className="absolute inset-0 bg-gradient-to-t from-navy/95 via-navy/60 to-navy/80" />
-        <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 lg:px-20 pb-8 md:pb-16">
+        <div className="relative z-10 w-full px-6 md:px-12 lg:px-24 pb-10 md:pb-20">
           <HeroContent listing={listing} streetAddress={streetAddress} cityStateZip={cityStateZip} area={area} price={price} quickStats={quickStats} />
         </div>
       </section>
@@ -56,7 +56,7 @@ export function HeroGallery({
           </div>
         </div>
         <div className="absolute inset-0 bg-gradient-to-t from-navy/95 via-navy/40 to-transparent" />
-        <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 lg:px-20 pb-8 md:pb-16">
+        <div className="relative z-10 w-full px-6 md:px-12 lg:px-24 pb-10 md:pb-20">
           <HeroContent listing={listing} streetAddress={streetAddress} cityStateZip={cityStateZip} area={area} price={price} quickStats={quickStats} />
         </div>
       </section>
@@ -89,7 +89,7 @@ function HeroContent({ streetAddress, cityStateZip, area, price, quickStats }: {
   return (
     <div>
       <span className="text-sm uppercase tracking-[0.4em] font-bold text-gold">{area}</span>
-      <h1 className="text-3xl md:text-4xl lg:text-6xl font-serif text-white leading-[0.9] tracking-tight mt-2">{streetAddress}</h1>
+      <h1 className="text-4xl md:text-5xl lg:text-7xl font-serif text-white leading-[0.9] tracking-tight mt-2">{streetAddress}</h1>
       <p className="text-white/70 text-base mt-2">{cityStateZip}</p>
       <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 mt-4">
         <span className="text-2xl md:text-3xl font-serif text-white">{price}</span>

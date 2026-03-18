@@ -1,52 +1,35 @@
-import type { CalculatedInsights } from '../lib/types';
-import type { ListingDetail } from '@platform/database/src/queries/listings';
+import type { LifestyleData } from '../lib/types';
 
 interface ListingHeaderProps {
-  insights: CalculatedInsights;
-  listing: ListingDetail;
+  lifestyleData: LifestyleData | null;
 }
 
-function formatNumber(n: number | null | undefined): string {
-  if (!n) return '—';
-  return new Intl.NumberFormat('en-US').format(n);
-}
+export function ListingHeader({ lifestyleData }: ListingHeaderProps) {
+  if (!lifestyleData) return null;
 
-function formatLotSize(acres: number | null, sqft: number | null): string {
-  const a = acres != null ? Number(acres) : 0;
-  const s = sqft != null ? Number(sqft) : 0;
-  if (a >= 1) return `${a.toFixed(2)} ac`;
-  if (s > 0) return `${formatNumber(s)} SF`;
-  return '';
-}
-
-export function ListingHeader({ insights, listing }: ListingHeaderProps) {
   const cards: { label: string; value: string }[] = [];
 
-  if (insights.pricePerSqFt != null) {
-    cards.push({ label: 'Price / SF', value: `$${insights.pricePerSqFt.toLocaleString()}` });
+  if (lifestyleData.elevationFt != null) {
+    cards.push({ label: 'Elevation', value: `${lifestyleData.elevationFt.toLocaleString()} ft` });
   }
-  if (insights.domListing != null) {
-    cards.push({ label: 'Days on Market', value: String(insights.domListing) });
+  if (lifestyleData.tempDiffF != null && lifestyleData.tempDiffF < 0) {
+    cards.push({ label: 'vs Valley', value: `${Math.abs(lifestyleData.tempDiffF)}° Cooler` });
   }
-  if (listing.year_built) {
-    cards.push({ label: 'Year Built', value: String(listing.year_built) });
+  if (lifestyleData.aqiCurrent != null) {
+    cards.push({ label: 'Air Quality', value: `AQI ${lifestyleData.aqiCurrent}` });
   }
-  const lot = formatLotSize(listing.lot_size_acres, listing.lot_size_square_feet);
-  if (lot) {
-    cards.push({ label: 'Lot Size', value: lot });
+  if (lifestyleData.noiseCategory) {
+    cards.push({ label: 'Noise Level', value: lifestyleData.noiseCategory });
   }
-  if (listing.garage_spaces) {
-    cards.push({ label: 'Garage', value: `${listing.garage_spaces}-Car` });
-  }
-  if (listing.stories_total) {
-    cards.push({ label: 'Stories', value: String(listing.stories_total) });
+  if (lifestyleData.bortleScale != null) {
+    cards.push({ label: 'Dark Sky', value: `Bortle ${lifestyleData.bortleScale}` });
   }
 
   if (cards.length === 0) return null;
 
   return (
     <section className="relative z-10 -mt-10 max-w-[1600px] mx-auto px-4 md:px-8 lg:px-20">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-${Math.min(cards.length, 5)} gap-3`}>
         {cards.map((card) => (
           <div key={card.label} className="bg-white p-5 shadow-lg shadow-black/5 text-center">
             <span className="text-2xl font-serif text-navy block">{card.value}</span>

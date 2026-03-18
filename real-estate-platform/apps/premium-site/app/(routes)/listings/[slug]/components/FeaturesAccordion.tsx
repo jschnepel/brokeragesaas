@@ -11,48 +11,47 @@ interface FeaturesAccordionProps {
   sections: FeatureSection[];
 }
 
-const DEFAULT_EXPANDED = ['Interior', 'Exterior', 'Pool', 'Community'];
-
 export function FeaturesAccordion({ sections }: FeaturesAccordionProps) {
-  const expandAll = sections.length <= 4;
-  const [openSections, setOpenSections] = useState<Set<string>>(() => {
-    if (expandAll) return new Set(sections.map((s) => s.label));
-    return new Set(sections.filter((s) => DEFAULT_EXPANDED.includes(s.label)).map((s) => s.label));
-  });
+  const [activeTab, setActiveTab] = useState(0);
 
   if (sections.length === 0) return null;
 
-  function toggle(label: string) {
-    setOpenSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label);
-      else next.add(label);
-      return next;
-    });
-  }
-
   return (
-    <div className="mb-8">
+    <div className="mb-10">
       <div className="flex items-center gap-2 mb-4">
         <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Features &amp; Amenities</span>
       </div>
-      <div className="border-t border-gray-100">
-        {sections.map((section) => {
-          const isOpen = openSections.has(section.label);
-          return (
-            <div key={section.label} className="border-b border-gray-100">
-              <button onClick={() => toggle(section.label)} className="w-full flex items-center justify-between py-4 text-left group" aria-expanded={isOpen}>
-                <span className="font-serif text-lg text-navy">{section.label}</span>
-                <svg className={`w-4 h-4 text-gray-300 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              <div className="overflow-hidden transition-[max-height] duration-300 ease-in-out" style={{ maxHeight: isOpen ? `${section.items.length * 24 + 24}px` : '0px' }}>
-                <p className="text-gray-500 font-light leading-relaxed text-[15px] pb-4">{section.items.join(' · ')}</p>
-              </div>
-            </div>
-          );
-        })}
+
+      {/* Tab navigation — matches CommunityNarrative tabs */}
+      <div className="flex gap-3 mb-8 border-b border-gray-100 pb-0 overflow-x-auto">
+        {sections.map((section, i) => (
+          <button
+            key={section.label}
+            onClick={() => setActiveTab(i)}
+            className={`relative px-4 md:px-5 pb-4 pt-2 text-[11px] uppercase tracking-[0.25em] font-bold transition-all duration-300 whitespace-nowrap min-h-[44px] ${
+              activeTab === i ? 'text-navy' : 'text-navy/30 hover:text-navy/60'
+            }`}
+          >
+            <span>{section.label}</span>
+            <span
+              className={`absolute bottom-0 left-0 right-0 transition-all duration-300 ${
+                activeTab === i ? 'h-[3px] bg-gold' : 'h-[1px] bg-transparent'
+              }`}
+            />
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <div className="flex flex-wrap gap-2">
+        {sections[activeTab]?.items.map((item) => (
+          <span
+            key={item}
+            className="bg-gray-100 text-navy px-4 py-2.5 md:py-2 text-[10px] uppercase tracking-widest font-bold"
+          >
+            {item}
+          </span>
+        ))}
       </div>
     </div>
   );

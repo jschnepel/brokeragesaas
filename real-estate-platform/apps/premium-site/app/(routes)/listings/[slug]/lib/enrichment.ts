@@ -1,7 +1,11 @@
-import type { CommuteData } from './types';
-import { CURATED_DESTINATIONS } from './destinations';
+import type { CommuteData, LifestyleData } from './types';
+import { CURATED_DESTINATIONS, PHOENIX_ELEVATION_BASELINE_FT } from './destinations';
 import { getOsrmRoutes } from './osrm-client';
 import { getListingEnrichment, upsertListingEnrichment } from '@platform/database/src/queries/enrichment';
+import {
+  fetchElevation, deriveTemperatureDiff, fetchAirQuality,
+  PHOENIX_METRO_AVG_AQI, estimateBortleScale, estimateNoiseLevel,
+} from './lifestyle-clients';
 
 export async function getCommuteData(
   listingKey: string,
@@ -38,4 +42,40 @@ export async function getCommuteData(
   upsertListingEnrichment(listingKey, { commuteData }).catch(() => {});
 
   return commuteData;
+}
+
+export async function getLifestyleData(
+  listingKey: string,
+  lat: number,
+  lng: number,
+): Promise<LifestyleData | null> {
+  const cached = await getListingEnrichment(listingKey);
+  if (cached?.lifestyle_data) {
+    return cached.lifestyle_data as LifestyleData;
+  }
+
+  const [elevationFt, airQuality] = await Promise.all([
+    fetchElevation(lat, lng),
+    fetchAirQuality(lat, lng),
+  ]);
+
+  const elevationDiffFt = elevationFt != null ? elevationFt - PHOENIX_ELEVATION_BASELINE_FT : null;
+  const tempDiffF = elevationFt != null ? deriveTemperatureDiff(elevationFt) : null;
+  const bortle = estimateBortleScale(lat, lng);
+  const noise = estimateNoiseLevel(lat, lng);
+
+  const lifestyleData: LifestyleData = {
+    elevationFt, elevationDiffFt, tempDiffF,
+    aqiCurrent: airQuality?.aqi ?? null,
+    aqiCategory: airQuality?.category ?? null,
+    aqiMetroAvg: PHOENIX_METRO_AVG_AQI,
+    noiseCategory: noise.category,
+    noiseDescriptor: noise.descriptor,
+    bortleScale: bortle.scale,
+    bortleLabel: bortle.label,
+  };
+
+  upsertListingEnrichment(listingKey, { lifestyleData }).catch(() => {});
+
+  return lifestyleData;
 }

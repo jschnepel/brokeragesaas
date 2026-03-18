@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { fetchListingDetail, fetchListingByMlsId, fetchListingPhotos } from '../actions';
 import { resolveAgentConfig } from '../../../agent-config/index';
 import { getCalculatedInsights } from './lib/calculated-insights';
+import { getLifestyleData } from './lib/enrichment';
 import { parseJsonbArray } from './lib/types';
 import { HeroGallery } from './components/HeroGallery';
 import { ListingHeader } from './components/ListingHeader';
@@ -17,7 +18,6 @@ import { MobileAgentCTA } from './components/MobileAgentCTA';
 import { IdxFooter } from './components/IdxFooter';
 import { ListingDetailClient } from './components/ListingDetailClient';
 import { LocationCommute } from './components/LocationCommute';
-import { LifestyleIntel } from './components/LifestyleIntel';
 import { NearbySection } from './components/NearbySection';
 
 export const revalidate = 900;
@@ -88,9 +88,12 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
   const listing = listingId ? await fetchListingByMlsId(listingId) : await fetchListingDetail(listingKey);
   if (!listing) notFound();
 
-  const [photos, insights] = await Promise.all([
+  const hasCoordinates = listing.latitude != null && listing.longitude != null;
+
+  const [photos, insights, lifestyleData] = await Promise.all([
     fetchListingPhotos(listing.listing_key),
     getCalculatedInsights(listing),
+    hasCoordinates ? getLifestyleData(listing.listing_key, listing.latitude!, listing.longitude!) : Promise.resolve(null),
   ]);
 
   const address = listing.unparsed_address ?? `MLS# ${listing.listing_id}`;
@@ -138,7 +141,6 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
   trySection('Sewer', listing.sewer);
 
   const contactHref = `/contact?listing=${listing.listing_id}&address=${encodeURIComponent(address)}`;
-  const hasCoordinates = listing.latitude != null && listing.longitude != null;
 
   return (
     <>
@@ -155,10 +157,10 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
         />
       </ListingDetailClient>
 
-      {/* KPI Cards */}
-      <ListingHeader insights={insights} listing={listing} />
+      {/* KPI Cards — lifestyle intelligence */}
+      <ListingHeader lifestyleData={lifestyleData} />
 
-      {/* Narrative + Sidebar (8/4 grid) — matches community page exactly */}
+      {/* Narrative + Sidebar (8/4 grid) */}
       <div className="mx-auto max-w-[1600px] px-4 md:px-8 lg:px-20 py-12 lg:py-16">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
           {/* Left column — narrative content */}
@@ -171,13 +173,14 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
             </div>
           </div>
 
-          {/* Right column — sidebar (sticky alongside narrative) */}
+          {/* Right column — sidebar */}
           <div className="lg:col-span-4">
             <AgentSidebar
               agent={agent}
               contactHref={contactHref}
               listing={listing}
-              primaryPhoto={gallery[0] ?? null}
+              gallery={gallery}
+              insights={insights}
             />
           </div>
         </div>
@@ -200,17 +203,6 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
       {/* Full-width: Info cards grid */}
       <div className="mx-auto max-w-[1600px] px-4 md:px-8 lg:px-20 pb-12 lg:pb-16">
         <div className="grid grid-cols-12 gap-4 lg:gap-6">
-          {/* Lifestyle Intelligence */}
-          {hasCoordinates && (
-            <Suspense fallback={<div className="col-span-12 sm:col-span-6 lg:col-span-4 h-48 bg-cream-alt animate-pulse shadow-lg shadow-black/5" />}>
-              <LifestyleIntel
-                listingKey={listing.listing_key}
-                lat={listing.latitude!}
-                lng={listing.longitude!}
-              />
-            </Suspense>
-          )}
-
           {/* Nearby Amenities */}
           <Suspense fallback={<div className="col-span-12 lg:col-span-6 h-48 bg-cream-alt animate-pulse shadow-lg shadow-black/5" />}>
             <NearbySection
