@@ -16,7 +16,7 @@ const { Pool } = require('pg');
 const fs = require('fs');
 
 const SPARK_BASE = 'https://replication.sparkapi.com/Reso/OData';
-const CONCURRENCY = 8; // parallel listings — higher gets 429 throttled
+const CONCURRENCY = 2; // parallel listings — Spark API throttles aggressively
 const BATCH_SIZE = 200;
 const PAGE_SIZE = 10; // RESO returns 10 per page
 const MAX_RETRIES = 3;
@@ -64,7 +64,7 @@ async function main() {
        WHERE is_deleted = FALSE AND internet_entire_listing_display_yn = TRUE
          ${statusFilter} AND property_type != 'Residential Lease'
          AND photos_count > 0 AND photos_fetched_at IS NULL ${cityFilter}
-       ORDER BY list_price DESC NULLS LAST LIMIT $${paramIdx}`,
+       ORDER BY modification_timestamp DESC NULLS LAST LIMIT $${paramIdx}`,
       allMode ? [BATCH_SIZE] : [SERVICE_AREA_CITIES, BATCH_SIZE]
     );
     if (batch.rows.length === 0) break;
@@ -86,6 +86,8 @@ async function main() {
         }
       }
 
+      // Small delay between chunks to avoid rate limiting
+      await sleep(200);
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
       const rate = (processed / (Date.now() - startTime) * 1000).toFixed(1);
       const pct = ((processed / totalNeeded) * 100).toFixed(1);
@@ -164,8 +166,8 @@ async function fetchAllPhotosParallel(pool, token, listingKey, listingId, photos
     remainingPages.push(skip);
   }
 
-  // Fetch all remaining pages in parallel (batched to avoid overwhelming API)
-  const PAGE_CONCURRENCY = 5;
+  // Fetch remaining pages in small parallel batches
+  const PAGE_CONCURRENCY = 2;
   const allPhotos = [...page1Photos];
 
   for (let i = 0; i < remainingPages.length; i += PAGE_CONCURRENCY) {
