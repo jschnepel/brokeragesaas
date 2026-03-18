@@ -402,7 +402,7 @@ export default async function HomePage() {
                   className={`lg:col-span-9 ${idx % 2 === 1 ? 'lg:order-1' : ''}`}
                 >
                   <div
-                    className={`grid grid-cols-2 gap-4 ${collection.enclaves.length >= 4 ? 'lg:grid-cols-4' : collection.enclaves.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}
+                    className="grid grid-cols-2 lg:grid-cols-4 gap-4"
                   >
                     {collection.enclaves.map((enclave) => (
                       <Link
