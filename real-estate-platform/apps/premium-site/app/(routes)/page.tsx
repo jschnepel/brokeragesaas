@@ -103,8 +103,8 @@ export default async function HomePage() {
     propertyType: 'Residential',
     minPrice: 2_000_000,
     maxPrice: 10_000_000,
-    sortBy: 'newest',
-    limit: 6,
+    sortBy: 'price_desc',
+    limit: 3,
   });
 
   return (
