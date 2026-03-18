@@ -97,15 +97,32 @@ function formatPrice(price: number | null): string {
 }
 
 export default async function HomePage() {
-  const { listings: featuredListings } = await searchListingsWithPhotos({
+  // Fetch a pool of luxury listings, then pick 3 with varied prices and photos
+  const { listings: pool } = await searchListingsWithPhotos({
     status: ['Active'],
     cities: ['Scottsdale', 'Paradise Valley', 'Cave Creek', 'Carefree'],
     propertyType: 'Residential',
-    minPrice: 2_000_000,
-    maxPrice: 10_000_000,
+    minPrice: 6_000_000,
+    maxPrice: 9_700_000,
     sortBy: 'price_desc',
-    limit: 3,
+    limit: 50,
   });
+
+  // Filter to only listings with photos, then pick 3 with distinct prices
+  const withPhotos = pool.filter((l) => l.primary_photo_url);
+  const seen = new Set<number>();
+  const featuredListings: ListingRecord[] = [];
+  // Shuffle to get variety on each revalidation
+  const shuffled = withPhotos.sort(() => Math.random() - 0.5);
+  for (const l of shuffled) {
+    const rounded = Math.round((l.list_price ?? 0) / 100_000);
+    if (seen.has(rounded)) continue;
+    seen.add(rounded);
+    featuredListings.push(l);
+    if (featuredListings.length >= 3) break;
+  }
+  // Sort the final 3 by price descending for display
+  featuredListings.sort((a, b) => (b.list_price ?? 0) - (a.list_price ?? 0));
 
   return (
     <main className="-mt-[var(--nav-height)]">
