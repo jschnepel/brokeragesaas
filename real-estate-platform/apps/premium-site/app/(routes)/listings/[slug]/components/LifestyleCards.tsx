@@ -5,44 +5,46 @@ interface LifestyleCardsProps {
 }
 
 export function LifestyleCards({ data }: LifestyleCardsProps) {
-  const cards: { label: string; value: string; detail: string }[] = [];
+  const items: { label: string; value: string; detail: string }[] = [];
 
   if (data.elevationFt != null) {
     const diffLabel = data.elevationDiffFt != null && data.elevationDiffFt > 0
       ? `+${data.elevationDiffFt.toLocaleString()} ft vs PHX` : '';
-    cards.push({ label: 'Elevation', value: `${data.elevationFt.toLocaleString()} ft`, detail: diffLabel });
+    items.push({ label: 'Elevation', value: `${data.elevationFt.toLocaleString()} ft`, detail: diffLabel });
   }
 
   if (data.tempDiffF != null && data.tempDiffF < 0) {
-    cards.push({ label: 'Temperature', value: `${Math.abs(data.tempDiffF)}° cooler`, detail: 'than valley floor' });
+    items.push({ label: 'Temperature', value: `${Math.abs(data.tempDiffF)}° cooler`, detail: 'than valley floor' });
   }
 
   if (data.aqiCurrent != null) {
     const comparison = data.aqiMetroAvg != null
       ? `${data.aqiCurrent < data.aqiMetroAvg ? Math.round(((data.aqiMetroAvg - data.aqiCurrent) / data.aqiMetroAvg) * 100) + '% better than' : 'Similar to'} metro avg` : '';
-    cards.push({ label: 'Air Quality', value: `AQI ${data.aqiCurrent}`, detail: `${data.aqiCategory ?? ''}${comparison ? ` · ${comparison}` : ''}` });
+    items.push({ label: 'Air Quality', value: `AQI ${data.aqiCurrent}`, detail: `${data.aqiCategory ?? ''}${comparison ? ` · ${comparison}` : ''}` });
   }
 
   if (data.noiseCategory) {
-    cards.push({ label: 'Noise', value: data.noiseCategory, detail: data.noiseDescriptor ?? '' });
+    items.push({ label: 'Noise', value: data.noiseCategory, detail: data.noiseDescriptor ?? '' });
   }
 
   if (data.bortleScale != null) {
-    cards.push({ label: 'Light Pollution', value: `Bortle ${data.bortleScale}`, detail: data.bortleLabel ?? '' });
+    items.push({ label: 'Light Pollution', value: `Bortle ${data.bortleScale}`, detail: data.bortleLabel ?? '' });
   }
 
-  if (cards.length === 0) return null;
+  if (items.length === 0) return null;
 
+  // Matches CommunityQualityOfLife pattern
   return (
-    <div className="mb-16 lg:mb-20">
-      <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">Lifestyle Intelligence</span>
-      <div className="w-12 h-0.5 bg-gold mb-8" />
-      <div className="grid grid-cols-2 lg:grid-cols-3 border-t border-navy/8">
-        {cards.map((card) => (
-          <div key={card.label} className="border-b border-navy/8 py-4 pr-6">
-            <span className="block text-label uppercase tracking-lg text-gold font-bold mb-1">{card.label}</span>
-            <span className="block text-sm text-navy font-medium">{card.value}</span>
-            {card.detail && <span className="block text-tab text-navy/40 mt-0.5">{card.detail}</span>}
+    <div className="col-span-12 sm:col-span-6 lg:col-span-4 bg-white p-6 shadow-lg shadow-black/5">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Lifestyle Intelligence</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {items.map((item) => (
+          <div key={item.label}>
+            <p className="font-bold text-navy text-sm">{item.value}</p>
+            <p className="text-[8px] uppercase tracking-widest text-gray-400">{item.label}</p>
+            {item.detail && <p className="text-[9px] text-gray-400 mt-0.5">{item.detail}</p>}
           </div>
         ))}
       </div>

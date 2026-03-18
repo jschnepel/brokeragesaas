@@ -12,19 +12,21 @@ export function NearbyResults({ data }: NearbyResultsProps) {
   const categories = (Object.entries(data) as [string, NearbyAmenity[]][]).filter(([, items]) => items.length > 0);
   if (categories.length === 0) return null;
 
+  // Matches CommunityDining pattern — white card in the grid
   return (
-    <div className="mb-16 lg:mb-20">
-      <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">Nearby</span>
-      <div className="w-12 h-0.5 bg-gold mb-8" />
-      <div className="space-y-4">
+    <div className="col-span-12 lg:col-span-6 bg-white p-6 shadow-lg shadow-black/5">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Nearby Amenities</span>
+      </div>
+      <div className="space-y-5">
         {categories.map(([key, items]) => (
           <div key={key}>
-            <h3 className="text-label uppercase tracking-lg text-gold font-bold mb-2">{CATEGORY_LABELS[key] ?? key}</h3>
-            <div className="border-t border-navy/8">
+            <span className="text-[9px] uppercase tracking-widest text-gold font-bold block mb-2">{CATEGORY_LABELS[key] ?? key}</span>
+            <div className="space-y-1">
               {items.map((item) => (
-                <div key={item.name} className="flex justify-between py-2 border-b border-navy/5">
-                  <span className="text-sm text-navy">{item.name}</span>
-                  <span className="text-sm text-navy/50">{item.distanceMiles} mi</span>
+                <div key={item.name} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
+                  <span className="text-gray-600 text-sm">{item.name}</span>
+                  <span className="text-[9px] text-gray-400">{item.distanceMiles} mi</span>
                 </div>
               ))}
             </div>

@@ -32,22 +32,23 @@ export function FeaturesAccordion({ sections }: FeaturesAccordionProps) {
   }
 
   return (
-    <div className="mb-16 lg:mb-20">
-      <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">Features &amp; Amenities</span>
-      <div className="w-12 h-0.5 bg-gold mb-8" />
-      <div className="border-t border-navy/8">
+    <div className="mb-8">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Features &amp; Amenities</span>
+      </div>
+      <div className="border-t border-gray-100">
         {sections.map((section) => {
           const isOpen = openSections.has(section.label);
           return (
-            <div key={section.label} className="border-b border-navy/8">
-              <button onClick={() => toggle(section.label)} className="w-full flex items-center justify-between py-3 text-left group" aria-expanded={isOpen}>
-                <span className="text-base text-navy font-medium">{section.label}</span>
-                <svg className={`w-4 h-4 text-gold/50 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div key={section.label} className="border-b border-gray-100">
+              <button onClick={() => toggle(section.label)} className="w-full flex items-center justify-between py-4 text-left group" aria-expanded={isOpen}>
+                <span className="font-serif text-lg text-navy">{section.label}</span>
+                <svg className={`w-4 h-4 text-gray-300 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              <div className="overflow-hidden transition-[max-height] duration-300 ease-in-out" style={{ maxHeight: isOpen ? `${section.items.length * 24 + 16}px` : '0px' }}>
-                <p className="text-body-lg text-navy/50 pb-3">{section.items.join(' · ')}</p>
+              <div className="overflow-hidden transition-[max-height] duration-300 ease-in-out" style={{ maxHeight: isOpen ? `${section.items.length * 24 + 24}px` : '0px' }}>
+                <p className="text-gray-500 font-light leading-relaxed text-[15px] pb-4">{section.items.join(' · ')}</p>
               </div>
             </div>
           );

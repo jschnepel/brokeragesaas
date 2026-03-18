@@ -1,39 +1,59 @@
 import type { CalculatedInsights } from '../lib/types';
+import type { ListingDetail } from '@platform/database/src/queries/listings';
 
 interface ListingHeaderProps {
   insights: CalculatedInsights;
+  listing: ListingDetail;
 }
 
-export function ListingHeader({ insights }: ListingHeaderProps) {
-  const cards: { value: string; label: string }[] = [];
+function formatNumber(n: number | null | undefined): string {
+  if (!n) return '—';
+  return new Intl.NumberFormat('en-US').format(n);
+}
+
+function formatLotSize(acres: number | null, sqft: number | null): string {
+  const a = acres != null ? Number(acres) : 0;
+  const s = sqft != null ? Number(sqft) : 0;
+  if (a >= 1) return `${a.toFixed(2)} ac`;
+  if (s > 0) return `${formatNumber(s)} SF`;
+  return '';
+}
+
+export function ListingHeader({ insights, listing }: ListingHeaderProps) {
+  const cards: { label: string; value: string }[] = [];
 
   if (insights.pricePerSqFt != null) {
-    cards.push({ value: `$${insights.pricePerSqFt.toLocaleString()}/SF`, label: 'Price per SF' });
+    cards.push({ label: 'Price / SF', value: `$${insights.pricePerSqFt.toLocaleString()}` });
+  }
+  if (insights.domListing != null) {
+    cards.push({ label: 'Days on Market', value: String(insights.domListing) });
+  }
+  if (listing.year_built) {
+    cards.push({ label: 'Year Built', value: String(listing.year_built) });
+  }
+  const lot = formatLotSize(listing.lot_size_acres, listing.lot_size_square_feet);
+  if (lot) {
+    cards.push({ label: 'Lot Size', value: lot });
+  }
+  if (listing.garage_spaces) {
+    cards.push({ label: 'Garage', value: `${listing.garage_spaces}-Car` });
+  }
+  if (listing.stories_total) {
+    cards.push({ label: 'Stories', value: String(listing.stories_total) });
   }
 
-  if (insights.domListing != null) {
-    const avgLabel = insights.domAreaAvg != null ? ` · Avg: ${Math.round(insights.domAreaAvg)}` : '';
-    cards.push({ value: `${insights.domListing} DOM`, label: `Days on Market${avgLabel}` });
-  }
+  if (cards.length === 0) return null;
 
   return (
-    <>
-      {cards.length > 0 && (
-        <div className="mx-auto max-w-[1600px] px-4 md:px-8 lg:px-20 py-6">
-          <div className="flex gap-4">
-            {cards.map((card) => (
-              <div
-                key={card.label}
-                className="bg-white border border-navy/8 px-5 py-3 flex-1 max-w-[200px] shadow-lg shadow-black/5"
-                style={{ borderRadius: 4 }}
-              >
-                <span className="block text-lg text-navy font-medium">{card.value}</span>
-                <span className="block text-label uppercase tracking-xl text-gold font-bold mt-0.5">{card.label}</span>
-              </div>
-            ))}
+    <section className="relative z-10 -mt-10 max-w-[1600px] mx-auto px-4 md:px-8 lg:px-20">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {cards.map((card) => (
+          <div key={card.label} className="bg-white p-5 shadow-lg shadow-black/5 text-center">
+            <span className="text-2xl font-serif text-navy block">{card.value}</span>
+            <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold block mt-1">{card.label}</span>
           </div>
-        </div>
-      )}
-    </>
+        ))}
+      </div>
+    </section>
   );
 }

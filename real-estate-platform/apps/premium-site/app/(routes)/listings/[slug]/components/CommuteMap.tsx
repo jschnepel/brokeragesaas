@@ -79,10 +79,10 @@ export function CommuteMap({ lat, lng, address }: CommuteMapProps) {
 
   // address prop consumed for aria-label accessibility
   return (
-    <div className="relative">
+    <div className="relative w-full h-full">
       <Map
         initialViewState={{ latitude: lat, longitude: lng, zoom: 12 }}
-        style={{ width: '100%', height: '100%', minHeight: '400px' }}
+        style={{ width: '100%', height: '100%' }}
         mapStyle={`https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`}
         attributionControl={false}
         aria-label={`Map showing location of ${address}`}
@@ -96,12 +96,9 @@ export function CommuteMap({ lat, lng, address }: CommuteMapProps) {
             </Source>
           )}
         </Map>
-        <div className="md:absolute md:top-4 md:left-4 md:w-72 mt-3 md:mt-0">
-          <div
-            className="bg-white/95 backdrop-blur-sm border border-navy/10 p-4 shadow-lg shadow-black/5"
-            style={{ borderRadius: 4 }}
-          >
-            <h3 className="text-label uppercase tracking-xl text-gold font-bold mb-3">Your Commute</h3>
+        <div className="absolute top-4 left-4 w-72 z-10">
+          <div className="bg-white/95 backdrop-blur-sm border border-navy/10 p-4 shadow-lg shadow-black/5">
+            <h3 className="text-[9px] uppercase tracking-[0.25em] text-navy font-bold mb-3">Your Commute</h3>
             <form onSubmit={handleSubmit} className="flex gap-2">
               <input
                 ref={inputRef}

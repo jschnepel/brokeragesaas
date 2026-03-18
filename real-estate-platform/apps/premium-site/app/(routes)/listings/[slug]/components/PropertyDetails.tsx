@@ -16,17 +16,23 @@ export function PropertyDetails({ listing }: PropertyDetailsProps) {
 
   if (details.length === 0) return null;
 
+  // Matches CommunityEconomy — navy full-width card in the grid
   return (
-    <div className="mb-16 lg:mb-20">
-      <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">Property Details</span>
-      <div className="w-12 h-0.5 bg-gold mb-8" />
-      <div className="grid grid-cols-1 md:grid-cols-2 border-t border-navy/8">
-        {details.map((d) => (
-          <div key={d.label} className="flex justify-between py-2 border-b border-navy/5 pr-8">
-            <span className="text-label uppercase tracking-sm text-navy/40">{d.label}</span>
-            <span className="text-sm text-navy">{d.value}</span>
+    <div className="col-span-12 bg-navy p-6">
+      <div className="grid grid-cols-12 gap-6">
+        <div className="col-span-12">
+          <span className="text-gold text-[9px] uppercase tracking-[0.3em] font-bold mb-4 block">
+            Property Details
+          </span>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            {details.map((d) => (
+              <div key={d.label}>
+                <span className="text-2xl font-serif text-white block">{d.value}</span>
+                <span className="text-[8px] uppercase tracking-widest text-gray-500 font-bold">{d.label}</span>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );

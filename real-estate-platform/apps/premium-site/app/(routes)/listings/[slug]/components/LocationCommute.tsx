@@ -11,13 +11,32 @@ interface LocationCommuteProps {
 
 export async function LocationCommute({ listingKey, lat, lng, address }: LocationCommuteProps) {
   const commuteData = await getCommuteData(listingKey, lat, lng);
+
+  // Matches CommunityExploreMap pattern — navy panel + map side by side
   return (
-    <div className="mb-16 lg:mb-20">
-      <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">Location &amp; Commute</span>
-      <div className="w-12 h-0.5 bg-gold mb-8" />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-        <CommuteMap lat={lat} lng={lng} address={address} />
-        {commuteData && <DestinationsTable commuteData={commuteData} />}
+    <div className="col-span-12 shadow-lg shadow-black/5 overflow-hidden">
+      <div className="grid grid-cols-12">
+        {/* Left: Navy panel with distances */}
+        <div className="col-span-12 lg:col-span-5 flex flex-col h-auto lg:h-[500px]">
+          <div className="p-8 bg-navy">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[9px] uppercase tracking-[0.25em] text-gold font-bold">
+                Explore the Area
+              </span>
+            </div>
+            <h3 className="text-2xl font-serif text-white mb-6">
+              Location &amp; <span className="italic font-light">Commute</span>
+            </h3>
+          </div>
+          <div className="flex-1 bg-navy px-8 pb-8 overflow-y-auto">
+            {commuteData && <DestinationsTable commuteData={commuteData} />}
+          </div>
+        </div>
+
+        {/* Right: Map */}
+        <div className="col-span-12 lg:col-span-7 h-96 lg:h-[500px]">
+          <CommuteMap lat={lat} lng={lng} address={address} />
+        </div>
       </div>
     </div>
   );

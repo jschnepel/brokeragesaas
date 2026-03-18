@@ -18,16 +18,19 @@ export function DestinationsTable({ commuteData }: DestinationsTableProps) {
 
   if (allDestinations.length === 0) return null;
 
+  // Matches CommunityTransportation "Key Distances" pattern
   return (
     <div>
-      <span className="text-label uppercase tracking-lg text-gold font-bold block mb-3">Distances</span>
-      <div className="border-t border-navy/8">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Key Distances</span>
+      </div>
+      <div className="space-y-2">
         {allDestinations.map((dest) => (
-          <div key={dest.name} className="flex items-center justify-between py-2.5 border-b border-navy/5">
-            <span className="text-sm text-navy">{dest.name}</span>
-            <div className="flex gap-4 text-sm text-navy/50">
-              {dest.distanceMiles != null && <span>{dest.distanceMiles} mi</span>}
-              {dest.driveMinutes != null && <span>{dest.driveMinutes} min</span>}
+          <div key={dest.name} className="flex justify-between items-center py-1.5 border-b border-white/10 last:border-0">
+            <span className="text-white/60 text-sm">{dest.name}</span>
+            <div className="flex items-center gap-3">
+              {dest.distanceMiles != null && <span className="text-lg font-serif text-white">{dest.distanceMiles} mi</span>}
+              {dest.driveMinutes != null && <span className="text-[9px] text-gray-400">{dest.driveMinutes} min</span>}
             </div>
           </div>
         ))}

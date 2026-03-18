@@ -94,7 +94,6 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
   ]);
 
   const address = listing.unparsed_address ?? `MLS# ${listing.listing_id}`;
-  // Build street-only address from parsed components for the hero title
   const streetAddress = [
     listing.street_number,
     listing.street_dir_prefix,
@@ -142,7 +141,8 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
   const hasCoordinates = listing.latitude != null && listing.longitude != null;
 
   return (
-    <main className="min-h-screen bg-cream text-navy font-sans antialiased">
+    <>
+      {/* Hero */}
       <ListingDetailClient gallery={gallery} address={address}>
         <HeroGallery
           listing={listing}
@@ -155,59 +155,107 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
         />
       </ListingDetailClient>
 
-      <ListingHeader insights={insights} />
+      {/* KPI Cards */}
+      <ListingHeader insights={insights} listing={listing} />
 
-      {hasCoordinates && (
-        <Suspense fallback={<div className="mb-8 h-32 bg-cream-alt animate-pulse" />}>
-          <LifestyleIntel
-            listingKey={listing.listing_key}
-            lat={listing.latitude!}
-            lng={listing.longitude!}
-          />
-        </Suspense>
-      )}
-
-      {/* ─── Bento Layout: Content + Agent Sidebar ─── */}
-      <section className="py-10 md:py-16 max-w-[1600px] mx-auto px-4 md:px-8 lg:px-20">
-        <div className="grid grid-cols-12 gap-3 md:gap-4 items-start">
-
-          {/* Main Content Card */}
-          <div className="col-span-12 lg:col-span-8 bg-white p-6 md:p-8 lg:p-10 shadow-lg shadow-black/5">
-            <ListingDescription remarks={listing.public_remarks} />
-            <PropertyHighlights listing={listing} />
-            <SchoolsSection listing={listing} />
-            <FeaturesAccordion sections={featureSections} />
-
-            {hasCoordinates && (
-              <Suspense fallback={<div className="mb-16 h-64 bg-cream-alt animate-pulse" style={{ borderRadius: 4 }} />}>
-                <LocationCommute
-                  listingKey={listing.listing_key}
-                  lat={listing.latitude!}
-                  lng={listing.longitude!}
-                  address={address}
-                />
-              </Suspense>
-            )}
-
-            <Suspense fallback={<div className="mb-16 h-32 bg-cream-alt animate-pulse" style={{ borderRadius: 4 }} />}>
-              <NearbySection
-                listingKey={listing.listing_key}
-                lat={listing.latitude}
-                lng={listing.longitude}
-              />
-            </Suspense>
-
-            <PropertyDetails listing={listing} />
+      {/* Narrative + Sidebar (8/4 grid) — matches community page exactly */}
+      <div className="mx-auto max-w-[1600px] px-4 md:px-8 lg:px-20 py-12 lg:py-16">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+          {/* Left column — narrative content */}
+          <div className="lg:col-span-8">
+            <div className="bg-white p-6 md:p-10 shadow-lg shadow-black/5">
+              <ListingDescription remarks={listing.public_remarks} />
+              <PropertyHighlights listing={listing} />
+              <SchoolsSection listing={listing} />
+              <FeaturesAccordion sections={featureSections} />
+            </div>
           </div>
 
-          {/* Right Column: Agent Card */}
-          <AgentSidebar agent={agent} contactHref={contactHref} />
+          {/* Right column — sidebar (sticky alongside narrative) */}
+          <div className="lg:col-span-4">
+            <AgentSidebar
+              agent={agent}
+              contactHref={contactHref}
+              listing={listing}
+              primaryPhoto={gallery[0] ?? null}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Full-width: Location & Commute */}
+      {hasCoordinates && (
+        <div className="mx-auto max-w-[1600px] px-4 md:px-8 lg:px-20 space-y-6 pb-12 lg:pb-16">
+          <Suspense fallback={<div className="h-64 bg-cream-alt animate-pulse shadow-lg shadow-black/5" />}>
+            <LocationCommute
+              listingKey={listing.listing_key}
+              lat={listing.latitude!}
+              lng={listing.longitude!}
+              address={address}
+            />
+          </Suspense>
+        </div>
+      )}
+
+      {/* Full-width: Info cards grid */}
+      <div className="mx-auto max-w-[1600px] px-4 md:px-8 lg:px-20 pb-12 lg:pb-16">
+        <div className="grid grid-cols-12 gap-4 lg:gap-6">
+          {/* Lifestyle Intelligence */}
+          {hasCoordinates && (
+            <Suspense fallback={<div className="col-span-12 sm:col-span-6 lg:col-span-4 h-48 bg-cream-alt animate-pulse shadow-lg shadow-black/5" />}>
+              <LifestyleIntel
+                listingKey={listing.listing_key}
+                lat={listing.latitude!}
+                lng={listing.longitude!}
+              />
+            </Suspense>
+          )}
+
+          {/* Nearby Amenities */}
+          <Suspense fallback={<div className="col-span-12 lg:col-span-6 h-48 bg-cream-alt animate-pulse shadow-lg shadow-black/5" />}>
+            <NearbySection
+              listingKey={listing.listing_key}
+              lat={listing.latitude}
+              lng={listing.longitude}
+            />
+          </Suspense>
+
+          {/* Property Details — navy card */}
+          <PropertyDetails listing={listing} />
+        </div>
+      </div>
+
+      {/* CTA Section */}
+      <section className="py-20 bg-navy">
+        <div className="max-w-[800px] mx-auto px-4 md:px-8 text-center">
+          <span className="text-gold text-[10px] uppercase tracking-[0.4em] font-bold mb-4 block">Interested in This Property?</span>
+          <h2 className="text-3xl md:text-4xl font-serif text-white mb-4">
+            Schedule a <span className="italic font-light">Private Showing</span>
+          </h2>
+          <p className="text-white/60 mb-8">
+            Let {agent.name} arrange a personal tour and answer any questions about this property.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <a
+              href={`tel:${agent.contact.phone.replace(/[^+\d]/g, '')}`}
+              className="bg-gold text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-navy transition-all"
+            >
+              Call {agent.contact.phone}
+            </a>
+            <a
+              href={contactHref}
+              className="border border-white/30 text-white px-8 py-4 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-white hover:text-navy transition-all"
+            >
+              Schedule Showing
+            </a>
+          </div>
         </div>
       </section>
 
+      {/* IDX Compliance */}
       <IdxFooter listing={listing} brokerageName={agent.brokerage} />
       <MobileAgentCTA phone={agent.contact.phone} contactHref={contactHref} />
       <div className="lg:hidden h-14" />
-    </main>
+    </>
   );
 }
