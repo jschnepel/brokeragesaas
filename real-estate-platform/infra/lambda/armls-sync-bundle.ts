@@ -438,42 +438,37 @@ async function syncPhotoUrls(deadlineMs: number): Promise<{ listingsProcessed: n
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
       });
-      if (!res.ok) continue;
+      if (!res.ok) {
+        // Mark as fetched so we don't retry forever
+        await rdsQuery(`UPDATE listing_records SET photos_fetched_at = NOW() WHERE listing_key = $1`, [row.listing_key]);
+        continue;
+      }
 
       const data: ODataResponse = await res.json();
       const photos = data.value ?? [];
 
-      if (photos.length > 0) {
-        const client = await getRdsClient();
-        try {
-          await client.query("BEGIN");
-          for (const photo of photos) {
-            await client.query(
-              `INSERT INTO listing_photos (listing_key, media_key, media_url, "order", short_description, is_preferred, raw_data)
-               VALUES ($1, $2, $3, $4, $5, $6, $7)
-               ON CONFLICT (listing_key, media_key) DO UPDATE SET
-                 media_url = EXCLUDED.media_url, "order" = EXCLUDED."order",
-                 short_description = EXCLUDED.short_description, is_preferred = EXCLUDED.is_preferred`,
-              [
-                row.listing_key, String(photo.MediaKey ?? ""), String(photo.MediaURL ?? ""),
-                typeof photo.Order === "number" ? photo.Order : 0,
-                photo.ShortDescription ? String(photo.ShortDescription) : null,
-                photo.PreferredPhotoYN === true || photo.PreferredPhotoYN === "true",
-                JSON.stringify(photo),
-              ]
-            );
-          }
-          await client.query(`UPDATE listing_records SET photos_fetched_at = NOW() WHERE listing_key = $1`, [row.listing_key]);
-          await client.query("COMMIT");
-          photosInserted += photos.length;
-        } catch {
-          await client.query("ROLLBACK");
-        } finally {
-          client.release();
-        }
-      } else {
-        await rdsQuery(`UPDATE listing_records SET photos_fetched_at = NOW() WHERE listing_key = $1`, [row.listing_key]);
-      }
+      // Sort: preferred first, then by order
+      const sorted = photos
+        .sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
+          const aPref = a.PreferredPhotoYN === true || a.PreferredPhotoYN === "true" ? 0 : 1;
+          const bPref = b.PreferredPhotoYN === true || b.PreferredPhotoYN === "true" ? 0 : 1;
+          if (aPref !== bPref) return aPref - bPref;
+          return (typeof a.Order === "number" ? a.Order : 999) - (typeof b.Order === "number" ? b.Order : 999);
+        });
+
+      // Build compact JSONB array: [{url, desc}, ...]
+      const photoUrls = sorted.map((p: Record<string, unknown>) => ({
+        url: String(p.MediaURL ?? ""),
+        desc: p.ShortDescription ? String(p.ShortDescription) : null,
+      }));
+
+      // Single UPDATE — no separate table needed
+      await rdsQuery(
+        `UPDATE listing_records SET photo_urls = $1, photos_fetched_at = NOW() WHERE listing_key = $2`,
+        [JSON.stringify(photoUrls), row.listing_key]
+      );
+
+      photosInserted += photoUrls.length;
       listingsProcessed++;
     } catch {
       // Skip this listing, continue

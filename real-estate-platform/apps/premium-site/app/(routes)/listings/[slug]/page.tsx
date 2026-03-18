@@ -90,11 +90,16 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
 
   const hasCoordinates = listing.latitude != null && listing.longitude != null;
 
-  const [photos, insights, lifestyleData] = await Promise.all([
-    fetchListingPhotos(listing.listing_key),
+  const [insights, lifestyleData] = await Promise.all([
     getCalculatedInsights(listing),
     hasCoordinates ? getLifestyleData(listing.listing_key, listing.latitude!, listing.longitude!) : Promise.resolve(null),
   ]);
+
+  // Photos come from listing_records.photo_urls (JSONB), fallback to listing_photos table
+  const photoUrlsRaw = listing.photo_urls;
+  const photoUrls = Array.isArray(photoUrlsRaw) ? photoUrlsRaw : [];
+  // If photo_urls is empty, fall back to the legacy listing_photos table
+  const legacyPhotos = photoUrls.length === 0 ? await fetchListingPhotos(listing.listing_key) : [];
 
   const address = listing.unparsed_address ?? `MLS# ${listing.listing_id}`;
   const streetAddress = [
@@ -111,7 +116,10 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
   ].filter(Boolean).join('');
   const area = listing.subdivision_name ?? listing.city ?? 'Arizona';
   const price = formatPrice(listing.list_price);
-  const gallery = photos.map((p) => p.media_url);
+  // Prefer photo_urls (new JSONB column), fall back to legacy listing_photos table
+  const gallery = photoUrls.length > 0
+    ? photoUrls.map((p) => p.url)
+    : legacyPhotos.map((p) => p.media_url);
 
   const quickStats = [
     listing.bedrooms_total != null ? `${listing.bedrooms_total} Bed` : null,

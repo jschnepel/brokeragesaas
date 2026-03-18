@@ -136,6 +136,7 @@ export interface ListingDetail extends ListingRecord {
   middle_or_junior_school: string | null;
   agent_cell_phone: string | null;
   originating_system_name: string | null;
+  photo_urls: Array<{ url: string; desc: string | null }> | null;
 }
 
 interface ListingStats extends QueryResultRow {
