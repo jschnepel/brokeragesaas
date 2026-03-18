@@ -203,6 +203,7 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
               lat={listing.latitude!}
               lng={listing.longitude!}
               address={address}
+              price={price}
             />
           </Suspense>
         </div>

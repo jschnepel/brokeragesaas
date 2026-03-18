@@ -7,9 +7,10 @@ interface LocationCommuteProps {
   lat: number;
   lng: number;
   address: string;
+  price?: string;
 }
 
-export async function LocationCommute({ listingKey, lat, lng, address }: LocationCommuteProps) {
+export async function LocationCommute({ listingKey, lat, lng, address, price }: LocationCommuteProps) {
   const commuteData = await getCommuteData(listingKey, lat, lng);
 
   // Matches CommunityExploreMap pattern — navy panel + map side by side
@@ -35,7 +36,7 @@ export async function LocationCommute({ listingKey, lat, lng, address }: Locatio
 
         {/* Right: Map */}
         <div className="col-span-12 lg:col-span-7 h-96 lg:h-[500px]">
-          <CommuteMap lat={lat} lng={lng} address={address} />
+          <CommuteMap lat={lat} lng={lng} address={address} price={price} />
         </div>
       </div>
     </div>
