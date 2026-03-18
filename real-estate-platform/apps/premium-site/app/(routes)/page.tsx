@@ -148,22 +148,22 @@ export default async function HomePage() {
             the Phoenix Metro
           </p>
 
-          <div className="flex gap-6">
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 w-full sm:w-auto px-6 sm:px-0">
             <Link
               href="/phoenix"
-              className="bg-gold px-8 py-4 text-label uppercase tracking-md font-bold text-white hover:bg-white hover:text-navy transition-colors duration-300"
+              className="bg-gold px-8 py-4 text-label uppercase tracking-md font-bold text-white hover:bg-white hover:text-navy transition-colors duration-300 text-center"
             >
               Explore Communities
             </Link>
             <Link
               href="/contact"
-              className="border border-white/30 px-8 py-4 text-label uppercase tracking-md font-bold text-white hover:bg-white hover:text-navy transition-colors duration-300"
+              className="border border-white/30 px-8 py-4 text-label uppercase tracking-md font-bold text-white hover:bg-white hover:text-navy transition-colors duration-300 text-center"
             >
               Contact Me
             </Link>
           </div>
 
-          <div className="flex gap-6 mt-12">
+          <div className="hidden sm:flex gap-6 mt-12">
             <Link
               href="/phoenix"
               className="group flex items-center gap-2 text-white/60 hover:text-white text-meta uppercase tracking-widest transition-colors"
@@ -181,7 +181,7 @@ export default async function HomePage() {
           </div>
         </div>
 
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 text-white/50">
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 hidden sm:flex flex-col items-center gap-3 text-white/50">
           <span className="text-meta uppercase tracking-widest">
             Scroll to Explore
           </span>
@@ -190,8 +190,8 @@ export default async function HomePage() {
       </header>
 
       {/* Social Proof Strip */}
-      <section className="bg-white border-b border-navy/10 py-12">
-        <div className="mx-auto max-w-content-lg px-8 lg:px-24 flex flex-wrap justify-around gap-8">
+      <section className="bg-white border-b border-navy/10 py-8 sm:py-12">
+        <div className="mx-auto max-w-content-lg px-6 sm:px-8 lg:px-24 flex flex-wrap justify-around gap-6 sm:gap-8">
           {agent.stats.map((stat, i) => (
             <Fragment key={stat.label}>
               <div className="text-center">
@@ -213,8 +213,8 @@ export default async function HomePage() {
       </section>
 
       {/* Agent Profile Section */}
-      <section className="bg-navy text-white py-20 lg:py-24 overflow-hidden">
-        <div className="mx-auto max-w-content-lg px-8 lg:px-24">
+      <section className="bg-navy text-white py-16 sm:py-20 lg:py-24 overflow-hidden">
+        <div className="mx-auto max-w-content-lg px-6 sm:px-8 lg:px-24">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 items-center">
             {/* Content */}
             <div className="lg:col-span-7 order-2 lg:order-1">
@@ -283,20 +283,20 @@ export default async function HomePage() {
       </section>
 
       {/* Featured Properties */}
-      <section className="bg-white pt-24 lg:pt-32 pb-12">
-        <div className="mx-auto max-w-[1800px] px-8 lg:px-24">
-          <div className="flex justify-between items-end mb-16">
+      <section className="bg-white pt-16 sm:pt-24 lg:pt-32 pb-12">
+        <div className="mx-auto max-w-[1800px] px-6 sm:px-8 lg:px-24">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-end gap-4 mb-10 sm:mb-16">
             <div>
               <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">
                 Curated Collection
               </span>
-              <h2 className="text-4xl lg:text-5xl font-serif text-navy">
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-serif text-navy">
                 Featured Estates
               </h2>
             </div>
             <Link
               href="/listings"
-              className="hidden sm:flex items-center gap-3 text-label uppercase tracking-md font-bold text-navy border border-navy/20 px-6 py-3 hover:bg-navy hover:text-white transition-colors duration-300"
+              className="inline-flex items-center gap-3 text-label uppercase tracking-md font-bold text-navy border border-navy/20 px-6 py-3 hover:bg-navy hover:text-white transition-colors duration-300 self-start sm:self-auto"
             >
               View All Listings
             </Link>
@@ -357,33 +357,33 @@ export default async function HomePage() {
       </section>
 
       {/* Lifestyle Collections */}
-      <section className="bg-white pt-24 pb-32 lg:pb-40 border-t border-navy/5">
-        <div className="mx-auto max-w-[1800px] px-8 lg:px-24">
-          <div className="text-center mb-24">
+      <section className="bg-white pt-16 sm:pt-24 pb-20 sm:pb-32 lg:pb-40 border-t border-navy/5">
+        <div className="mx-auto max-w-[1800px] px-6 sm:px-8 lg:px-24">
+          <div className="text-center mb-12 sm:mb-24">
             <span className="text-label uppercase tracking-xl text-gold font-bold block mb-4">
               Area Expertise
             </span>
-            <h2 className="text-4xl lg:text-5xl font-serif text-navy">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-serif text-navy">
               Curated Lifestyles
             </h2>
           </div>
 
-          <div className="space-y-32">
+          <div className="space-y-16 sm:space-y-32">
             {LIFESTYLE_COLLECTIONS.map((collection, idx) => (
               <div
                 key={collection.id}
-                className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-start"
+                className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 items-start"
               >
                 <div
                   className={`lg:col-span-3 ${idx % 2 === 1 ? 'lg:order-2 lg:text-right' : ''}`}
                 >
                   <div
-                    className={`flex items-center gap-3 mb-4 text-navy ${idx % 2 === 1 ? 'lg:justify-end' : ''}`}
+                    className={`flex items-center gap-3 mb-3 text-navy ${idx % 2 === 1 ? 'lg:justify-end' : ''}`}
                   >
-                    <h3 className="text-2xl font-serif">{collection.title}</h3>
+                    <h3 className="text-xl sm:text-2xl font-serif">{collection.title}</h3>
                   </div>
                   <p
-                    className={`text-sm text-navy/50 leading-relaxed font-light mb-8 max-w-xs ${idx % 2 === 1 ? 'lg:ml-auto' : ''}`}
+                    className={`text-sm text-navy/50 leading-relaxed font-light mb-6 sm:mb-8 max-w-xs ${idx % 2 === 1 ? 'lg:ml-auto' : ''}`}
                   >
                     {collection.description}
                   </p>
@@ -402,7 +402,7 @@ export default async function HomePage() {
                   className={`lg:col-span-9 ${idx % 2 === 1 ? 'lg:order-1' : ''}`}
                 >
                   <div
-                    className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+                    className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4"
                   >
                     {collection.enclaves.map((enclave) => (
                       <Link
@@ -441,13 +441,13 @@ export default async function HomePage() {
       </section>
 
       {/* Marketing & Intel Split */}
-      <section className="grid grid-cols-1 md:grid-cols-2 min-h-[500px]">
+      <section className="grid grid-cols-1 md:grid-cols-2 min-h-[300px] md:min-h-[500px]">
         <Link
           href="/about"
-          className="relative group overflow-hidden flex items-center justify-center bg-cream py-20"
+          className="relative group overflow-hidden flex items-center justify-center bg-cream py-12 sm:py-20"
         >
           <div className="absolute inset-0 bg-navy transform -translate-x-full group-hover:translate-x-0 transition-transform duration-700" />
-          <div className="text-center p-12 z-10 relative">
+          <div className="text-center px-6 py-4 sm:p-12 z-10 relative">
             <h3 className="text-2xl font-serif mb-4 text-navy group-hover:text-white transition-colors duration-300">
               Strategic Marketing
             </h3>
@@ -463,10 +463,10 @@ export default async function HomePage() {
 
         <Link
           href="/blog"
-          className="relative group overflow-hidden flex items-center justify-center bg-navy text-white py-20"
+          className="relative group overflow-hidden flex items-center justify-center bg-navy text-white py-12 sm:py-20"
         >
           <div className="absolute inset-0 bg-gold transform translate-x-full group-hover:translate-x-0 transition-transform duration-700" />
-          <div className="text-center p-12 z-10 relative">
+          <div className="text-center px-6 py-4 sm:p-12 z-10 relative">
             <h3 className="text-2xl font-serif mb-4 group-hover:text-navy transition-colors duration-300">
               Market Intelligence
             </h3>
@@ -482,8 +482,8 @@ export default async function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-navy text-white py-16 lg:py-20">
-        <div className="mx-auto max-w-content-lg px-8 lg:px-24">
+      <footer className="bg-navy text-white py-12 sm:py-16 lg:py-20">
+        <div className="mx-auto max-w-content-lg px-6 sm:px-8 lg:px-24">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-16">
             {/* Brand */}
             <div>
