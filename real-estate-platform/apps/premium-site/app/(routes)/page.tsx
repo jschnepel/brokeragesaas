@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import { Fragment } from 'react';
 import Link from 'next/link';
-import { getAllListings } from './listings/data';
+import { searchListingsWithPhotos } from '@platform/database/src/queries/listings';
+import type { ListingRecord } from '@platform/database/src/queries/listings';
+import { generateListingSlug } from '@platform/shared';
 import { resolveAgentConfig } from '../agent-config/index';
 
 const agent = resolveAgentConfig();
@@ -83,8 +85,27 @@ const LIFESTYLE_COLLECTIONS = [
   },
 ];
 
-export default function HomePage() {
-  const listings = getAllListings();
+export const revalidate = 3600;
+
+function formatPrice(price: number | null): string {
+  if (!price) return 'Price Upon Request';
+  if (price >= 1_000_000) {
+    const m = price / 1_000_000;
+    return `$${m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)}M`;
+  }
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(price);
+}
+
+export default async function HomePage() {
+  const { listings: featuredListings } = await searchListingsWithPhotos({
+    status: ['Active'],
+    cities: ['Scottsdale', 'Paradise Valley', 'Cave Creek', 'Carefree'],
+    propertyType: 'Residential',
+    minPrice: 2_000_000,
+    maxPrice: 10_000_000,
+    sortBy: 'newest',
+    limit: 6,
+  });
 
   return (
     <main className="-mt-[var(--nav-height)]">
@@ -257,50 +278,63 @@ export default function HomePage() {
               </h2>
             </div>
             <Link
-              href="/phoenix"
+              href="/listings"
               className="hidden sm:flex items-center gap-3 text-label uppercase tracking-md font-bold text-navy border border-navy/20 px-6 py-3 hover:bg-navy hover:text-white transition-colors duration-300"
             >
-              View All Properties
+              View All Listings
             </Link>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-12 gap-y-16">
-            {listings.map((item) => (
-              <Link
-                key={item.slug}
-                href={`/listings/${item.slug}`}
-                className="group"
-              >
-                <div className="aspect-[4/5] overflow-hidden relative mb-8 border border-navy/5 shadow-sm">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.img}
-                    className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-                    alt={item.address}
-                  />
-                  <div className="absolute inset-0 bg-navy/0 group-hover:bg-navy/20 transition-colors duration-500" />
-                  <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm px-4 py-2">
-                    <span className="font-serif text-navy text-lg">
-                      {item.price}
-                    </span>
+            {featuredListings.map((listing: ListingRecord) => {
+              const slug = generateListingSlug(listing);
+              const street = listing.unparsed_address
+                ? listing.unparsed_address.split(',')[0]
+                : `MLS# ${listing.listing_id}`;
+              return (
+                <Link
+                  key={listing.listing_key}
+                  href={`/listings/${slug}`}
+                  className="group"
+                >
+                  <div className="aspect-[4/5] overflow-hidden relative mb-8 border border-navy/5 shadow-sm">
+                    {listing.primary_photo_url ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={listing.primary_photo_url}
+                        className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                        alt={street}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-cream flex items-center justify-center">
+                        <span className="text-navy/20 font-serif text-lg">No Photo</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-navy/0 group-hover:bg-navy/20 transition-colors duration-500" />
+                    <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm px-4 py-2">
+                      <span className="font-serif text-navy text-lg">
+                        {formatPrice(listing.list_price)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div className="text-center">
-                  <p className="text-meta uppercase tracking-widest text-navy/40 mb-2">
-                    {item.area}
-                  </p>
-                  <h3 className="text-2xl font-serif text-navy mb-2 group-hover:text-gold transition-colors duration-300">
-                    {item.address}
-                  </h3>
-                  <div className="h-px w-8 bg-navy/20 mx-auto my-4 group-hover:w-16 group-hover:bg-gold transition-all duration-500" />
-                  <div className="flex justify-center items-center gap-6 text-xs text-navy">
-                    <span>{item.beds} Beds</span>
-                    <span>{item.baths} Baths</span>
-                    <span>{item.sqft} SF</span>
+                  <div className="text-center">
+                    <p className="text-meta uppercase tracking-widest text-navy/40 mb-2">
+                      {listing.subdivision_name ?? listing.city}
+                    </p>
+                    <h3 className="text-2xl font-serif text-navy mb-2 group-hover:text-gold transition-colors duration-300">
+                      {street}
+                    </h3>
+                    <div className="h-px w-8 bg-navy/20 mx-auto my-4 group-hover:w-16 group-hover:bg-gold transition-all duration-500" />
+                    <div className="flex justify-center items-center gap-6 text-xs text-navy">
+                      {listing.bedrooms_total != null && <span>{listing.bedrooms_total} Beds</span>}
+                      {listing.bathrooms_total_integer != null && <span>{listing.bathrooms_total_integer} Baths</span>}
+                      {listing.living_area != null && <span>{new Intl.NumberFormat('en-US').format(listing.living_area)} SF</span>}
+                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>
