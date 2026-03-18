@@ -563,7 +563,7 @@ async function taskRefreshViews(): Promise<{ refreshed: boolean }> {
 // ─── Lambda Handler ─────────────────────────────────────────
 
 interface LambdaEvent {
-  task?: "backfill-dom" | "purge-raw-data" | "refresh-views";
+  task?: "backfill-dom" | "purge-raw-data" | "refresh-views" | "backfill-photos";
 }
 
 export async function handler(event: LambdaEvent, context: LambdaContext) {
@@ -578,6 +578,17 @@ export async function handler(event: LambdaEvent, context: LambdaContext) {
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`[backfill-dom] Done in ${duration}s. Updated: ${result.updated}, Remaining: ${result.remaining}`);
     return { statusCode: result.remaining > 0 ? 207 : 200, body: JSON.stringify({ task: "backfill-dom", duration: `${duration}s`, ...result }) };
+  }
+
+  if (event.task === "backfill-photos") {
+    await getAccessToken();
+    const result = await syncPhotoUrls(deadlineMs);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[backfill-photos] Done in ${duration}s. Listings: ${result.listingsProcessed}, Photos: ${result.photosInserted}`);
+    // Return 207 if there's more work to do
+    const remaining = await rdsQuery(`SELECT count(*) as c FROM listing_records WHERE photos_count > 0 AND photos_fetched_at IS NULL AND is_deleted = FALSE`);
+    const rem = parseInt((remaining.rows[0] as { c: string }).c, 10);
+    return { statusCode: rem > 0 ? 207 : 200, body: JSON.stringify({ task: "backfill-photos", duration: `${duration}s`, ...result, remaining: rem }) };
   }
 
   if (event.task === "purge-raw-data") {
