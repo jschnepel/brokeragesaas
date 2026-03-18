@@ -479,9 +479,7 @@ export async function searchListingsWithPhotos(
     SELECT 1 FROM listing_records lr WHERE ${whereClause} LIMIT 10001
   ) sub`;
 
-  const dataSql = `SELECT sub.*, lp.media_url AS primary_photo_url
-    FROM (
-      SELECT lr.id, lr.listing_key, lr.listing_id, lr.standard_status, lr.mls_status,
+  const dataSql = `SELECT lr.id, lr.listing_key, lr.listing_id, lr.standard_status, lr.mls_status,
               lr.unparsed_address, lr.city, lr.state_or_province, lr.postal_code,
               lr.subdivision_name,
               lr.latitude::float8 AS latitude, lr.longitude::float8 AS longitude,
@@ -494,13 +492,12 @@ export async function searchListingsWithPhotos(
               lr.year_built, lr.stories_total, lr.pool_private_yn, lr.garage_spaces,
               lr.list_office_name, lr.list_agent_full_name, lr.list_agent_key,
               lr.public_remarks, lr.photos_count, lr.days_on_market,
-              lr.modification_timestamp, lr.listing_contract_date
+              lr.modification_timestamp, lr.listing_contract_date,
+              lr.photo_urls->0->>'url' AS primary_photo_url
        FROM listing_records lr
        WHERE ${whereClause}
        ORDER BY ${orderClause}
-       LIMIT $${paramIndex++} OFFSET $${paramIndex++}
-    ) sub
-    LEFT JOIN listing_photos lp ON lp.listing_key = sub.listing_key AND lp.is_preferred = true`;
+       LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
 
   const [countResult, dataResult] = await Promise.all([
     rdsQuery<{ count: string }>(countSql, params),
