@@ -83,7 +83,7 @@ export function CommuteMap({ lat, lng, address }: CommuteMapProps) {
       <Map
         initialViewState={{ latitude: lat, longitude: lng, zoom: 12 }}
         style={{ width: '100%', height: '100%' }}
-        mapStyle={`https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`}
+        mapStyle={`https://api.maptiler.com/maps/streets-v2-light/style.json?key=${MAPTILER_KEY}`}
         attributionControl={false}
         aria-label={`Map showing location of ${address}`}
       >
