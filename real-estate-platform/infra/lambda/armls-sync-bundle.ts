@@ -434,44 +434,63 @@ async function syncPhotoUrls(deadlineMs: number): Promise<{ listingsProcessed: n
     if (Date.now() >= deadlineMs - 60000) break;
 
     try {
-      const url = `${BASE_URL}/Property('${row.listing_key}')/Media`;
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
-      });
-      if (!res.ok) {
-        // Mark as fetched so we don't retry forever
-        await rdsQuery(`UPDATE listing_records SET photos_fetched_at = NOW() WHERE listing_key = $1`, [row.listing_key]);
-        continue;
+      // Paginate through all photos (API returns 10 per page)
+      let pageUrl: string | null = `${BASE_URL}/Property('${row.listing_key}')/Media`;
+      const allPhotos: Record<string, unknown>[] = [];
+
+      while (pageUrl && Date.now() < deadlineMs - 30000) {
+        const res = await fetch(pageUrl, {
+          headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+        });
+        if (!res.ok) {
+          if (res.status === 404) {
+            // Listing not in RESO — mark as fetched with empty array
+            await rdsQuery(
+              `UPDATE listing_records SET photo_urls = '[]'::jsonb, photos_fetched_at = NOW() WHERE listing_key = $1`,
+              [row.listing_key]
+            );
+          }
+          // Don't mark non-404 errors as fetched — allows retry
+          break;
+        }
+        const data: ODataResponse = await res.json();
+        const photos = data.value ?? [];
+        allPhotos.push(...photos);
+        pageUrl = (data as Record<string, unknown>)["@odata.nextLink"] as string | null ?? null;
       }
 
-      const data: ODataResponse = await res.json();
-      const photos = data.value ?? [];
-
-      // Sort: preferred first, then by order
-      const sorted = photos
-        .sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
+      if (allPhotos.length > 0) {
+        // Sort: preferred first, then by order
+        allPhotos.sort((a, b) => {
           const aPref = a.PreferredPhotoYN === true || a.PreferredPhotoYN === "true" ? 0 : 1;
           const bPref = b.PreferredPhotoYN === true || b.PreferredPhotoYN === "true" ? 0 : 1;
           if (aPref !== bPref) return aPref - bPref;
           return (typeof a.Order === "number" ? a.Order : 999) - (typeof b.Order === "number" ? b.Order : 999);
         });
 
-      // Build compact JSONB array: [{url, desc}, ...]
-      const photoUrls = sorted.map((p: Record<string, unknown>) => ({
-        url: String(p.MediaURL ?? ""),
-        desc: p.ShortDescription ? String(p.ShortDescription) : null,
-      }));
+        const photoUrls = allPhotos.map((p) => ({
+          url: String(p.MediaURL ?? ""),
+          desc: p.ShortDescription ? String(p.ShortDescription) : null,
+        }));
 
-      // Single UPDATE — no separate table needed
-      await rdsQuery(
-        `UPDATE listing_records SET photo_urls = $1, photos_fetched_at = NOW() WHERE listing_key = $2`,
-        [JSON.stringify(photoUrls), row.listing_key]
-      );
+        await rdsQuery(
+          `UPDATE listing_records SET photo_urls = $1, photos_fetched_at = NOW() WHERE listing_key = $2`,
+          [JSON.stringify(photoUrls), row.listing_key]
+        );
 
-      photosInserted += photoUrls.length;
+        photosInserted += photoUrls.length;
+      } else if (allPhotos.length === 0 && pageUrl === null) {
+        // Pagination completed but 0 photos — mark as fetched
+        await rdsQuery(
+          `UPDATE listing_records SET photo_urls = '[]'::jsonb, photos_fetched_at = NOW() WHERE listing_key = $1`,
+          [row.listing_key]
+        );
+      }
+
       listingsProcessed++;
     } catch {
-      // Skip this listing, continue
+      // Don't mark as fetched — allows retry on next run
+      console.error(`[armls-sync] Photo fetch failed for ${row.listing_key}`);
     }
   }
 
