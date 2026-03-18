@@ -44,22 +44,17 @@ interface SyncState {
 // ─── Secrets Manager (cached across warm invocations) ───────
 
 const smClient = new SecretsManagerClient({ region: "us-east-1" });
-let cachedTokens: { accessToken: string; refreshToken: string; oauthKey: string; oauthSecret: string } | null = null;
+let cachedAccessToken: string | null = null;
 
-async function getTokens() {
-  if (cachedTokens) return cachedTokens;
+async function getAccessToken(): Promise<string> {
+  if (cachedAccessToken) return cachedAccessToken;
 
   const res = await smClient.send(
     new GetSecretValueCommand({ SecretId: "rlsir/armls/tokens" })
   );
   const secret = JSON.parse(res.SecretString!);
-  cachedTokens = {
-    accessToken: secret.access_token,
-    refreshToken: secret.refresh_token,
-    oauthKey: secret.client_id,
-    oauthSecret: secret.client_secret,
-  };
-  return cachedTokens;
+  cachedAccessToken = secret.access_token;
+  return cachedAccessToken;
 }
 
 // ─── RDS Connection ─────────────────────────────────────────
@@ -100,35 +95,17 @@ async function fetchPage(
   entity: EntityName,
   skipToken: string | null
 ): Promise<{ records: Record<string, unknown>[]; nextSkipToken: string | null }> {
-  const tokens = await getTokens();
+  const accessToken = await getAccessToken();
   const url = skipToken
     ? `${BASE_URL}/${entity}?$skiptoken=${skipToken}`
     : `${BASE_URL}/${entity}`;
 
   const res = await fetch(url, {
     headers: {
-      Authorization: `Bearer ${tokens.accessToken}`,
+      Authorization: `Bearer ${accessToken}`,
       Accept: "application/json",
     },
   });
-
-  if (res.status === 401) {
-    // Clear cached tokens and re-read from Secrets Manager (the token-refresh Lambda may have updated them)
-    cachedTokens = null;
-    const freshTokens = await getTokens();
-    const retryRes = await fetch(url, {
-      headers: { Authorization: `Bearer ${freshTokens.accessToken}`, Accept: "application/json" },
-    });
-    if (!retryRes.ok) {
-      const text = await retryRes.text();
-      throw new Error(`Auth failed after SM re-read (${retryRes.status}): ${text.substring(0, 200)}`);
-    }
-    const retryData: ODataResponse = await retryRes.json();
-    const retrySkipToken = retryData["@odata.nextLink"]
-      ? extractSkipToken(retryData["@odata.nextLink"])
-      : null;
-    return { records: retryData.value ?? [], nextSkipToken: retrySkipToken };
-  }
 
   if (!res.ok) {
     const text = await res.text();
@@ -142,9 +119,6 @@ async function fetchPage(
 
   return { records: data.value ?? [], nextSkipToken };
 }
-
-// Token refresh is handled EXCLUSIVELY by the token-refresh Lambda.
-// This sync Lambda only reads tokens from Secrets Manager — never calls Spark's OAuth endpoint.
 
 function extractSkipToken(nextLink: string): string | null {
   try {
@@ -204,12 +178,41 @@ const PROPERTY_FIELD_MAP: Record<string, string> = {
   InternetAddressDisplayYN: "internet_address_display_yn",
   OriginatingSystemName: "originating_system_name",
   FireplacesTotal: "fireplaces_total",
+  ListingTerms: "listing_terms",
+  Disclosures: "disclosures",
+  Ownership: "ownership",
+  BuilderName: "builder_name",
+  ListAgentPreferredPhone: "list_agent_preferred_phone",
+  ListOfficeEmail: "list_office_email",
+  AttributionContact: "attribution_contact",
+  MajorChangeType: "major_change_type",
+  MajorChangeTimestamp: "major_change_timestamp",
+  LandLeaseYN: "land_lease_yn",
+  DelayedMarketingYN: "delayed_marketing_yn",
+  HighSchool: "high_school",
+  AssociationPhone: "association_phone",
+  OnMarketDate: "on_market_date",
+  PostalCodePlus4: "postal_code_plus4",
+  Zoning: "zoning",
+  TaxLegalDescription: "tax_legal_description",
+  PropertyAttachedYN: "property_attached_yn",
+  Utilities: "utilities",
+  LaundryFeatures: "laundry_features",
+  RoomsTotal: "rooms_total",
+  BedroomsPossible: "bedrooms_possible",
+  StructureType: "structure_type",
+  Vegetation: "vegetation",
+  BathroomsTotalDecimal: "bathrooms_total_decimal",
 };
 
 const ARMLS_CUSTOM_MAP: Record<string, string> = {
   "Contact_sp_Info_co_List_sp_Agent_sp_Cell_sp_Phn2": "agent_cell_phone",
   "Price_sp_per_sp_Sq_sp_Ft": "price_per_sqft",
   "Planned_sp_Community_sp_Name": "planned_community_name",
+  "Association_sp_Fees_co_Ttl_sp_Mthly_sp_Fee_sp_Equiv": "total_monthly_fee",
+  "Association_sp_Fees_co_HOA_sp_Transfer_sp_Fee2": "hoa_transfer_fee",
+  "General_sp_Property_sp_Description_co_Dwelling_sp_Styles": "dwelling_style",
+  "General_sp_Property_sp_Description_co__pound__sp_of_sp_Interior_sp_Levels": "interior_levels",
 };
 
 const JSONB_COLS = new Set([
@@ -218,24 +221,28 @@ const JSONB_COLS = new Set([
   "parking_features", "community_features", "view_features", "architectural_style",
   "fireplace_features", "lot_features", "patio_and_porch_features", "sewer",
   "water_source", "association_fee_includes", "security_features", "spa_features",
+  "listing_terms", "disclosures", "utilities", "laundry_features", "structure_type", "vegetation",
 ]);
 
 const BOOL_COLS = new Set([
   "pool_private_yn", "fireplace_yn", "association_yn", "horse_yn",
   "attached_garage_yn", "cooling_yn", "heating_yn",
   "internet_entire_listing_display_yn", "internet_address_display_yn",
+  "land_lease_yn", "delayed_marketing_yn", "property_attached_yn",
 ]);
 
 const NUM_COLS = new Set([
   "list_price", "close_price", "living_area", "lot_size_acres",
   "lot_size_square_feet", "latitude", "longitude", "association_fee",
   "garage_spaces", "covered_spaces", "carport_spaces", "open_parking_spaces",
-  "tax_annual_amount", "price_per_sqft",
+  "tax_annual_amount", "price_per_sqft", "total_monthly_fee", "hoa_transfer_fee",
+  "bathrooms_total_decimal",
 ]);
 
 const INT_COLS = new Set([
   "bedrooms_total", "bathrooms_total_integer", "bathrooms_full", "bathrooms_half",
   "year_built", "stories_total", "photos_count", "tax_year", "fireplaces_total",
+  "rooms_total", "bedrooms_possible", "interior_levels",
 ]);
 
 function coerce(col: string, val: unknown): unknown {
@@ -274,9 +281,16 @@ function mapRecord(raw: Record<string, unknown>) {
   if (!cols.modification_timestamp) cols.modification_timestamp = new Date().toISOString();
 
   // Compute days_on_market
-  if (cols.listing_contract_date && cols.standard_status === "Active") {
-    const diffMs = Date.now() - new Date(cols.listing_contract_date as string).getTime();
-    cols.days_on_market = Math.max(0, Math.floor(diffMs / 86400000));
+  if (cols.listing_contract_date) {
+    const listDate = new Date(cols.listing_contract_date as string).getTime();
+    if (cols.standard_status === "Closed" && cols.close_date) {
+      // Closed: DOM = close_date - listing_contract_date
+      const closeDate = new Date(cols.close_date as string).getTime();
+      cols.days_on_market = Math.max(0, Math.floor((closeDate - listDate) / 86400000));
+    } else if (cols.standard_status === "Active" || cols.standard_status === "Active Under Contract") {
+      // Active: DOM = now - listing_contract_date
+      cols.days_on_market = Math.max(0, Math.floor((Date.now() - listDate) / 86400000));
+    }
   }
 
   cols.raw_data = JSON.stringify(raw);
@@ -290,39 +304,40 @@ const CHECKPOINT_INTERVAL = 100;
 
 async function upsertPage(records: Record<string, unknown>[]): Promise<number> {
   if (records.length === 0) return 0;
+
+  const mapped = records.map(mapRecord).filter((r): r is Record<string, unknown> => r !== null);
+  if (mapped.length === 0) return 0;
+
   const client = await getRdsClient();
-  let count = 0;
   try {
-    for (const raw of records) {
-      const mapped = mapRecord(raw);
-      if (!mapped) continue;
-      try {
-        await client.query("BEGIN");
-        const columns = Object.keys(mapped);
-        const values = Object.values(mapped);
-        const placeholders = columns.map((_, i) => `$${i + 1}`);
-        const updateCols = columns
-          .filter((c) => c !== "listing_key" && c !== "id" && c !== "first_synced_at")
-          .map((c) => `${c} = EXCLUDED.${c}`)
-          .join(", ");
-        await client.query(
-          `INSERT INTO listing_records (${columns.join(", ")})
-           VALUES (${placeholders.join(", ")})
-           ON CONFLICT (listing_key) DO UPDATE SET ${updateCols}`,
-          values
-        );
-        await client.query("COMMIT");
-        count++;
-      } catch (err) {
-        await client.query("ROLLBACK");
-        const msg = err instanceof Error ? err.message : String(err);
-        if (count === 0) console.warn(`Upsert error: ${msg.substring(0, 100)}`);
-      }
+    await client.query("BEGIN");
+
+    for (const cols of mapped) {
+      const columns = Object.keys(cols);
+      const values = Object.values(cols);
+      const placeholders = columns.map((_, i) => `$${i + 1}`);
+      const updateCols = columns
+        .filter((c) => c !== "listing_key" && c !== "id" && c !== "first_synced_at")
+        .map((c) => `${c} = EXCLUDED.${c}`)
+        .join(", ");
+      await client.query(
+        `INSERT INTO listing_records (${columns.join(", ")})
+         VALUES (${placeholders.join(", ")})
+         ON CONFLICT (listing_key) DO UPDATE SET ${updateCols}`,
+        values
+      );
     }
+
+    await client.query("COMMIT");
+    return mapped.length;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[upsert] Batch failed (${mapped.length} records): ${msg.substring(0, 200)}`);
+    return 0;
   } finally {
     client.release();
   }
-  return count;
 }
 
 async function syncProperty(deadlineMs: number): Promise<SyncResult> {
@@ -408,12 +423,12 @@ async function syncPhotoUrls(deadlineMs: number): Promise<{ listingsProcessed: n
     `SELECT listing_key, photos_count FROM listing_records
      WHERE is_deleted = FALSE AND internet_entire_listing_display_yn = TRUE
        AND photos_count > 0 AND photos_fetched_at IS NULL
-     ORDER BY list_price DESC NULLS LAST LIMIT 50`
+     ORDER BY list_price DESC NULLS LAST LIMIT 500`
   );
 
   let listingsProcessed = 0;
   let photosInserted = 0;
-  const tokens = await getTokens();
+  const accessToken = await getAccessToken();
 
   for (const row of result.rows) {
     if (Date.now() >= deadlineMs - 60000) break;
@@ -421,7 +436,7 @@ async function syncPhotoUrls(deadlineMs: number): Promise<{ listingsProcessed: n
     try {
       const url = `${BASE_URL}/Property('${row.listing_key}')/Media`;
       const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${tokens.accessToken}`, Accept: "application/json" },
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
       });
       if (!res.ok) continue;
 
@@ -468,41 +483,112 @@ async function syncPhotoUrls(deadlineMs: number): Promise<{ listingsProcessed: n
   return { listingsProcessed, photosInserted };
 }
 
+// ─── Maintenance Tasks ──────────────────────────────────────
+
+async function taskBackfillDom(deadlineMs: number): Promise<{ updated: number; remaining: number }> {
+  let totalUpdated = 0;
+  const BATCH = 50000;
+
+  while (Date.now() < deadlineMs - 60000) {
+    const res = await rdsQuery(
+      `UPDATE listing_records
+       SET days_on_market = LEAST(GREATEST(0, (close_date::date - listing_contract_date::date)), 9999)
+       WHERE id IN (
+         SELECT id FROM listing_records
+         WHERE standard_status = 'Closed'
+           AND close_date IS NOT NULL AND listing_contract_date IS NOT NULL
+           AND (days_on_market IS NULL OR days_on_market = 0)
+           AND (close_date::date - listing_contract_date::date) BETWEEN 0 AND 9999
+         LIMIT $1
+       )`,
+      [BATCH]
+    );
+    totalUpdated += res.rowCount ?? 0;
+    console.log(`[backfill-dom] Batch: ${res.rowCount} rows (total: ${totalUpdated})`);
+    if ((res.rowCount ?? 0) < BATCH) break;
+  }
+
+  const remaining = await rdsQuery(
+    `SELECT count(*) as c FROM listing_records WHERE standard_status = 'Closed' AND close_date IS NOT NULL AND listing_contract_date IS NOT NULL AND (days_on_market IS NULL OR days_on_market = 0)`
+  );
+
+  return { updated: totalUpdated, remaining: parseInt(remaining.rows[0].c, 10) };
+}
+
+async function taskPurgeRawData(deadlineMs: number): Promise<{ purged: number; remaining: number }> {
+  let totalPurged = 0;
+  const BATCH = 50000;
+
+  while (Date.now() < deadlineMs - 60000) {
+    const res = await rdsQuery(
+      `UPDATE listing_records SET raw_data = NULL
+       WHERE id IN (
+         SELECT id FROM listing_records
+         WHERE standard_status = 'Closed' AND raw_data IS NOT NULL
+         LIMIT $1
+       )`,
+      [BATCH]
+    );
+    totalPurged += res.rowCount ?? 0;
+    console.log(`[purge-raw] Batch: ${res.rowCount} rows (total: ${totalPurged})`);
+    if ((res.rowCount ?? 0) < BATCH) break;
+  }
+
+  const remaining = await rdsQuery(
+    `SELECT count(*) as c FROM listing_records WHERE standard_status = 'Closed' AND raw_data IS NOT NULL`
+  );
+
+  return { purged: totalPurged, remaining: parseInt(remaining.rows[0].c, 10) };
+}
+
+async function taskRefreshViews(): Promise<{ refreshed: boolean }> {
+  await rdsQuery(`SELECT refresh_analytics_views()`);
+  return { refreshed: true };
+}
+
 // ─── Lambda Handler ─────────────────────────────────────────
 
-export async function handler(_event: unknown, context: LambdaContext) {
+interface LambdaEvent {
+  task?: "backfill-dom" | "purge-raw-data" | "refresh-views";
+}
+
+export async function handler(event: LambdaEvent, context: LambdaContext) {
   const startTime = Date.now();
   const deadlineMs = startTime + context.getRemainingTimeInMillis();
 
-  console.log(`[armls-sync] Starting. Time budget: ${context.getRemainingTimeInMillis()}ms`);
+  console.log(`[armls-sync] Starting. Task: ${event.task ?? 'sync'}. Time budget: ${context.getRemainingTimeInMillis()}ms`);
 
-  // Check if last sync failed on auth — if so, skip to avoid hammering Spark
-  try {
-    const stateCheck = await rdsQuery(
-      `SELECT last_sync_error, last_sync_completed FROM listing_sync_state WHERE entity_name = $1`,
-      ["Property"]
-    );
-    const lastError = stateCheck.rows[0]?.last_sync_error;
-    if (lastError && (lastError.includes("Auth failed") || lastError.includes("invalid_grant") || lastError.includes("403"))) {
-      const lastCompleted = stateCheck.rows[0]?.last_sync_completed;
-      console.log(`[armls-sync] Skipping — last sync failed on auth: ${lastError}. Waiting for token refresh Lambda to fix tokens. Last success: ${lastCompleted}`);
-      return { statusCode: 200, body: "Skipped — auth error backoff. Waiting for valid tokens." };
-    }
-  } catch (err) {
-    console.warn(`[armls-sync] Could not check sync state, proceeding anyway:`, err instanceof Error ? err.message : err);
+  // ── Maintenance tasks (invoked manually) ──
+  if (event.task === "backfill-dom") {
+    const result = await taskBackfillDom(deadlineMs);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[backfill-dom] Done in ${duration}s. Updated: ${result.updated}, Remaining: ${result.remaining}`);
+    return { statusCode: result.remaining > 0 ? 207 : 200, body: JSON.stringify({ task: "backfill-dom", duration: `${duration}s`, ...result }) };
   }
 
-  // Ensure tokens are loaded (read-only from Secrets Manager)
-  await getTokens();
+  if (event.task === "purge-raw-data") {
+    const result = await taskPurgeRawData(deadlineMs);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[purge-raw] Done in ${duration}s. Purged: ${result.purged}, Remaining: ${result.remaining}`);
+    return { statusCode: result.remaining > 0 ? 207 : 200, body: JSON.stringify({ task: "purge-raw-data", duration: `${duration}s`, ...result }) };
+  }
 
-  // Sync Property entity (the big one)
+  if (event.task === "refresh-views") {
+    const result = await taskRefreshViews();
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[refresh-views] Done in ${duration}s`);
+    return { statusCode: 200, body: JSON.stringify({ task: "refresh-views", duration: `${duration}s`, ...result }) };
+  }
+
+  // ── Default: ARMLS sync ──
+  await getAccessToken();
+
   const result = await syncProperty(deadlineMs);
   console.log(
     `[armls-sync] Property: ${result.pagesProcessed} pages, ${result.recordsUpserted} records, ` +
     `completed: ${result.completed}${result.error ? `, error: ${result.error}` : ""}`
   );
 
-  // If time permits, sync photo URLs
   let photoResult = { listingsProcessed: 0, photosInserted: 0 };
   if (Date.now() < deadlineMs - 120000) {
     photoResult = await syncPhotoUrls(deadlineMs);
