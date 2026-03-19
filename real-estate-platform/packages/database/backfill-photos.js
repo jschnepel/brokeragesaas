@@ -188,7 +188,8 @@ async function fetchFirstPage(pool, token, listingKey, listingId) {
   }
 
   if (!res || !res.ok) {
-    if (res && res.status === 404) {
+    if (res && (res.status === 404 || res.status === 403)) {
+      // 404 = listing not in RESO, 403 = restricted media — mark as done, move on
       await pool.query(
         `UPDATE listing_records SET photo_urls = '[]'::jsonb, photos_fetched_at = NOW() WHERE listing_key = $1`,
         [listingKey]
@@ -227,7 +228,7 @@ async function fetchAllPages(pool, token, listingKey, listingId, photosCount) {
     }
 
     if (!res || !res.ok) {
-      if (res && res.status === 404) {
+      if (res && (res.status === 404 || res.status === 403)) {
         await pool.query(`UPDATE listing_records SET photo_urls = '[]'::jsonb, photos_fetched_at = NOW() WHERE listing_key = $1`, [listingKey]);
         return 0;
       }
