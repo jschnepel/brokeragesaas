@@ -24,12 +24,27 @@ applications:
             - npm ci
         build:
           commands:
-            # Amplify Hosting compute (WEB_COMPUTE platform) supplies
-            # node_modules at runtime — do NOT cp them into .next or the
-            # artifact balloons past the 230MB upload cap (we hit 833MB).
-            # Build also surprisingly survives the local-Windows
-            # /_global-error prerender crash on Amplify's Linux runner —
-            # no '|| true' needed.
+            # Amplify Hosting Next.js Compute does NOT pass app/branch
+            # env vars to the SSR runtime — they're build-time only
+            # (verified via /api/diag/env: 0 of our custom vars visible).
+            # Workaround: bake them into .env.production.local before
+            # `next build`. Next.js inlines server-side env vars into
+            # the server bundle (NEXT_PUBLIC_ ones go to the client
+            # bundle). Vars without NEXT_PUBLIC_ stay server-only.
+            - |
+              {
+                printf 'RDS_DATABASE_URL=%s\n' "${RDS_DATABASE_URL:-}"
+                printf 'NEXT_PUBLIC_SITE_URL=%s\n' "${NEXT_PUBLIC_SITE_URL:-https://feature-yong2-amplify.d2tuygdje4mmy3.amplifyapp.com}"
+                printf 'NEXT_PUBLIC_MAPTILER_KEY=%s\n' "${NEXT_PUBLIC_MAPTILER_KEY:-6DagWlYgkxoFxL5RaX6S}"
+                printf 'NEXT_PUBLIC_CLARITY_PROJECT_ID=%s\n' "${NEXT_PUBLIC_CLARITY_PROJECT_ID:-}"
+                printf 'NEXT_PUBLIC_POSTHOG_KEY=%s\n' "${NEXT_PUBLIC_POSTHOG_KEY:-}"
+                printf 'RESEND_API_KEY=%s\n' "${RESEND_API_KEY:-}"
+                printf 'CONTACT_TO_EMAIL=%s\n' "${CONTACT_TO_EMAIL:-}"
+                printf 'CONTACT_FROM_EMAIL=%s\n' "${CONTACT_FROM_EMAIL:-}"
+              } > .env.production.local
+            # Sanity check: confirm the DSN made it into the file (no
+            # value leak — just checks length).
+            - 'echo "DSN bytes baked: $(grep ^RDS_DATABASE_URL= .env.production.local | wc -c)"'
             - npm run build
             - test -f .next/BUILD_ID || (echo "Next build did not emit BUILD_ID — compilation failed" && exit 1)
       artifacts:
