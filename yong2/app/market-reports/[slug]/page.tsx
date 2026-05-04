@@ -40,10 +40,12 @@ type Params = { slug: string };
 
 // ISR: refresh hourly so newly-refreshed MV data flows through.
 export const revalidate = 3600;
+// Same reason as the community page: each report fans out to ~9 RDS
+// queries during render and current platform load makes prerender
+// exceed the 60s budget. Render on demand.
+export const dynamic = 'force-dynamic';
 
-export function generateStaticParams() {
-  return MARKET_REPORT_COPY.map((r) => ({ slug: r.slug }));
-}
+// generateStaticParams disabled — see `dynamic = 'force-dynamic'` above.
 
 export async function generateMetadata({
   params,
