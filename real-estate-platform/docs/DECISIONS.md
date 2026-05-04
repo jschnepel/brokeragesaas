@@ -1,6 +1,9 @@
 # DECISIONS.md — Architecture Decision Records (ADR)
+
 # Real Estate Platform — Echelon Point LLC
+
 # Format: one ADR per decision. Never delete a record — supersede it with a new one.
+
 # Last Updated: 2026-03-09
 
 ---
@@ -21,6 +24,7 @@
 ---
 
 #### ADR-001 — Neon over AWS RDS for platform database
+
 **Date:** 2026-02-15
 **Status:** active
 
@@ -29,6 +33,7 @@
 **Decision:** Migrate platform DB from RDS to Neon serverless Postgres. Keep AWS RDS as the ARMLS data mirror (separate concern, heavier workload, not yet active).
 
 **Consequences:**
+
 - Eliminates ongoing RDS costs while platform is pre-revenue
 - Neon cold starts (~2s) acceptable for internal tool
 - Branch workflow enables staging/prod DB separation cleanly
@@ -37,6 +42,7 @@
 ---
 
 #### ADR-002 — Raw pg pool over Drizzle or Prisma
+
 **Date:** 2026-02-15
 **Status:** active
 
@@ -45,6 +51,7 @@
 **Decision:** Use raw `pg` pool with hand-written parameterized queries. All DB access through service class methods with `fromRow` mappers that provide type safety at the boundary.
 
 **Consequences:**
+
 - More SQL to write, but SQL is explicit and reviewable
 - No ORM migration files — plain `.sql` files only
 - `fromRow` mappers provide the same type safety as ORM at lower overhead
@@ -54,6 +61,7 @@
 ---
 
 #### ADR-003 — Tailwind v4 + shadcn canary (new-york style)
+
 **Date:** 2026-02-15
 **Status:** active
 
@@ -62,6 +70,7 @@
 **Decision:** Use Tailwind v4.2.1 + shadcn 4.0.2 canary, new-york style. Define tokens as CSS vars in `styles/tokens/`. Shadow Tailwind utility classes with token values where possible.
 
 **Consequences:**
+
 - Some Tailwind utilities differ from v3 docs — team needs v4 awareness
 - shadcn canary means occasional breaking changes on updates — pin versions
 - CSS-first theming aligns with the token editor (P2-6) — ThemeProvider can inject vars that override everything
@@ -70,6 +79,7 @@
 ---
 
 #### ADR-004 — Defer OpenNext/SST to post-launch
+
 **Date:** 2026-02-20
 **Status:** deferred
 
@@ -78,6 +88,7 @@
 **Decision:** Deploy to AWS Amplify Gen 2 for launch. Evaluate OpenNext/SST when the platform has paying tenants and predictable load.
 
 **Consequences:**
+
 - Amplify is the simplest Next.js SSR path on AWS — fast to set up
 - Amplify SSR pricing is higher per request than Lambda at volume
 - Migration to OpenNext is possible post-launch without code changes
@@ -86,6 +97,7 @@
 ---
 
 #### ADR-005 — MapLibre + OpenFreeMap + ESRI for mapping
+
 **Date:** 2026-02-22
 **Status:** active (backlog P3-5)
 
@@ -94,6 +106,7 @@
 **Decision:** MapLibre GL JS (open source) + OpenFreeMap base tiles (free) + ESRI overlay for private community coverage. 133 community GeoJSON boundaries pre-built from Maricopa County parcel data.
 
 **Consequences:**
+
 - Zero per-request map costs
 - ESRI overlay covers the private communities OSM misses
 - MapLibre is open source — no vendor lock-in
@@ -103,6 +116,7 @@
 ---
 
 #### ADR-006 — Echelon Point LLC over Pixels and Print Studio
+
 **Date:** 2026-03-01
 **Status:** active
 
@@ -111,6 +125,7 @@
 **Decision:** Rebrand to Echelon Point. File LLC under Echelon Point. Trademark filing under USPTO Class 42. Domain negotiation ongoing (echelonpoint.com listed at $20K from squatter — pursuing alternatives).
 
 **Consequences:**
+
 - All client-facing materials and contracts under Echelon Point LLC
 - IP ownership clearly with Echelon Point, not Russ Lyon
 - Contractor relationship with Yong Choi preserves IP
@@ -118,6 +133,7 @@
 ---
 
 #### ADR-007 — Staging environment = password-protected Next.js app
+
 **Date:** 2026-03-05
 **Status:** active
 
@@ -126,6 +142,7 @@
 **Decision:** Staging (`dev` branch on Amplify) uses Next.js middleware to require a static password for all routes. Not a real auth system — just a gate for ARMLS review purposes.
 
 **Consequences:**
+
 - Simple to implement — single env var `STAGING_PASSWORD`
 - ARMLS reviewer gets a URL + password, can review listing display compliance
 - Not a long-term solution — remove or replace with proper staging auth post-ARMLS approval
@@ -133,6 +150,7 @@
 ---
 
 #### ADR-008 — VOW required for sold transaction data
+
 **Date:** 2026-03-05
 **Status:** active
 
@@ -141,6 +159,7 @@
 **Decision:** Plan the analytics platform with VOW compliance from the start. Sold data APIs are gated behind VOW-compliant pages (require user registration or agent context).
 
 **Consequences:**
+
 - Increases compliance surface area
 - Some analytics features (velocity, appreciation) require VOW gating
 - Public-facing analytics pages can only show aggregate/anonymized sold data
@@ -149,6 +168,7 @@
 ---
 
 #### ADR-009 — 150-line component decomposition rule
+
 **Date:** 2026-03-09
 **Status:** active
 
@@ -157,6 +177,7 @@
 **Decision:** Any component exceeding 150 lines must be decomposed into sub-components in the same directory. This is enforced in code review and documented in CLAUDE.md.
 
 **Consequences:**
+
 - More files — offset by better discoverability and testability
 - Each sub-component can have focused tests
 - Decomposition is always into the same directory — no deep nesting
@@ -164,6 +185,7 @@
 ---
 
 #### ADR-010 — No Drizzle schema, no Prisma schema — SQL migrations only
+
 **Date:** 2026-03-09
 **Status:** active
 
@@ -172,6 +194,7 @@
 **Decision:** All schema changes via numbered `.sql` migration files in `packages/database/src/migrations/`. A `schema_migrations` table tracks what has been applied. No ORM schema files.
 
 **Consequences:**
+
 - SQL migrations are the single source of truth for DB schema
 - `DATABASE.md` documents current schema state for reference
 - Migrations are immutable once applied to any shared environment
@@ -179,4 +202,44 @@
 
 ---
 
-*Never delete a decision record. If a decision is reversed, add a new ADR with status `superseded` and reference the original.*
+#### ADR-011 — ARMLS sync resilience: SAVEPOINT-per-row + Lambda concurrency cap + sanitize-at-field-mapper
+
+**Date:** 2026-04-26 (formalizing from phase-0 incident response)
+**Status:** active
+
+**Context:** On 2026-04-19 the `rlsir-armls-sync` Lambda spiked to 77 errors/day (vs the normal 0–3) with two failure classes (per `docs/db/phase-0-summary-2026-04-26.md` §1):
+
+1. **`numeric field overflow` (PG 22003)** — incoming rows with values exceeding the NUMERIC(p,s) bounds on `listing_records` (e.g., `tax_annual_amount NUMERIC(10,2)` capping at $99,999,999.99 when a commercial property exceeded that). Triggered all day Apr 19.
+2. **`deadlock detected` (PG 40P01)** — concurrent Lambda invocations (134 in one day vs the scheduled 6) updating overlapping rows in `listing_records`.
+
+The structural cause was a single transaction wrapping the whole 10-row batch in `apps/backend/src/lib/spark/sync-engine.ts:146-164`: any single bad row threw, the entire batch rolled back, the page was logged as "Batch failed," the next invocation re-encountered the same bad row and failed again. Parallel invocations layered deadlocks on top.
+
+ARMLS's mirror is read-only by license — we cannot widen columns to accommodate bad data, and we cannot mutate rows server-side outside the Lambda's UPSERT path.
+
+**Decision:** Three coordinated changes (formalized in the deployed Lambda code committed in PR #1's `feat(lambda): ARMLS 12h compliance` commit):
+
+1. **Per-row SAVEPOINT in upsertPage** so a single bad row only rolls back its own SAVEPOINT, not the whole batch. The page proceeds; the bad row gets captured in `sync_errors` (side table, derived layer — not a mirror mutation).
+2. **`reservedConcurrentExecutions = 4`** on the sync Lambda (was unbounded; tried 1 first but the 8 EventBridge rules need at least ~4 to avoid throttling). Memory rule: never set it above 4 for this Lambda — eliminates the bulk of the deadlock surface.
+3. **Sanitize at the field-mapper** (`packages/spark/src/field-mapper.ts`) — clamp NUMERIC values to column bounds before INSERT, log out-of-range to `sync_errors` with severity='warn'. Keeps the mirror schema RESO-compliant; cleanup happens in the derived layer.
+
+The 2026-05-04 ARMLS 12h compliance work added a fourth safeguard: `bulkUpsertActives` for the refresh-actives task uses CHUNK=500 multi-VALUES INSERT (~5000× faster than per-row SAVEPOINT). The SAVEPOINT pattern remains for the delta sync path; the bulk pattern is for the all-Active re-walk.
+
+**Consequences:**
+
+- A single bad row no longer takes out a whole 10-row batch
+- 0–3 errors/day post-fix (vs 77 on Apr 19), verified Apr 25 onward
+- New invariant: `sync_errors` is the only valid place for ARMLS mirror anomalies — never UPDATE/DELETE on `listing_records`
+- Lambda concurrency is bounded; future capacity work consults the EventBridge fan-out (currently 8 rules → 4 concurrency, 2× headroom)
+- Numeric-overflow incidents become observable (`sync_errors WHERE error_class='numeric_overflow'`) instead of failing silently
+- The 12h compliance work could be built on top because the underlying sync wasn't dropping batches
+
+**Cross-references:**
+
+- `docs/db/phase-0-summary-2026-04-26.md` §1 — the original RCA
+- `docs/db/migration-drift-2026-04-26.md` — schema drift audit done in the same phase
+- `infra/lambda/armls-sync-bundle.ts:1604+` — the deployed `refresh-actives` task using bulk UPSERT
+- `.claude/skills/rlsir-recursive-improvement/SKILL.md` — the broader "mirror is read-only" prime directive that this ADR honors
+
+---
+
+_Never delete a decision record. If a decision is reversed, add a new ADR with status `superseded` and reference the original._
