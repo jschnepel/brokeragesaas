@@ -55,6 +55,36 @@ PROFILES_DIR = os.environ.get("DBT_PROFILES_DIR", "/opt/analytics")
 DEFAULT_TARGET = os.environ.get("DBT_TARGET", "prod")
 ARTIFACTS_BUCKET = os.environ.get("ARTIFACTS_BUCKET")
 ARTIFACTS_PREFIX = os.environ.get("ARTIFACTS_PREFIX", "analytics/_meta/")
+RDS_SECRET_ID = os.environ.get("RDS_SECRET_ID", "rlsir/rds/dbt-readonly")
+
+
+def _hydrate_rds_credentials_from_secrets_manager() -> None:
+    """Pull RDS connection params from Secrets Manager → populate RDS_* env vars.
+
+    Called once at module load. Lambda's execution role grants
+    secretsmanager:GetSecretValue on rlsir/rds/dbt-readonly-* ARN.
+    """
+    try:
+        sm = boto3.client("secretsmanager", region_name="us-east-1")
+        resp = sm.get_secret_value(SecretId=RDS_SECRET_ID)
+        secret = json.loads(resp["SecretString"])
+        os.environ["RDS_HOST"] = secret.get("host", "")
+        os.environ["RDS_PORT"] = str(secret.get("port", 5432))
+        os.environ["RDS_USER"] = secret.get("username", "")
+        os.environ["RDS_PASSWORD"] = secret.get("password", "")
+        os.environ["RDS_DATABASE"] = secret.get("dbname", "")
+        print(f"[startup] Hydrated RDS creds from Secrets Manager ({RDS_SECRET_ID})")
+    except Exception as e:
+        print(f"[startup] Could not hydrate RDS creds from Secrets Manager: {e}")
+        # Fallback placeholders so dbt parse can complete (smoke task path).
+        os.environ.setdefault("RDS_PASSWORD", "secret-not-configured-yet")
+        os.environ.setdefault("RDS_HOST", "rds-not-configured")
+        os.environ.setdefault("RDS_USER", "rds-not-configured")
+        os.environ.setdefault("RDS_DATABASE", "rds-not-configured")
+        os.environ.setdefault("RDS_PORT", "5432")
+
+
+_hydrate_rds_credentials_from_secrets_manager()
 
 
 def _run_dbt(args: list[str]) -> tuple[int, str]:
@@ -190,16 +220,19 @@ def handler(event: dict, context) -> dict:
     else:
         logger.info("dbt run ok", extra={"summary": summary, "elapsed": elapsed})
 
+    body_payload = {
+        "task": task,
+        "target": target,
+        "exit_code": rc,
+        "duration_seconds": elapsed,
+        "models_built": summary["models_built"],
+        "models_failed": summary["models_failed"],
+        "errors": summary["errors"],
+        "run_results_s3": s3_path,
+    }
+    if rc != 0 or summary["models_failed"] > 0:
+        body_payload["output_tail"] = out[-4000:]
     return {
         "statusCode": 200 if rc == 0 and summary["models_failed"] == 0 else 500,
-        "body": json.dumps({
-            "task": task,
-            "target": target,
-            "exit_code": rc,
-            "duration_seconds": elapsed,
-            "models_built": summary["models_built"],
-            "models_failed": summary["models_failed"],
-            "errors": summary["errors"],
-            "run_results_s3": s3_path,
-        }),
+        "body": json.dumps(body_payload),
     }

@@ -1,0 +1,57 @@
+# Copy this file to ~/.dbt/profiles.yml (or set DBT_PROFILES_DIR=. and use as-is locally).
+# Credentials are loaded from environment variables — see .env.local at repo root.
+
+rlsir_analytics:
+  target: dev
+  outputs:
+    # Local development: in-memory DuckDB, reads from RDS via postgres extension,
+    # writes Parquet to a local folder for fast iteration.
+    dev:
+      type: duckdb
+      path: 'C:/Users/joeys/Desktop/RLSIR Websites/real-estate-platform/analytics/_local_output/rlsir_analytics_dev.duckdb'
+      external_root: 'C:/Users/joeys/Desktop/RLSIR Websites/real-estate-platform/analytics/_local_output'
+      extensions:
+        - httpfs
+        - parquet
+        - postgres
+      attach:
+        - path: 'host={{ env_var("RDS_HOST") }} port=5432 user={{ env_var("RDS_USER") }} password={{ env_var("RDS_PASSWORD") }} dbname={{ env_var("RDS_DATABASE") }} sslmode=require'
+          type: postgres
+          alias: rlsir_platform
+          options:
+            read_only: true
+
+    # Production: Lambda runtime. Writes Parquet to S3.
+    prod:
+      type: duckdb
+      # Use a /tmp file (not :memory:) so DuckDB can spill to disk on big windows.
+      # Lambda has 5GB ephemeral on /tmp; the 1.84M-row dedup needs disk spill.
+      path: '/tmp/dbt-prod.duckdb'
+      external_root: 's3://rlsir-platform-assets-us-east-1/analytics'
+      extensions:
+        - httpfs
+        - parquet
+        - postgres
+      threads: 2
+      settings:
+        s3_region: us-east-1
+        # AWS credentials loaded automatically from Lambda execution role
+        # memory_limit + temp_directory cannot be re-applied per-cursor by dbt-duckdb;
+        # rely on HOME=/tmp env var for spill location and Lambda memory headroom.
+        preserve_insertion_order: false
+      attach:
+        - path: 'host={{ env_var("RDS_HOST") }} port=5432 user={{ env_var("RDS_USER") }} password={{ env_var("RDS_PASSWORD") }} dbname={{ env_var("RDS_DATABASE") }} sslmode=require'
+          type: postgres
+          alias: rlsir_platform
+          options:
+            read_only: true
+
+    # CI: --empty / state:modified+ runs against a small sandbox
+    ci:
+      type: duckdb
+      path: ':memory:'
+      external_root: '{{ env_var("ANALYTICS_CI_OUTPUT_ROOT", "/tmp/ci_output") }}'
+      extensions:
+        - httpfs
+        - parquet
+        - postgres
