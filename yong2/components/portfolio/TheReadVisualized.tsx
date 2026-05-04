@@ -17,6 +17,21 @@ type TheReadVisualizedProps = {
     yoyMedianPriceChangePct: number;
     monthlyMedianPpsf: ReadonlyArray<number>;
   };
+  /**
+   * Advanced derived signals — sourced from the platform's dbt
+   * `int_listings_active_cleaned` model + closed-comp aggregates.
+   * Optional: tile is omitted from row 3 if its number is null.
+   */
+  advanced?: {
+    /** Closed comps in last 90 days, this tier + community. */
+    recentClosesCount?: number | null;
+    /** Median sale-to-list ratio across recent closes (e.g. 0.964). */
+    saleToListRatio?: number | null;
+    /** Median days for active comps to enter Pending. */
+    medianDaysToPending?: number | null;
+    /** % of active comps pending within 30 days. */
+    pendingVelocityPct?: number | null;
+  };
   /** Narrative-supplied 1-sentence interpretations. */
   compsCommentary?: string;
   areaCommentary?: string;
@@ -35,6 +50,7 @@ export function TheReadVisualized({
   subjectPpsf,
   comps,
   area,
+  advanced,
   compsCommentary,
   areaCommentary,
 }: TheReadVisualizedProps) {
@@ -60,17 +76,21 @@ export function TheReadVisualized({
           <p className="caps text-[10px] text-stone/40 tracking-widest mb-8">
             {comps.count} comps · same community · ±20% size band
           </p>
+          {/* Headline number — % sign at 0.6em with baseline align so it
+           *  sits with the digits rather than floating up small. */}
           <p
-            className={`font-serif leading-none tabular-nums tracking-[-0.02em] ${
+            className={`font-serif leading-[0.95] tabular-nums tracking-[-0.025em] flex items-baseline ${
               positionedAbove ? 'text-gold' : 'text-stone'
             }`}
-            style={{ fontSize: 'clamp(56px, 7vw, 88px)' }}
+            style={{ fontSize: 'clamp(48px, 6.2vw, 80px)' }}
           >
-            {positionedAbove ? '+' : ''}
-            {ppsfDeltaPct.toFixed(1)}
-            <span className="text-[0.5em] align-top ml-0.5">%</span>
+            <span>
+              {positionedAbove ? '+' : ''}
+              {ppsfDeltaPct.toFixed(1)}
+            </span>
+            <span style={{ fontSize: '0.6em' }} className="ml-0.5">%</span>
           </p>
-          <span className="block w-12 h-px bg-gold/40 my-5" />
+          <span className="block w-12 h-px bg-gold/40 my-4" />
           <p className="text-stone/65 text-sm md:text-base">
             vs comp median{' '}
             <span className="text-stone tabular-nums">{DOLLAR(comps.p50)}</span>
@@ -144,8 +164,54 @@ export function TheReadVisualized({
         </Tile>
       </div>
 
-      <p className="caps text-[9px] text-stone/30 tracking-widest mt-8 pt-6 border-t border-white/5">
-        Source · ARMLS Spark · Refreshed hourly
+      {/* ── Row 3: Advanced derived signals — Sale-to-list, Days-to-Pending,
+       * Recent closes, Pending velocity. From the platform's dbt
+       * int_listings_active_cleaned + closed-comp aggregates. Tiles render
+       * only when their underlying value is present. */}
+      {advanced && (
+        advanced.saleToListRatio != null ||
+        advanced.medianDaysToPending != null ||
+        advanced.recentClosesCount != null ||
+        advanced.pendingVelocityPct != null
+      ) ? (
+        <>
+          <div className="caps text-[10px] text-stone/45 tracking-[0.3em] mt-8 mb-4">
+            Velocity &amp; conviction
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:auto-rows-fr">
+            {advanced.saleToListRatio != null ? (
+              <StatTile
+                label="Sale-to-list (90d closes)"
+                value={`${(advanced.saleToListRatio * 100).toFixed(1)}%`}
+                accent={advanced.saleToListRatio >= 0.97 ? 'gold' : undefined}
+              />
+            ) : null}
+            {advanced.medianDaysToPending != null ? (
+              <StatTile
+                label="Median days to pending"
+                value={`${advanced.medianDaysToPending}`}
+                unit="days"
+              />
+            ) : null}
+            {advanced.recentClosesCount != null ? (
+              <StatTile
+                label="Recent closes (90d)"
+                value={`${advanced.recentClosesCount}`}
+              />
+            ) : null}
+            {advanced.pendingVelocityPct != null ? (
+              <StatTile
+                label="Pending in <30 days"
+                value={`${(advanced.pendingVelocityPct * 100).toFixed(0)}%`}
+                accent={advanced.pendingVelocityPct >= 0.4 ? 'gold' : undefined}
+              />
+            ) : null}
+          </div>
+        </>
+      ) : null}
+
+      <p className="caps text-[9px] text-stone/30 tracking-widest mt-10 pt-6 border-t border-white/5">
+        Source · ARMLS Spark + dbt int_listings_active_cleaned · Refreshed hourly
       </p>
     </section>
   );

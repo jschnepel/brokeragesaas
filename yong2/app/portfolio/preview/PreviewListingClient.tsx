@@ -101,6 +101,17 @@ const mockListing: Listing = {
 const MOCK_COMPS = { p25: 920, p50: 1_085, p75: 1_310, count: 9 };
 const MOCK_MONTHLY = [1_018, 1_032, 1_041, 1_058, 1_064, 1_073, 1_079, 1_085, 1_092, 1_098, 1_103, 1_112];
 
+// Advanced derived signals — sourced (in real life) from the platform's
+// dbt model `int_listings_active_cleaned` + closed-comp aggregates.
+// Replaces the v1 'just numbers' read with signals that actually answer
+// "is this priced right" + "how fast does this market move."
+const MOCK_ADVANCED = {
+  recentClosesCount: 12,
+  saleToListRatio: 0.964,        // 96.4% — strong negotiation signal
+  medianDaysToPending: 31,       // active comp pool median
+  pendingVelocityPct: 0.47,      // 47% of actives go pending in <30d
+};
+
 // Distance-to rows — pre-computed at narrative time via Google
 // Distance Matrix; mock here.
 const MOCK_DISTANCES = [
@@ -201,6 +212,7 @@ export function PreviewListingClient() {
             yoyMedianPriceChangePct: 0.082,
             monthlyMedianPpsf: MOCK_MONTHLY,
           }}
+          advanced={MOCK_ADVANCED}
           compsCommentary={narrative.theRead.compsCommentary}
           areaCommentary={narrative.theRead.areaCommentary}
         />
