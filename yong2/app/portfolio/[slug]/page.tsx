@@ -10,6 +10,7 @@ import { ListingMap } from '@/components/portfolio/ListingMap';
 import { ShareButton } from '@/components/portfolio/ShareButton';
 import { ListingDetailTracker } from '@/components/portfolio/ListingDetailTracker';
 import { RequestTourCta } from '@/components/portfolio/RequestTourCta';
+import { StickyContact } from '@/components/portfolio/StickyContact';
 import { TheRead } from '@/components/listing/TheRead';
 import { getListingBySlug, getActiveListings } from '@/lib/listings';
 import { getActiveComps } from '@/lib/analytics/comps';
@@ -102,6 +103,7 @@ export default async function ListingDetailPage({ params }: PageProps) {
        * refactor can't silently break analytics.
        */}
       <ListingDetailTracker listing={listing} />
+      <StickyContact listingKey={listing.listingKey} tourHref={tourHref} />
       <ListingHeroGallery listing={listing} photos={listing.photos} />
       <SectionFrame className="py-20">
         <div data-track="facts" className="grid grid-cols-1 md:grid-cols-[1.3fr_1fr] gap-12">
@@ -131,8 +133,18 @@ export default async function ListingDetailPage({ params }: PageProps) {
           </section>
         )}
         <div className="mt-16 pt-10 border-t border-white/10 flex flex-wrap items-center justify-between gap-4">
-          <Link href="/portfolio" className="caps hover:text-stone">← The Portfolio</Link>
-          <div className="flex flex-wrap items-center gap-3">
+          <Link href="/portfolio" className="caps hover:text-gold transition-colors">← The Portfolio</Link>
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Click-to-call rendered as plain caps link, not a button —
+             * the visual weight goes to the tour CTA which is the
+             * conversion goal. Phone is the safety net. */}
+            <a
+              href="tel:+14805551234"
+              className="caps hover:text-gold transition-colors"
+              aria-label="Call Yong Choi at (480) 555-1234"
+            >
+              Call Yong
+            </a>
             <ShareButton url={listingUrl} title={listing.unparsedAddress} listingKey={listing.listingKey} />
             <RequestTourCta href={tourHref} listingKey={listing.listingKey} />
           </div>

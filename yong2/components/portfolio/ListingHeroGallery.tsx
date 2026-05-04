@@ -153,11 +153,13 @@ export function ListingHeroGallery({ listing, photos: rawPhotos }: ListingHeroGa
         {/* Gradient over hero photo */}
         <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/20 to-transparent pointer-events-none" />
 
-        {/* Mobile photo counter */}
+        {/* Mobile photo count badge — total only (not "current / total")
+         * since the swipe scrollbar already handles position cuing and
+         * a static "1 of N" was actively misleading as the user swiped. */}
         {photos.length > 1 ? (
           <div className="md:hidden absolute top-24 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-            <span className="caps text-stone bg-ink/60 backdrop-blur-sm px-3 py-1.5">
-              1 / {photos.length}
+            <span className="caps text-stone bg-ink/60 backdrop-blur-sm px-3 py-1.5 text-[10px]">
+              {photos.length} photos · swipe
             </span>
           </div>
         ) : null}

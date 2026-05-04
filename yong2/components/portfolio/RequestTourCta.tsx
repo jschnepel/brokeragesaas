@@ -14,9 +14,10 @@ export function RequestTourCta({ href, listingKey }: { href: string; listingKey:
     <Link
       href={href}
       onClick={() => track('cta_request_tour_click', { listingKey })}
-      className="caps bg-gold text-ink px-6 py-4 hover:bg-stone transition-colors"
+      className="caps inline-flex items-center gap-3 bg-gold text-ink px-7 py-4 hover:bg-gold-muted transition-colors group"
     >
-      Request a Private Tour →
+      <span>Request a Private Tour</span>
+      <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">→</span>
     </Link>
   );
 }

@@ -58,10 +58,10 @@ export function ShareButton({ url, title, listingKey }: ShareButtonProps) {
     <button
       type="button"
       onClick={handleShare}
-      className="caps border border-gold/40 text-stone px-6 py-4 hover:bg-gold hover:text-ink transition-colors"
+      className="cta-ghost"
       aria-live="polite"
     >
-      {copied ? 'Link copied' : 'Share'}
+      <span>{copied ? 'Link copied' : 'Share'}</span>
     </button>
   );
 }
