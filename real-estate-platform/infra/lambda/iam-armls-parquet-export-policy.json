@@ -1,0 +1,42 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "WriteParquetBronze",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:PutObjectAcl",
+        "s3:DeleteObject",
+        "s3:GetObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::rlsir-platform-assets-us-east-1/bronze/parquet/*"
+      ]
+    },
+    {
+      "Sid": "ListBronzePrefix",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::rlsir-platform-assets-us-east-1"],
+      "Condition": {
+        "StringLike": {"s3:prefix": ["bronze/parquet/*"]}
+      }
+    },
+    {
+      "Sid": "PublishMetrics",
+      "Effect": "Allow",
+      "Action": ["cloudwatch:PutMetricData"],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {"cloudwatch:namespace": "RLSIR/DataPipeline"}
+      }
+    },
+    {
+      "Sid": "ReadDbDsnSecret",
+      "Effect": "Allow",
+      "Action": ["secretsmanager:GetSecretValue"],
+      "Resource": "arn:aws:secretsmanager:us-east-1:828301486081:secret:rlsir/db/url-*"
+    }
+  ]
+}
