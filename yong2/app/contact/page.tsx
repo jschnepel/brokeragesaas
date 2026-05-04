@@ -56,9 +56,11 @@ export default async function ContactPage({
         <SectionFrame className="py-16 md:py-20">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
             <div>
-              <h1 className="display-xl"><em className="font-light">Begin</em> a conversation.</h1>
-              <p className="mt-6 text-stone/85 leading-relaxed max-w-md">
-                Whether you&rsquo;re months or years from a move, every engagement starts with a conversation. Messages are read personally and replied to within 24 hours.
+              {/* Inner page headline removed — the PageHero above now
+               * carries the page-level h1. Below is the contact-details
+               * column; the form sits in the second grid cell. */}
+              <p className="text-stone/85 leading-relaxed max-w-md">
+                Messages are read personally and replied to within 24 hours.
               </p>
               <dl className="mt-10 space-y-3">
                 {[

@@ -26,7 +26,8 @@ export function AboutSplit() {
       </div>
       <div>
         <CapsLabel as="div">{yongBio.kicker}</CapsLabel>
-        <h1 className="display-xl mt-4">{emphasize(yongBio.headline)}</h1>
+        {/* h2 — page-level h1 lives in PageHero. */}
+        <h2 className="display-xl mt-4">{emphasize(yongBio.headline)}</h2>
         {yongBio.paragraphs.map((p, i) => (
           <p key={i} className="mt-4 text-stone/85 leading-relaxed">{p}</p>
         ))}
