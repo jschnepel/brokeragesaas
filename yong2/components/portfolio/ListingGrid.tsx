@@ -23,7 +23,9 @@ export function ListingGrid({ listings }: ListingGridProps) {
   return (
     <>
       <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between border-b border-white/10 pb-6 mb-10">
-        <h1 className="display-xl italic">The Portfolio</h1>
+        {/* Page-level h1 lives in PageHero — this is the filter bar
+         * heading; demoted to a caps eyebrow so it doesn't compete. */}
+        <h2 className="caps text-gold">Filter the collection</h2>
         <div className="flex flex-wrap gap-x-6 gap-y-3">
           {FILTERS.map((f) => (
             <button
