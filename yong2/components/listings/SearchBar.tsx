@@ -2,6 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+export type SortKey = 'newest' | 'price-asc' | 'price-desc';
+
+const SORT_LABELS: Record<SortKey, string> = {
+  newest: 'Newest',
+  'price-asc': 'Price · Low → High',
+  'price-desc': 'Price · High → Low',
+};
+
 type SearchBarProps = {
   initialValue?: string;
   onChange: (value: string) => void;
@@ -11,6 +19,8 @@ type SearchBarProps = {
   hasShape: boolean;
   loading?: boolean;
   resultCount?: number;
+  sort?: SortKey;
+  onSortChange?: (next: SortKey) => void;
 };
 
 /**
@@ -29,6 +39,8 @@ export function SearchBar({
   hasShape,
   loading = false,
   resultCount,
+  sort = 'newest',
+  onSortChange,
 }: SearchBarProps) {
   const [value, setValue] = useState(initialValue);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -100,10 +112,27 @@ export function SearchBar({
           <button
             type="button"
             onClick={onClearShape}
-            className="caps text-gold hover:text-stone underline-offset-2 hover:underline ml-auto"
+            className="caps text-gold hover:text-stone underline-offset-2 hover:underline"
           >
             Clear shape
           </button>
+        ) : null}
+        {onSortChange ? (
+          <label className="ml-auto flex items-center gap-2 text-mute">
+            <span className="caps text-[10px]">Sort</span>
+            <select
+              value={sort}
+              onChange={(e) => onSortChange(e.target.value as SortKey)}
+              aria-label="Sort listings"
+              className="bg-transparent border-b border-white/15 focus:border-gold focus:outline-none text-stone text-xs py-1 pr-1 cursor-pointer"
+            >
+              {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+                <option key={k} value={k} className="bg-ink text-stone">
+                  {SORT_LABELS[k]}
+                </option>
+              ))}
+            </select>
+          </label>
         ) : null}
       </div>
     </div>

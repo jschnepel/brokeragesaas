@@ -52,16 +52,24 @@ export function ResultsList({
 
   if (!loading && listings.length === 0) {
     return (
-      <div className="p-10 text-center">
-        <p className="font-serif text-lg text-stone mb-3">No listings match your search</p>
-        <p className="text-sm text-mute mb-6">Try widening the price band, clearing your shape, or panning the map.</p>
-        <button
-          type="button"
-          onClick={onResetFilters}
-          className="caps border border-gold text-gold px-4 py-2 hover:bg-gold hover:text-ink transition-colors"
-        >
-          Reset filters
-        </button>
+      <div className="p-12 text-center">
+        <span aria-hidden="true" className="block w-12 h-px bg-gold/60 mx-auto mb-6" />
+        <p className="font-serif italic text-stone text-xl md:text-2xl mb-3">
+          Yong's curated inventory may not match these filters today.
+        </p>
+        <p className="text-sm text-mute mb-8 max-w-sm mx-auto">
+          Try widening the price band, clearing your shape, or panning the map. Or browse the full portfolio.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={onResetFilters}
+            className="cta-ghost"
+          >
+            <span>Reset filters</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </div>
       </div>
     );
   }

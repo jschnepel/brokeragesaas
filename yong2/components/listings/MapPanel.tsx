@@ -424,7 +424,7 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0 bg-ink-surface"
+      className="absolute inset-0 w-full h-full bg-ink-surface"
       aria-label="Map of listings"
     />
   );

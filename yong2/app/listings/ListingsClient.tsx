@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Listing } from '@/lib/types';
 import type { BBox, PinPoint, PolygonGeoJSON, StatusFilter } from '@/lib/listings-search';
-import { SearchBar } from '@/components/listings/SearchBar';
+import { SearchBar, type SortKey } from '@/components/listings/SearchBar';
 import {
   DEFAULT_PRICE_RANGE,
   FilterChips,
@@ -47,6 +47,30 @@ export function ListingsClient({ initialListings, initialPins, initialTotal }: L
   const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
   const [scrollToKey, setScrollToKey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('split'); // for mobile
+  const [sort, setSort] = useState<SortKey>('newest');
+
+  // Client-side sort over the loaded listings — keeps the UI affordance
+  // working today against whatever set the API returned. When the data
+  // layer is rewritten, sort can be pushed into the search request.
+  const sortedListings = useMemo(() => {
+    const arr = [...listings];
+    switch (sort) {
+      case 'price-asc':
+        arr.sort((a, b) => (a.listPrice ?? 0) - (b.listPrice ?? 0));
+        break;
+      case 'price-desc':
+        arr.sort((a, b) => (b.listPrice ?? 0) - (a.listPrice ?? 0));
+        break;
+      case 'newest':
+      default:
+        arr.sort((a, b) => {
+          const ad = a.modificationTimestamp ? new Date(a.modificationTimestamp).getTime() : 0;
+          const bd = b.modificationTimestamp ? new Date(b.modificationTimestamp).getTime() : 0;
+          return bd - ad;
+        });
+    }
+    return arr;
+  }, [listings, sort]);
 
   const mapRef = useRef<MapPanelHandle | null>(null);
 
@@ -267,6 +291,8 @@ export function ListingsClient({ initialListings, initialPins, initialTotal }: L
             hasShape={!!polygon}
             loading={loading}
             resultCount={total}
+            sort={sort}
+            onSortChange={setSort}
           />
           <FilterChips value={filters} onChange={setFilters} />
           <p className="px-4 md:px-6 py-2 text-[0.65rem] uppercase tracking-wider text-mute border-b border-white/5">
@@ -274,7 +300,7 @@ export function ListingsClient({ initialListings, initialPins, initialTotal }: L
           </p>
           <div className="flex-1 overflow-y-auto min-h-0">
             <ResultsList
-              listings={listings}
+              listings={sortedListings}
               highlightedKey={highlightedKey}
               loading={loading}
               total={total}

@@ -97,7 +97,7 @@ export function FilterChips({ value, onChange }: FilterChipsProps) {
 
   return (
     <div className="border-b border-white/10">
-      <div className="px-4 md:px-6 py-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+      <div className="px-4 md:px-6 py-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
         <ChipGroup>
           {STATUS_OPTIONS.map((s) => (
             <Chip key={s} active={value.status.includes(s)} onClick={() => toggleStatus(s)}>
@@ -105,15 +105,22 @@ export function FilterChips({ value, onChange }: FilterChipsProps) {
             </Chip>
           ))}
         </ChipGroup>
-        <span className="text-mute/60">·</span>
+        <span aria-hidden="true" className="hidden md:inline-block w-px h-4 bg-white/10" />
         <ChipGroup>
           {BEDS_OPTIONS.map((b) => (
-            <Chip key={b.id} active={value.bedsMin === b.id} onClick={() => selectBeds(b.id)}>
+            <Chip
+              key={b.id}
+              // 0 = "Any beds" (default state). Show as active visually
+              // ONLY when a non-default bed minimum is selected — matches
+              // the price chip's "Any price" semantics.
+              active={value.bedsMin > 0 && value.bedsMin === b.id}
+              onClick={() => selectBeds(b.id)}
+            >
               {b.label}
             </Chip>
           ))}
         </ChipGroup>
-        <span className="text-mute/60">·</span>
+        <span aria-hidden="true" className="hidden md:inline-block w-px h-4 bg-white/10" />
         <button
           type="button"
           onClick={() => setRefineOpen((v) => !v)}
