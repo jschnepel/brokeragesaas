@@ -16,15 +16,23 @@ import { communitySchema, breadcrumbListSchema } from '@/lib/jsonld';
 import { siteUrl } from '@/lib/seo';
 
 export const revalidate = 3600;
+// Each community page fans out to ~36 RDS queries (4 quarterly reports
+// × ~9 queries) plus listings + scorecard + map data. With current
+// platform DB load (ARMLS 12h compliance refresh + market-data MV
+// refreshes), build-time prerender of all 4 communities exceeds the
+// Next.js 60s per-page render budget. Render on demand instead — ISR
+// kicks in on first request and the result is cached for the
+// `revalidate` window. Trade: first request to each community is
+// slower; build is reliable.
+export const dynamic = 'force-dynamic';
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3200';
 
 type PageProps = { params: Promise<{ slug: string }> };
 
-export function generateStaticParams() {
-  return communitySlugs.map((slug) => ({ slug }));
-}
+// generateStaticParams disabled — see `dynamic = 'force-dynamic'` above.
+// Re-enable when the data layer rewrite reduces per-render query count.
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
