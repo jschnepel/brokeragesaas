@@ -1,0 +1,24 @@
+:root {
+  /* Midnight & Stone palette */
+  --ink: #0B1620;
+  --ink-elevated: #1E2C38;
+  --ink-surface: #071019;
+  --gold: #D4B88A;
+  --gold-muted: #C9A96A;
+  --stone: #EFE9DF;
+  --stone-muted: #D9D2C7;
+  --mute: #8A93A0;
+  --hairline: rgba(212, 184, 138, 0.25);
+
+  /* Type scale */
+  --fs-display-xxl: clamp(3.5rem, 7vw, 6rem);
+  --fs-display-xl: clamp(2.75rem, 5vw, 4.5rem);
+  --fs-display-lg: clamp(2rem, 3.5vw, 3rem);
+  --fs-h3: 1.5rem;
+  --fs-body: 0.875rem;
+  --fs-caps: 0.625rem;
+
+  /* Tracking */
+  --tracking-caps: 0.3em;
+  --tracking-display: -0.02em;
+}

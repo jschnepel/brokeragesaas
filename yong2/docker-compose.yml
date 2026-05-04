@@ -1,0 +1,23 @@
+# yong2 reserved Docker port: 3200 (host) → 3000 (container)
+# Do not change without updating yong2/README.md port registry.
+services:
+  yong2:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: yong2-dev
+    ports:
+      - "3200:3000"
+    volumes:
+      - ./:/app
+      - /app/node_modules
+      - /app/.next
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+    restart: unless-stopped

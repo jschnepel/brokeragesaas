@@ -1,0 +1,303 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Listing } from '@/lib/types';
+import type { BBox, PinPoint, PolygonGeoJSON, StatusFilter } from '@/lib/listings-search';
+import { SearchBar } from '@/components/listings/SearchBar';
+import {
+  DEFAULT_PRICE_RANGE,
+  FilterChips,
+  type FilterState,
+  priceRangeToBounds,
+} from '@/components/listings/FilterChips';
+import { ResultsList } from '@/components/listings/ResultsList';
+import { MapPanel, type MapPanelHandle } from '@/components/listings/MapPanel';
+import { track } from '@/lib/analytics/events';
+
+const INITIAL_FILTER: FilterState = {
+  status: [],
+  priceRange: DEFAULT_PRICE_RANGE,
+  bedsMin: 0,
+};
+
+type ViewMode = 'split' | 'map' | 'list';
+
+type ListingsClientProps = {
+  initialListings: Listing[];
+  initialPins: PinPoint[];
+  initialTotal: number;
+};
+
+/**
+ * Owns search/map state, interaction, and the fetch lifecycle. Server
+ * pre-renders the default Yong-market viewport; this hydrates with that
+ * data and re-fetches when the user pans, types, draws a polygon, or
+ * twiddles a filter chip.
+ */
+export function ListingsClient({ initialListings, initialPins, initialTotal }: ListingsClientProps) {
+  const [listings, setListings] = useState<Listing[]>(initialListings);
+  const [pins, setPins] = useState<PinPoint[]>(initialPins);
+  const [total, setTotal] = useState<number>(initialTotal);
+  const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState('');
+  const [bbox, setBbox] = useState<BBox | null>(null);
+  const [polygon, setPolygon] = useState<PolygonGeoJSON | null>(null);
+  const [drawingActive, setDrawingActive] = useState(false);
+  const [filters, setFilters] = useState<FilterState>(INITIAL_FILTER);
+  const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
+  const [scrollToKey, setScrollToKey] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('split'); // for mobile
+
+  const mapRef = useRef<MapPanelHandle | null>(null);
+
+  // Wrap setQ so we can fire `search_query` / `search_query_clear` events
+  // as the visitor types. SearchBar already debounces — by the time we get
+  // here, the input has stabilized for ~250ms, which is the window we want
+  // to count as "the user actually searched."
+  const handleQChange = useCallback((next: string) => {
+    setQ((prev) => {
+      const trimmed = next.trim();
+      const prevTrimmed = prev.trim();
+      if (trimmed.length === 0 && prevTrimmed.length > 0) {
+        track('search_query_clear', {});
+      } else if (trimmed.length > 0 && trimmed !== prevTrimmed) {
+        // results_count fires from the search result effect; we record
+        // the query length here (proxy for intent depth) and pair it
+        // post-fetch via a separate event when the count lands.
+        track('search_query', { query_length: trimmed.length, results_count: -1 });
+      }
+      return next;
+    });
+  }, []);
+
+  // Mobile view switcher with analytics. The catalog enum is { both | map | list };
+  // ListingsClient's internal name is 'split' for "both," so map at the call site.
+  const setViewModeTracked = useCallback((next: ViewMode) => {
+    setViewMode((prev) => {
+      if (prev === next) return prev;
+      const view = next === 'split' ? 'both' : next;
+      track('mobile_view_switch', { view });
+      return next;
+    });
+  }, []);
+
+  // Last-fired AbortController so a slow request never overwrites a faster
+  // newer one. Without this, dragging the map past several intermediate
+  // viewports could flash stale results when an earlier request resolves
+  // after the latest one.
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Compose the SearchOpts payload — memoized so an effect can depend on it
+  // without triggering churn from object identity alone.
+  const searchOpts = useMemo(() => {
+    const { priceMin, priceMax } = priceRangeToBounds(filters.priceRange);
+    const opts: Record<string, unknown> = {};
+    if (q.trim()) opts.q = q.trim();
+    if (polygon) {
+      opts.polygonGeoJSON = polygon;
+    } else if (bbox) {
+      opts.bbox = bbox;
+    }
+    if (filters.status.length > 0) opts.status = filters.status as StatusFilter[];
+    if (priceMin != null) opts.priceMin = priceMin;
+    if (priceMax != null) opts.priceMax = priceMax;
+    if (filters.bedsMin > 0) opts.bedsMin = filters.bedsMin;
+    opts.limit = 60;
+    return opts;
+  }, [q, polygon, bbox, filters]);
+
+  // Skip the initial render's fetch (server gave us hydration data already).
+  const isFirstRunRef = useRef(true);
+  useEffect(() => {
+    if (isFirstRunRef.current) {
+      isFirstRunRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    if (abortRef.current) abortRef.current.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setLoading(true);
+
+    (async () => {
+      try {
+        const res = await fetch('/api/listings/search', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(searchOpts),
+          signal: ctrl.signal,
+        });
+        if (!res.ok) throw new Error(`Search failed: ${res.status}`);
+        const json = (await res.json()) as { listings: Listing[]; pins: PinPoint[]; total: number };
+        if (cancelled) return;
+        setListings(json.listings);
+        setPins(json.pins);
+        setTotal(json.total);
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
+        // eslint-disable-next-line no-console
+        console.warn('Search request failed', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [searchOpts]);
+
+  // ── Handlers ───────────────────────────────────────
+
+  const handleViewportChange = useCallback((next: BBox) => {
+    // Polygon takes precedence — ignore viewport pans while a shape is set.
+    if (polygon) return;
+    setBbox(next);
+  }, [polygon]);
+
+  const handlePolygonComplete = useCallback((poly: PolygonGeoJSON) => {
+    setPolygon(poly);
+    setDrawingActive(false);
+  }, []);
+
+  const handleClearShape = useCallback(() => {
+    setPolygon((prev) => {
+      if (prev) track('map_polygon_clear', {});
+      return null;
+    });
+    setDrawingActive(false);
+  }, []);
+
+  const handleToggleDrawing = useCallback(() => {
+    setDrawingActive((v) => {
+      if (v) return false;
+      // Entering draw mode discards any active polygon so the user can
+      // draw a fresh one without first clicking "Clear shape".
+      setPolygon(null);
+      return true;
+    });
+  }, []);
+
+  const handleResetFilters = useCallback(() => {
+    setQ('');
+    setPolygon(null);
+    setFilters(INITIAL_FILTER);
+    setDrawingActive(false);
+  }, []);
+
+  const handlePinHover = useCallback((key: string | null) => {
+    setHighlightedKey(key);
+    mapRef.current?.setHighlight(key);
+  }, []);
+
+  const handlePinClick = useCallback((key: string) => {
+    track('map_pin_click', { listingKey: key });
+    setHighlightedKey(key);
+    mapRef.current?.setHighlight(key);
+    setScrollToKey(key);
+    // Mobile: surface the list when the user picks a pin.
+    setViewMode((v) => (v === 'map' ? 'split' : v));
+  }, []);
+
+  // Debounced result_card_hover — fire only after a key sticks for 300ms so
+  // a fast cursor sweep doesn't flood the event stream.
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleCardHover = useCallback((key: string | null) => {
+    setHighlightedKey(key);
+    mapRef.current?.setHighlight(key);
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    if (key) {
+      hoverTimerRef.current = setTimeout(() => {
+        track('result_card_hover', { listingKey: key });
+      }, 300);
+    }
+  }, []);
+
+  const handleCardClick = useCallback((key: string) => {
+    // Position is the listing's index in the current results array — useful
+    // for understanding how far down the list the visitor scrolled.
+    const position = listings.findIndex((l) => l.listingKey === key);
+    track('result_card_click', { listingKey: key, position: position >= 0 ? position : 0 });
+    mapRef.current?.flyToListing(key);
+    setHighlightedKey(key);
+    mapRef.current?.setHighlight(key);
+    setViewMode((v) => (v === 'list' ? 'split' : v));
+  }, [listings]);
+
+  // ── Layout ─────────────────────────────────────────
+
+  return (
+    <div className="h-[calc(100vh-64px)] flex flex-col">
+      {/* Mobile-only view switcher. >= md keeps the split view. */}
+      <div className="md:hidden flex border-b border-white/10 bg-ink-elevated">
+        <ModeTab active={viewMode === 'split'} onClick={() => setViewModeTracked('split')}>Both</ModeTab>
+        <ModeTab active={viewMode === 'map'} onClick={() => setViewModeTracked('map')}>Map</ModeTab>
+        <ModeTab active={viewMode === 'list'} onClick={() => setViewModeTracked('list')}>List</ModeTab>
+      </div>
+
+      <div className="flex-1 flex flex-col md:flex-row min-h-0">
+        {/* Map */}
+        <div
+          className={`relative md:w-3/5 lg:w-[62%] md:h-full ${
+            viewMode === 'list' ? 'hidden md:block' : viewMode === 'map' ? 'h-[calc(100vh-112px)]' : 'h-[50vh]'
+          } md:border-r md:border-white/10`}
+        >
+          <MapPanel
+            ref={mapRef}
+            pins={pins}
+            drawingActive={drawingActive}
+            onPolygonComplete={handlePolygonComplete}
+            onClearShape={handleClearShape}
+            onPinClick={handlePinClick}
+            onPinHover={handlePinHover}
+            onViewportChange={handleViewportChange}
+          />
+        </div>
+
+        {/* Right results panel (or stacked on mobile). */}
+        <aside
+          className={`md:w-2/5 lg:w-[38%] md:h-full flex flex-col min-h-0 bg-ink ${
+            viewMode === 'map' ? 'hidden md:flex' : ''
+          }`}
+        >
+          <SearchBar
+            initialValue={q}
+            onChange={handleQChange}
+            drawingActive={drawingActive}
+            onToggleDrawing={handleToggleDrawing}
+            onClearShape={polygon ? handleClearShape : undefined}
+            hasShape={!!polygon}
+            loading={loading}
+            resultCount={total}
+          />
+          <FilterChips value={filters} onChange={setFilters} />
+          <p className="px-4 md:px-6 py-2 text-[0.65rem] uppercase tracking-wider text-mute border-b border-white/5">
+            Scoped to Yong's service area · Scottsdale, Paradise Valley, Arcadia, Carefree, Cave Creek, Fountain Hills
+          </p>
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <ResultsList
+              listings={listings}
+              highlightedKey={highlightedKey}
+              loading={loading}
+              total={total}
+              onCardHover={handleCardHover}
+              onCardClick={handleCardClick}
+              onResetFilters={handleResetFilters}
+              scrollToKey={scrollToKey}
+            />
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function ModeTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 caps py-2 text-xs ${active ? 'text-gold border-b border-gold' : 'text-stone/70'}`}
+    >
+      {children}
+    </button>
+  );
+}

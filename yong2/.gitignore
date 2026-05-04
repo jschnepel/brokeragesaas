@@ -1,0 +1,12 @@
+node_modules
+.next
+out
+coverage
+.env*.local
+.env
+!.env.example
+.vercel
+playwright-report
+test-results
+tests/screenshots
+*.tsbuildinfo

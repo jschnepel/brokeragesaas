@@ -1,0 +1,212 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { track } from '@/lib/analytics/events';
+
+interface ListingLightboxProps {
+  photos: string[];
+  address: string;
+  initialIndex?: number;
+  onClose: () => void;
+  /**
+   * Listing key for analytics. Optional so non-listing-detail callers (none
+   * exist today) wouldn't break, but listing-detail always passes this.
+   */
+  listingKey?: string;
+}
+
+const PRELOAD_RANGE = 2;
+const THUMB_RANGE = 8;
+
+/**
+ * Fullscreen photo lightbox for listing detail pages.
+ *
+ * Adapted from the premium-site GalleryLightbox; tabbed sections were
+ * removed since yong2 photos aren't categorized. Keyboard, focus management,
+ * mobile swipe, and ±2 neighbor preload are preserved.
+ */
+export function ListingLightbox({ photos, address, initialIndex = 0, onClose, listingKey }: ListingLightboxProps) {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const thumbContainerRef = useRef<HTMLDivElement>(null);
+  // Track which photo indices the visitor actually viewed and how long the
+  // gallery was open so we can calculate engagement quality, not just opens.
+  const viewedRef = useRef<Set<number>>(new Set([initialIndex]));
+  const openedAtRef = useRef<number>(Date.now());
+
+  const total = photos.length;
+
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement as HTMLElement;
+    overlayRef.current?.focus();
+    const restore = previousFocusRef.current;
+    return () => { restore?.focus?.(); };
+  }, []);
+
+  // Fire `gallery_close` exactly once when the lightbox unmounts. Captures
+  // dwell time + breadth (how many photos the user actually looked at).
+  useEffect(() => {
+    return () => {
+      if (!listingKey) return;
+      track('gallery_close', {
+        listingKey,
+        ms_in_gallery: Date.now() - openedAtRef.current,
+        photos_viewed: viewedRef.current.size,
+      });
+    };
+  }, [listingKey]);
+
+  // Each new index counts as a photo view. We dedupe via the Set so swiping
+  // back and forth doesn't inflate the count.
+  useEffect(() => {
+    if (!listingKey) return;
+    if (!viewedRef.current.has(currentIndex)) {
+      viewedRef.current.add(currentIndex);
+    }
+    track('gallery_photo_view', { listingKey, index: currentIndex });
+  }, [currentIndex, listingKey]);
+
+  const goTo = useCallback((index: number) => {
+    if (total === 0) return;
+    setCurrentIndex(((index % total) + total) % total);
+  }, [total]);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft') goTo(currentIndex - 1);
+      if (e.key === 'ArrowRight') goTo(currentIndex + 1);
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentIndex, goTo, onClose]);
+
+  useEffect(() => {
+    const container = thumbContainerRef.current;
+    if (!container) return;
+    const thumb = container.children[currentIndex] as HTMLElement | undefined;
+    if (thumb) thumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }, [currentIndex]);
+
+  const isInRange = (index: number, range: number) => {
+    if (total === 0) return false;
+    const dist = Math.min(
+      Math.abs(index - currentIndex),
+      Math.abs(index - currentIndex + total),
+      Math.abs(index - currentIndex - total),
+    );
+    return dist <= range;
+  };
+
+  if (total === 0) return null;
+
+  return (
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-[60] bg-black/95 flex flex-col"
+      tabIndex={-1}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Photo gallery"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      data-testid="listing-lightbox"
+    >
+      {/* Header — counter + close */}
+      <div className="flex items-center justify-between px-4 py-3 shrink-0">
+        <span className="caps text-stone/60">
+          {currentIndex + 1} / {total}
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-stone/60 hover:text-gold transition-colors p-2"
+          aria-label="Close gallery"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Main image */}
+      <div className="flex-1 flex items-center justify-center relative px-4 min-h-0">
+        <button
+          type="button"
+          onClick={() => goTo(currentIndex - 1)}
+          className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 items-center justify-center text-stone/40 hover:text-gold transition-colors"
+          aria-label="Previous photo"
+        >
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        {/* Desktop: single image (plain <img> for object-contain at full size) */}
+        <div className="hidden md:flex items-center justify-center w-full h-full">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={photos[currentIndex]}
+            alt={`${address} photo ${currentIndex + 1}`}
+            className="max-w-full max-h-full object-contain transition-opacity duration-200"
+          />
+          {[-2, -1, 1, 2].map((offset) => {
+            const idx = ((currentIndex + offset) % total + total) % total;
+            if (idx === currentIndex) return null;
+            return <link key={idx} rel="preload" as="image" href={photos[idx]} />;
+          })}
+        </div>
+
+        {/* Mobile: swipe gallery */}
+        <div className="md:hidden w-full h-full overflow-x-auto scrollbar-hide snap-x snap-mandatory flex">
+          {photos.map((url, i) => (
+            <div key={i} className="w-full h-full flex-shrink-0 snap-center flex items-center justify-center">
+              {isInRange(i, PRELOAD_RANGE) ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={url} alt={`${address} photo ${i + 1}`} className="max-w-full max-h-full object-contain" />
+              ) : (
+                <div className="w-full h-full bg-stone/5" />
+              )}
+            </div>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => goTo(currentIndex + 1)}
+          className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 items-center justify-center text-stone/40 hover:text-gold transition-colors"
+          aria-label="Next photo"
+        >
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Thumbnail rail (desktop) */}
+      <div
+        ref={thumbContainerRef}
+        className="hidden md:flex gap-1 px-4 py-3 overflow-x-auto scrollbar-hide justify-center shrink-0"
+      >
+        {photos.map((url, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => setCurrentIndex(i)}
+            className={`w-16 h-12 flex-shrink-0 overflow-hidden transition-opacity ${
+              i === currentIndex ? 'opacity-100 ring-1 ring-gold' : 'opacity-40 hover:opacity-70'
+            }`}
+            aria-label={`Go to photo ${i + 1}`}
+          >
+            {isInRange(i, THUMB_RANGE) ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
+            ) : (
+              <div className="w-full h-full bg-stone/10" />
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

@@ -16,3 +16,29 @@ applications:
         paths:
           - node_modules/**/*
     appRoot: prototypes/yong
+  - appRoot: yong2
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - npm ci
+        build:
+          commands:
+            # `|| true` survives the known Next 16.2.4 `/_global-error`
+            # prerender crash. Compilation completes before the crash, so
+            # `.next/` is populated; the synthetic route just isn't
+            # statically materialised. SSR runtime serves the live page.
+            - npm run build || true
+            # Verify the build actually produced runtime artifacts; fail
+            # fast if compilation itself broke (vs. just the prerender).
+            - test -f .next/BUILD_ID || (echo "Next build did not emit BUILD_ID — compilation failed" && exit 1)
+            # Amplify SSR runtime needs node_modules co-located with .next.
+            - cp -a node_modules .next/node_modules
+      artifacts:
+        baseDirectory: .next
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+          - .next/cache/**/*
