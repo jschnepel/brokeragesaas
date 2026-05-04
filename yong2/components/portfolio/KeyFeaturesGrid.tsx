@@ -3,50 +3,71 @@ import { FEATURE_GROUP_LABELS, type FeatureGroup } from '@/lib/listing-narrative
 
 type KeyFeaturesGridProps = {
   groups: ReadonlyArray<FeatureGroup>;
+  /**
+   * How many feature groups render visibly before the rest collapse
+   * behind a `<details>` expand. Default 5 — buyers skim; the long
+   * tail is available for those who care.
+   */
+  visibleCount?: number;
 };
 
 /**
- * Editorial features chip grid — caps gold label on the left, chip
- * cards flowing to the right. Renders only the groups present in
- * the narrative; render order matches FEATURE_GROUP_LABELS so
- * sections appear in the same order across every listing.
+ * Compact features list — caps gold label + items joined by middots.
+ * Reads as editorial inventory rather than a chip cloud.
  *
- * The narrative workflow produces these groups by mapping the raw
- * ARMLS jsonb arrays (interior_features, exterior_features, etc.)
- * into the fixed FeatureGroupLabel enum. Categorization is
- * deterministic — no per-listing label invention.
+ * Renders `visibleCount` groups (default 5) by canonical
+ * FEATURE_GROUP_LABELS order. Remaining groups collapse into a
+ * native <details> expand — no JS needed. Empty groups skipped.
  */
-export function KeyFeaturesGrid({ groups }: KeyFeaturesGridProps) {
-  // Order groups by the canonical enum order so the page reads the
-  // same way for every listing (Architecture first, Climate last).
+export function KeyFeaturesGrid({ groups, visibleCount = 5 }: KeyFeaturesGridProps) {
+  // Sort groups by canonical enum order so the same categories surface
+  // in the same place across every listing.
   const ordered = FEATURE_GROUP_LABELS
     .map((label) => groups.find((g) => g.label === label))
     .filter((g): g is FeatureGroup => g != null && g.items.length > 0);
 
   if (ordered.length === 0) return null;
 
+  const visible = ordered.slice(0, visibleCount);
+  const hidden = ordered.slice(visibleCount);
+
   return (
-    <section data-track="features" className="border-t border-white/10 pt-10">
-      <CapsLabel as="h2" className="mb-6">Features &amp; Amenities</CapsLabel>
+    <section data-track="features">
+      <span aria-hidden="true" className="block w-12 h-px bg-gold/60 mb-6" />
+      <CapsLabel as="h2" className="mb-8">Features</CapsLabel>
       <div className="space-y-4">
-        {ordered.map((group) => (
-          <div key={group.label} className="flex flex-wrap items-start gap-2">
-            <span className="caps text-gold py-1.5 pr-3 shrink-0 min-w-[110px]">
-              {group.label}
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {group.items.map((item) => (
-                <span
-                  key={item}
-                  className="inline-block bg-ink-elevated/40 border border-white/10 text-stone/85 text-xs px-3 py-1.5"
-                >
-                  {item}
-                </span>
-              ))}
-            </div>
-          </div>
+        {visible.map((group) => (
+          <FeatureRow key={group.label} group={group} />
         ))}
       </div>
+      {hidden.length > 0 ? (
+        <details className="mt-6 group">
+          <summary className="caps text-[10px] text-stone/55 hover:text-gold transition-colors tracking-widest cursor-pointer list-none inline-flex items-center gap-2 select-none">
+            <span>
+              {hidden.length} more · {hidden.map((g) => g.label).join(' · ')}
+            </span>
+            <span aria-hidden="true" className="transition-transform group-open:rotate-180">↓</span>
+          </summary>
+          <div className="space-y-4 mt-6 pt-6 border-t border-white/5">
+            {hidden.map((group) => (
+              <FeatureRow key={group.label} group={group} />
+            ))}
+          </div>
+        </details>
+      ) : null}
     </section>
+  );
+}
+
+function FeatureRow({ group }: { group: FeatureGroup }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-2 md:gap-6">
+      <span className="caps text-[10px] text-gold/85 tracking-widest pt-0.5">
+        {group.label}
+      </span>
+      <p className="text-stone/85 leading-relaxed">
+        {group.items.join(' · ')}
+      </p>
+    </div>
   );
 }

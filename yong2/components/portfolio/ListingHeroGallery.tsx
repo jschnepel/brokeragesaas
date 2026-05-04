@@ -39,6 +39,12 @@ function isPhotoUrl(url: string): boolean {
 type ListingHeroGalleryProps = {
   listing: Listing;
   photos: string[];
+  /**
+   * Optional overlay anchored top of the hero — used by the v4 page
+   * to render Status badge / Media tabs / Save button as one row.
+   * Page-level concern so the gallery stays presentational.
+   */
+  topOverlay?: React.ReactNode;
 };
 
 /**
@@ -49,7 +55,7 @@ type ListingHeroGalleryProps = {
  * Adapted from the premium-site HeroGallery to yong2's Midnight & Stone palette
  * (ink/stone/gold instead of navy/white/gold).
  */
-export function ListingHeroGallery({ listing, photos: rawPhotos }: ListingHeroGalleryProps) {
+export function ListingHeroGallery({ listing, photos: rawPhotos, topOverlay }: ListingHeroGalleryProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   // Defensive: drop any non-image URLs (e.g., virtual-tour links) so neither
   // next/image (strict remotePatterns check) nor the lightbox break.
@@ -84,7 +90,7 @@ export function ListingHeroGallery({ listing, photos: rawPhotos }: ListingHeroGa
   // Empty fallback — solid hero with overlay only.
   if (photos.length === 0) {
     return (
-      <section className="relative w-full h-[80vh] min-h-[560px] overflow-hidden">
+      <section className="relative w-full h-[90vh] min-h-[640px] overflow-hidden">
         <div className="absolute inset-0 bg-ink-elevated" />
         <HeroOverlay
           kicker={kicker}
@@ -111,8 +117,13 @@ export function ListingHeroGallery({ listing, photos: rawPhotos }: ListingHeroGa
     <>
       <section
         className="relative w-full overflow-hidden"
-        style={{ height: '80vh', minHeight: '560px' }}
+        style={{ height: '90vh', minHeight: '640px' }}
       >
+        {topOverlay ? (
+          <div className="absolute inset-x-0 top-0 z-20 pt-24 md:pt-28 px-6 md:px-12 lg:px-16 pointer-events-none">
+            <div className="pointer-events-auto">{topOverlay}</div>
+          </div>
+        ) : null}
         {/* Desktop hero photo */}
         <button
           type="button"
@@ -170,10 +181,13 @@ export function ListingHeroGallery({ listing, photos: rawPhotos }: ListingHeroGa
           </div>
         ) : null}
 
-        {/* MLS# top-right */}
-        <div className="absolute top-24 lg:top-28 right-4 md:right-6 lg:right-12 z-10 pointer-events-none">
-          <span className="caps text-stone/40 text-[10px]">MLS# {listing.listingId}</span>
-        </div>
+        {/* MLS# top-right — suppressed when topOverlay is provided, since
+         * the page-level top bar will surface the same identifier. */}
+        {topOverlay ? null : (
+          <div className="absolute top-24 lg:top-28 right-4 md:right-6 lg:right-12 z-10 pointer-events-none">
+            <span className="caps text-stone/40 text-[10px]">MLS# {listing.listingId}</span>
+          </div>
+        )}
 
         {/* Hero overlay (anchored bottom-left) */}
         <HeroOverlay
