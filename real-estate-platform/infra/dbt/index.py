@@ -19,15 +19,33 @@ Sidecar: writes run_results.json to s3://${BUCKET}/analytics/_meta/run_results-$
 so CloudWatch Logs Insights queries can correlate failures with model timings.
 """
 
+# ─────────────────────────────────────────────────────────────────
+# Lambda multiprocessing workaround — must run BEFORE importing dbt.
+# Lambda containers don't expose /dev/shm, so multiprocessing.SemLock fails.
+# Replace mp.RLock + mp.Lock with threading equivalents (single-process so safe).
+# Source: dbt-labs/dbt-core#5160 + AWS Lambda Python multiprocessing limitations.
+import multiprocessing
+import multiprocessing.context
+import threading
+
+multiprocessing.RLock = threading.RLock  # type: ignore[assignment]
+multiprocessing.Lock = threading.Lock  # type: ignore[assignment]
+# Patch context-class methods too — dbt uses mp_context.RLock() not mp.RLock()
+multiprocessing.context.BaseContext.RLock = lambda self: threading.RLock()  # type: ignore[assignment]
+multiprocessing.context.BaseContext.Lock = lambda self: threading.Lock()  # type: ignore[assignment]
+# ─────────────────────────────────────────────────────────────────
+
 import json
 import os
-import subprocess
+import sys
 import time
+from io import StringIO
 from pathlib import Path
 
 import boto3
 from aws_lambda_powertools import Logger, Metrics
 from aws_lambda_powertools.metrics import MetricUnit
+from dbt.cli.main import dbtRunner
 
 logger = Logger(service="rlsir-analytics-dbt")
 metrics = Metrics(namespace="RLSIR/DataPipeline", service="rlsir-analytics-dbt")
@@ -40,24 +58,47 @@ ARTIFACTS_PREFIX = os.environ.get("ARTIFACTS_PREFIX", "analytics/_meta/")
 
 
 def _run_dbt(args: list[str]) -> tuple[int, str]:
-    """Run a dbt command, capture stdout+stderr, return (exit_code, output)."""
-    cmd = ["dbt", *args, "--project-dir", PROJECT_DIR, "--profiles-dir", PROFILES_DIR]
-    logger.info("dbt invoke", extra={"cmd": cmd})
-    completed = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=PROJECT_DIR,
-    )
-    output = (completed.stdout or "") + (completed.stderr or "")
-    return completed.returncode, output
+    """Run dbt in-process via dbtRunner.
+
+    Lambda doesn't have /dev/shm, so dbt's CLI subprocess multiprocessing
+    primitives (SemLock) fail. dbtRunner runs in the same process so it
+    avoids the fork+SemLock path. Lambda's /opt is also read-only, so
+    --log-path and --target-path must point at /tmp.
+    """
+    os.makedirs("/tmp/dbt-logs", exist_ok=True)
+    os.makedirs("/tmp/dbt-target", exist_ok=True)
+    # dbt scans cwd for things like profiles.yml fallback; pin it to /tmp.
+    os.chdir("/tmp")
+    full_args = [
+        *args,
+        "--project-dir", PROJECT_DIR,
+        "--profiles-dir", PROFILES_DIR,
+        "--log-path", "/tmp/dbt-logs",
+        "--target-path", "/tmp/dbt-target",
+    ]
+    logger.info("dbt invoke", extra={"dbt_args": full_args})
+    runner = dbtRunner()
+    # Capture stdout while dbt runs (it prints to stdout normally)
+    captured = StringIO()
+    old_stdout = sys.stdout
+    sys.stdout = captured
+    try:
+        result = runner.invoke(full_args)
+    finally:
+        sys.stdout = old_stdout
+    out = captured.getvalue()
+    rc = 0 if result.success else 1
+    if result.exception:
+        out += f"\n\nException: {result.exception}\n"
+        rc = 2
+    return rc, out
 
 
 def _publish_run_results(run_id: str) -> str | None:
     """Upload target/run_results.json to S3 for CloudWatch Insights queries."""
     if not ARTIFACTS_BUCKET:
         return None
-    src = Path(PROJECT_DIR) / "target" / "run_results.json"
+    src = Path("/tmp/dbt-target") / "run_results.json"
     if not src.exists():
         logger.warning("run_results.json not produced; skipping upload")
         return None
@@ -136,7 +177,7 @@ def handler(event: dict, context) -> dict:
     rc, out = _run_dbt(args)
     elapsed = round(time.time() - started, 1)
 
-    summary = _summarize_run_results(Path(PROJECT_DIR) / "target" / "run_results.json")
+    summary = _summarize_run_results(Path("/tmp/dbt-target") / "run_results.json")
 
     s3_path = _publish_run_results(run_id)
 
