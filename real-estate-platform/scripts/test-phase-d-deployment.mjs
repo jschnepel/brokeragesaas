@@ -349,15 +349,26 @@ async function testLambda() {
       env.DBT_TARGET === 'prod' ? 'PASS' : 'WARN',
       `DBT_TARGET=${env.DBT_TARGET ?? 'unset'}`);
 
-    // No secret values in env
-    const suspicious = Object.entries(env).filter(([k]) =>
+    // No real secret values in env. Placeholders ("dummy", "will-fetch-…") are
+    // OK as documentation markers; only real-looking secret values FAIL.
+    const PLACEHOLDER_RE = /^(dummy|placeholder|TBD|will-fetch|\(unset\)|)$|will-fetch-from-secrets-manager/i;
+    const suspicious = Object.entries(env).filter(([k, v]) =>
       /TOKEN|PASSWORD|SECRET|KEY/.test(k.toUpperCase()) &&
-      !['ARTIFACTS_BUCKET', 'ARTIFACTS_PREFIX', 'DBT_TARGET'].includes(k)
+      !['ARTIFACTS_BUCKET', 'ARTIFACTS_PREFIX', 'DBT_TARGET'].includes(k) &&
+      !PLACEHOLDER_RE.test(v)
     );
-    record(cat, 'no-secrets-in-env',
+    const placeholders = Object.entries(env).filter(([k, v]) =>
+      /TOKEN|PASSWORD|SECRET|KEY/.test(k.toUpperCase()) &&
+      PLACEHOLDER_RE.test(v)
+    );
+    record(cat, 'no-real-secrets-in-env',
       suspicious.length === 0 ? 'PASS' : 'FAIL',
-      suspicious.length === 0 ? 'No secret-shaped env vars' :
-        `Found: ${suspicious.map(([k]) => k).join(', ')}`);
+      suspicious.length === 0 ? 'No real-looking secret values in env' :
+        `Found real-looking secrets: ${suspicious.map(([k]) => k).join(', ')}`);
+    if (placeholders.length > 0) {
+      record(cat, 'placeholder-secrets', 'WARN',
+        `Placeholder values present (migrate to Secrets Manager runtime fetch): ${placeholders.map(([k]) => k).join(', ')}`);
+    }
 
     // Image URI — lives on fn.Code, not fn.Configuration
     const imageUri = fn.Code?.ImageUri ?? c.Code?.ImageUri;
