@@ -48,6 +48,12 @@ vars:
   az_lng_min: -115
   az_lng_max: -108
 
+  # Active-inventory marts unlock — flipped 2026-05-04 in Phase C of the
+  # execution playbook (active-snapshot Lambda live, bronze active fresh).
+  # 8 active marts + their tests (active_status_consistency, months_of_supply_within_bounds)
+  # become enabled at this flag.
+  enable_active: true
+
 models:
   rlsir_analytics:
     +persist_docs:
