@@ -109,3 +109,35 @@
 
 @keyframes kenBurns { from { transform: scale(1); } to { transform: scale(1.08); } }
 .animate-ken-burns { animation: kenBurns 24s ease-out forwards; }
+
+/* Infinite syndication marquee — duplicated track scrolls 0 → -50%.
+ * Edge mask fades the row into the section background so logos enter
+ * and exit without a hard cut. Logos collapse to a uniform stone
+ * silhouette via brightness(0)+invert(1) so a mixed bag of asset
+ * colors reads as one editorial row against the Midnight bg. */
+.syndication-marquee {
+  mask-image: linear-gradient(to right, transparent 0, black 8%, black 92%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 8%, black 92%, transparent 100%);
+}
+.syndication-marquee-track {
+  animation: syndication-marquee 80s linear infinite;
+  will-change: transform;
+}
+.syndication-marquee:hover .syndication-marquee-track {
+  animation-play-state: paused;
+}
+.syndication-logo {
+  filter: brightness(0) invert(1);
+  opacity: 0.55;
+  transition: opacity 350ms ease;
+}
+.syndication-marquee:hover .syndication-logo {
+  opacity: 0.85;
+}
+@keyframes syndication-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .syndication-marquee-track { animation: none; }
+}
