@@ -1,0 +1,14 @@
+-- Migration 027: Replace is_luxury with property_segment on analytics_base
+-- The analytics_base MV is rebuilt by scripts/rebuild-analytics-base.js
+-- This file documents the change for the migration log.
+
+-- property_segment classification rule:
+--   'residential' → property_type IN ('Residential','Residential Lease')
+--                   OR (property_type IS NULL AND property_sub_type NOT IN ('Land','Commercial'))
+--   'land'        → property_type = 'Land' OR property_sub_type = 'Lot'
+--   'commercial'  → Multiple Dwellings, Comm/Industry Sale/Lease, Business Opportunity, Rental, Farm/Ranch
+--   'other'       → anything else
+--   'all'         → not stored in analytics_base; computed in downstream MVs via UNION ALL
+--
+-- NOTE: analytics_base stores the source row's true segment only.
+-- The 'all' rows in downstream MVs are created by UNION ALL without a segment filter.
