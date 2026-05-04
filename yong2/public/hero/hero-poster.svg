@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Sonoran desert horizon">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0B1620"/>
+      <stop offset="55%" stop-color="#1E2C38"/>
+      <stop offset="100%" stop-color="#2a3645"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.78" cy="0.42" r="0.18">
+      <stop offset="0%" stop-color="#D4B88A" stop-opacity="0.7"/>
+      <stop offset="60%" stop-color="#D4B88A" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#D4B88A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ridge1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0B1620" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#0B1620"/>
+    </linearGradient>
+    <linearGradient id="ridge2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1E2C38" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#1E2C38"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <rect width="1920" height="1080" fill="url(#sun)"/>
+  <!-- Distant ridge -->
+  <path d="M0,720 L180,640 L360,690 L540,610 L720,665 L900,580 L1080,650 L1260,595 L1440,640 L1620,560 L1800,620 L1920,590 L1920,1080 L0,1080 Z" fill="url(#ridge2)" opacity="0.55"/>
+  <!-- Mid mesa -->
+  <path d="M0,820 L240,760 L420,790 L640,720 L860,770 L1080,710 L1300,760 L1520,700 L1720,755 L1920,720 L1920,1080 L0,1080 Z" fill="url(#ridge1)" opacity="0.85"/>
+  <!-- Foreground saguaro silhouettes -->
+  <g fill="#0B1620">
+    <path d="M260,910 q-8,-90 0,-130 q4,-22 18,-22 q14,0 18,22 q8,40 0,130 Z M252,830 q-26,-4 -36,-30 q-4,-12 4,-22 q10,-8 22,-2 q12,8 16,30 Z M286,850 q26,-4 36,-30 q4,-12 -4,-22 q-10,-8 -22,-2 q-12,8 -16,30 Z"/>
+    <path d="M1500,940 q-6,-70 0,-100 q3,-16 14,-16 q11,0 14,16 q6,30 0,100 Z M1495,890 q-18,-2 -26,-22 q-2,-8 4,-14 q8,-6 16,-2 q8,4 12,20 Z"/>
+  </g>
+  <!-- Title plate -->
+  <rect width="1920" height="1080" fill="url(#sky)" opacity="0"/>
+</svg>

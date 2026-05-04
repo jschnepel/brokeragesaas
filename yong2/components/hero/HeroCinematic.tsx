@@ -8,7 +8,7 @@ export function HeroCinematic() {
     <header className="relative w-full h-screen min-h-[640px] overflow-hidden">
       <div className="absolute inset-0 animate-ken-burns">
         <Image
-          src="/hero/hero-poster.jpg"
+          src="/hero/hero-poster.svg"
           alt=""
           fill
           priority

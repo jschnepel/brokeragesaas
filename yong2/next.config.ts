@@ -14,6 +14,10 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'cdn.resize.sparkplatform.com', pathname: '/**' },
     ],
     formats: ['image/avif', 'image/webp'],
+    // Repo-controlled SVG placeholders for hero + community tiles. CSP
+    // blocks any inline scripts or external loads from inside the SVG.
+    dangerouslyAllowSVG: true,
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
   serverExternalPackages: ['pg'],
   // PostHog reverse proxy — first-party path `/ingest/*` proxies to PostHog

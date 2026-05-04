@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Silverleaf">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1E2C38"/>
+      <stop offset="100%" stop-color="#0B1620"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#D4B88A" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#D4B88A" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="1200" fill="url(#bg)"/>
+  <rect width="1200" height="1200" fill="url(#accent)"/>
+  <path d="M0,840 L280,760 L520,790 L760,720 L980,770 L1200,720 L1200,1200 L0,1200 Z" fill="#0B1620" opacity="0.5"/>
+  <g font-family="Georgia, 'Playfair Display', serif" fill="#D4B88A" text-anchor="middle">
+    <text x="600" y="560" font-size="32" letter-spacing="8">NORTH SCOTTSDALE</text>
+    <text x="600" y="660" font-size="96" font-style="italic" font-weight="300" fill="#EFE9DF">Silverleaf</text>
+    <line x1="540" y1="700" x2="660" y2="700" stroke="#D4B88A" stroke-width="1"/>
+  </g>
+</svg>
