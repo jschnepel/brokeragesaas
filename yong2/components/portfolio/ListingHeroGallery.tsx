@@ -21,6 +21,12 @@ import {
  * always serves images even when the path lacks an extension).
  */
 function isPhotoUrl(url: string): boolean {
+  // Same-origin public assets (e.g. /mock-listing/foo.jpg from the
+  // preview page, or /hero/foo.jpg from any first-party gallery).
+  // `new URL()` rejects these because they have no origin to parse.
+  if (url.startsWith('/') && /\.(jpe?g|png|webp|avif|gif)$/i.test(url)) {
+    return true;
+  }
   try {
     const u = new URL(url);
     if (u.hostname.endsWith('sparkplatform.com')) return true;
