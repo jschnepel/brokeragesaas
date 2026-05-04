@@ -20,7 +20,7 @@ export default async function PortfolioPage() {
     <>
       <Navigation initialTransparent />
       <PageHero
-        imageSrc="/page-heroes/portfolio.jpg"
+        imageSrc="/page-heroes/portfolio-az.jpg"
         kicker="The Portfolio"
         headline="Current"
         headlineItalic="representations."
