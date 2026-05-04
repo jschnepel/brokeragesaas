@@ -1,0 +1,520 @@
+version: 2
+
+models:
+  - name: dim_calendar
+    description: Date dimension — every month from 2011-01 to current+1.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: weekly
+    columns:
+      - name: month
+        description: First day of the month
+        data_tests: [not_null, unique]
+      - name: year
+        data_tests: [not_null]
+      - name: month_of_year
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 1
+                  max_value: 12
+      - name: quarter
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 1
+                  max_value: 4
+  - name: dim_communities
+    description: One row per (region, community) with rolling 12-mo baseline.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+    columns:
+      - name: community_slug
+        data_tests: [not_null]
+      - name: region_slug
+        data_tests: [not_null]
+      - name: closes_12mo
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 100000
+  - name: fct_closings
+    description: |
+      Atomic fact — one row per closed listing with every dimension pre-joined.
+      Grain: listing_key. Partitioned by close_year for incremental rebuild.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+        grain: listing_key
+        powers_pages: ["/phoenix", "/phoenix/[region]", "/phoenix/[region]/[community]", "/listings/[slug]"]
+    columns:
+      - name: closing_id
+        description: Surrogate key
+        data_tests: [unique, not_null]
+      - name: listing_key
+        data_tests: [not_null, unique]
+      - name: close_date
+        data_tests: [not_null]
+      - name: close_price
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 1000
+                  max_value: 1000000000
+      - name: list_price
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 1000
+                  max_value: 500000000
+      - name: sale_to_list_ratio
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0.4
+                  max_value: 2.5
+              config:
+                where: "sale_to_list_ratio IS NOT NULL"
+      - name: property_segment
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['residential', 'land', 'commercial', 'lease', 'other']
+      - name: price_band
+        data_tests:
+          - accepted_values:
+              arguments:
+                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M+']
+              config:
+                where: "price_band IS NOT NULL"
+      - name: region_slug
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['north-scottsdale','paradise-valley','central-scottsdale','south-scottsdale','arcadia','biltmore','carefree','cave-creek','fountain-hills','rio-verde','desert-ridge','anthem','peoria']
+              config:
+                where: "region_slug IS NOT NULL"
+  - name: fct_market_pulse
+    description: |
+      Monthly time series: closings, medians, ppsf, DOM, volume.
+      Calendar-spined × scope_type × property_segment.
+      Grain: scope_type + scope_key + property_segment + month.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+        grain: scope_type + scope_key + property_segment + month
+        powers_pages: ["/phoenix", "/phoenix/[region]", "/phoenix/[region]/[community]", "/market"]
+    columns:
+      - name: market_pulse_id
+        description: Surrogate key
+        data_tests: [unique, not_null]
+      - name: scope_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['metro', 'region', 'community', 'city', 'zip', 'price_band']
+      - name: scope_key
+        data_tests: [not_null]
+      - name: property_segment
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['residential', 'land', 'all']
+      - name: month
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                  to: ref('dim_calendar')
+                  field: month
+      - name: closing_count
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 50000
+      - name: median_close
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 100000000
+              config:
+                where: "median_close IS NOT NULL"
+      - name: confidence
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['none', 'very_low', 'low', 'medium', 'high']
+      - name: sample_12mo
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 1000000
+  - name: fct_negotiation
+    description: |
+      Monthly close-to-list AND close-to-original ratios.
+      Grain: scope_type + scope_key + property_segment + month.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+        grain: scope_type + scope_key + property_segment + month
+        powers_pages: ["/phoenix Pricing tab"]
+    columns:
+      - name: negotiation_id
+        data_tests: [unique, not_null]
+      - name: scope_type
+        data_tests: [not_null]
+      - name: scope_key
+        data_tests: [not_null]
+      - name: property_segment
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['residential', 'land', 'all']
+      - name: month
+        data_tests: [not_null]
+      - name: median_sale_to_list
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0.5
+                  max_value: 2.0
+              config:
+                where: "median_sale_to_list IS NOT NULL"
+      - name: confidence
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['none', 'very_low', 'low', 'medium', 'high']
+  - name: fct_community_scorecard
+    description: |
+      Per-community 12-mo snapshot.
+      Grain: scope_type + scope_key + property_segment.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+        grain: scope_type + scope_key + property_segment
+        powers_pages: ["/phoenix/[region]/[community]", "/listings/[slug]"]
+    columns:
+      - name: scorecard_id
+        data_tests: [unique, not_null]
+      - name: community_slug
+        data_tests: [not_null]
+      - name: region_slug
+        data_tests: [not_null]
+      - name: confidence
+        data_tests: [not_null]
+
+  - name: fct_community_yoy
+    description: |
+      Community year-over-year comparison.
+      Excludes ppsf < $50 (manufactured housing).
+      Grain: scope_type + scope_key + property_segment + year.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+    columns:
+      - name: yoy_id
+        data_tests: [unique, not_null]
+      - name: community_slug
+        data_tests: [not_null]
+      - name: year
+        data_tests: [not_null]
+      - name: ppsf_pct_change
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: -50
+                  max_value: 100
+              config:
+                where: "ppsf_pct_change IS NOT NULL"
+              config:
+                severity: warn
+  - name: fct_pricereduction
+    description: |
+      Monthly price-reduction prevalence by segment + price band.
+      Grain: scope_type + scope_key + property_segment + month + price_band.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+    columns:
+      - name: pricereduction_id
+        data_tests: [unique, not_null]
+      - name: month
+        data_tests: [not_null]
+      - name: property_segment
+        data_tests: [not_null]
+      - name: price_band
+        data_tests:
+          - accepted_values:
+              arguments:
+                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M+', 'all_bands']
+      - name: pct_with_reduction
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 100
+              config:
+                where: "pct_with_reduction IS NOT NULL"
+      - name: confidence
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['none', 'very_low', 'low', 'medium', 'high']
+  - name: fct_buyer_office
+    description: |
+      Buyer-side office leaderboard by year.
+      Grain: buyer_office_key + year.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+    columns:
+      - name: buyer_office_id
+        data_tests: [unique, not_null]
+      - name: year
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 2011
+                  max_value: 2050
+      - name: buyer_office_name
+        data_tests: [not_null]
+      - name: buyer_office_key
+        data_tests: [not_null]
+      - name: deals
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 5
+                  max_value: 100000
+      - name: pct_dual_rep
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 100
+              config:
+                where: "pct_dual_rep IS NOT NULL"
+  # ─── ACTIVE INVENTORY MARTS ─────────────────────────────────────────────
+  - name: fct_active_inventory
+    description: |
+      Current-snapshot KPIs for active inventory (count, median list, mean DOM).
+      Grain: scope_type × scope_key × property_segment.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_1h
+        powers_pages: ["/phoenix hero KPI bar"]
+    columns:
+      - name: active_inventory_id
+        data_tests: [unique, not_null]
+      - name: scope_type
+        data_tests: [not_null, accepted_values: { values: ['metro', 'region', 'community'] }]
+      - name: scope_key
+        data_tests: [not_null]
+      - name: property_segment
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['residential', 'land', 'commercial', 'lease', 'other', 'all']
+      - name: active_count
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 1000000
+      - name: confidence
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['none', 'very_low', 'low', 'medium', 'high']
+  - name: fct_active_by_pricetier
+    description: Price-band histogram for current active inventory.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_1h
+    columns:
+      - name: active_pricetier_id
+        data_tests: [unique, not_null]
+      - name: price_band
+        data_tests:
+          - accepted_values:
+              arguments:
+                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M+']
+  - name: fct_active_dom_distribution
+    description: DOM bucket histogram for current active inventory.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_1h
+    columns:
+      - name: active_dom_id
+        data_tests: [unique, not_null]
+      - name: dom_band
+        data_tests:
+          - accepted_values:
+              arguments:
+                  values: ['0-7', '8-14', '15-30', '31-60', '61-90', '91-180', '180+']
+  - name: fct_active_by_community
+    description: Per-community active inventory counts + median list/DOM.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_1h
+    columns:
+      - name: active_community_id
+        data_tests: [unique, not_null]
+      - name: community_slug
+        data_tests: [not_null]
+      - name: region_slug
+        data_tests: [not_null]
+
+  - name: fct_active_heatmap_h3
+    description: |
+      H3 hex aggregation of currently-active listings for map visualization.
+      Resolution-8-equivalent lat/lng buckets.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_1h
+    columns:
+      - name: heatmap_cell_id
+        data_tests: [unique, not_null]
+      - name: listing_count
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 1
+                  max_value: 100000
+  - name: fct_listing_pace
+    description: |
+      Weekly pace of new listings going Active. Calendar-spined; rolling
+      4-week vs 52-week comparison. Leading indicator of market acceleration.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_1h
+    columns:
+      - name: listing_pace_id
+        data_tests: [unique, not_null]
+      - name: week
+        data_tests: [not_null]
+      - name: new_listings_count
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 50000
+  - name: fct_months_of_supply
+    description: |
+      Months-of-supply: current active inventory ÷ trailing-12mo monthly close avg.
+      THE killer cross-mart that joins active state to closed history.
+      <2 months = strong sellers' market, >9 = strong buyers'.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_1h
+        powers_pages: ["/phoenix Inventory tab — most important active metric"]
+    columns:
+      - name: months_of_supply_id
+        data_tests: [unique, not_null]
+      - name: market_classification
+        data_tests:
+          - accepted_values:
+              arguments:
+                  values: ['strong_sellers', 'sellers', 'balanced', 'buyers', 'strong_buyers', 'unknown']
+      - name: months_of_supply_12mo
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 60
+              config:
+                where: "months_of_supply_12mo IS NOT NULL"
+  - name: fct_status_velocity
+    description: |
+      Median days from Active → Pending → Closed across recent monthly cohorts.
+      Joins int_listings_status_history (transition timing) with fct_closings (cohort).
+      Grain: scope_type × scope_key × property_segment × month (close cohort).
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+        powers_pages: ["/phoenix Timing tab"]
+    columns:
+      - name: status_velocity_id
+        data_tests: [unique, not_null]
+      - name: month
+        data_tests: [not_null]
+      - name: median_days_active_to_closed
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 5000
+              config:
+                where: "median_days_active_to_closed IS NOT NULL"
+      - name: pct_back_on_market
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 100
+              config:
+                where: "pct_back_on_market IS NOT NULL"
+      - name: confidence
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['none', 'very_low', 'low', 'medium', 'high']

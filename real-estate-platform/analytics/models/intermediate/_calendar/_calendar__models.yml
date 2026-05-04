@@ -1,0 +1,17 @@
+version: 2
+
+models:
+  - name: int_calendar
+    description: |
+      Monthly date spine from 2011-01 through current month + 1.
+      Joined by every monthly mart to guarantee zero gaps in time series.
+    columns:
+      - name: month
+        description: First day of the month (DATE_TRUNC('month', ...))
+        data_tests: [not_null, unique]
+      - name: year
+        data_tests: [not_null]
+      - name: month_of_year
+        data_tests: [not_null]
+      - name: quarter
+        data_tests: [not_null]
