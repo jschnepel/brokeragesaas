@@ -17,16 +17,18 @@ type ListingStoryProps = {
  */
 export function ListingStory({ story }: ListingStoryProps) {
   return (
-    <article className="text-stone/90 leading-relaxed space-y-5 max-w-2xl">
+    <article className="text-stone/90 space-y-6 max-w-2xl text-[16px] md:text-[17px] leading-[1.7]">
       <p>
-        <span className="font-serif text-5xl leading-none float-left mr-2 -mt-1 text-gold">
+        <span className="font-serif text-[60px] md:text-[68px] leading-none float-left mr-3 -mt-1 text-gold">
           {story.lede.charAt(0)}
         </span>
         {story.lede.slice(1)}
       </p>
       <p>{story.setting}</p>
       <p>{story.interior}</p>
-      <p className="text-stone/75 italic">{story.closing}</p>
+      <p className="text-stone/75 italic font-serif text-[17px] md:text-[19px] leading-[1.6] pt-2">
+        {story.closing}
+      </p>
     </article>
   );
 }

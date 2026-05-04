@@ -51,7 +51,7 @@ export function TheReadVisualized({
       </p>
 
       {/* ── Row 1: Position hero (2 rows) + chart tiles stacked ── */}
-      <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] md:grid-rows-2 gap-4 mb-4 md:auto-rows-fr">
+      <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] md:grid-rows-2 gap-4 mb-6 md:auto-rows-fr">
         {/* Tile 1 — Position (md: spans 2 rows) */}
         <Tile className="md:row-span-2 flex flex-col">
           <CapsLabel as="h3" className="text-[10px] text-stone/60 mb-1">
@@ -61,7 +61,7 @@ export function TheReadVisualized({
             {comps.count} comps · same community · ±20% size band
           </p>
           <p
-            className={`font-serif leading-none ${
+            className={`font-serif leading-none tabular-nums tracking-[-0.02em] ${
               positionedAbove ? 'text-gold' : 'text-stone'
             }`}
             style={{ fontSize: 'clamp(56px, 7vw, 88px)' }}
@@ -154,7 +154,7 @@ export function TheReadVisualized({
 /** Bento tile chrome — consistent surface across every tile in The Read. */
 function Tile({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-ink-elevated/30 border border-white/5 p-6 md:p-8 ${className}`}>
+    <div className={`bg-ink-elevated/30 border border-white/5 hover:border-white/15 transition-colors duration-300 p-6 md:p-8 ${className}`}>
       {children}
     </div>
   );
@@ -178,10 +178,10 @@ function StatTile({
         {label}
       </CapsLabel>
       <p
-        className={`font-serif leading-none ${
+        className={`font-serif leading-none tabular-nums tracking-[-0.015em] ${
           accent === 'gold' ? 'text-gold' : 'text-stone'
         }`}
-        style={{ fontSize: 'clamp(34px, 4vw, 48px)' }}
+        style={{ fontSize: 'clamp(32px, 3.6vw, 44px)' }}
       >
         {value}
         {unit ? <span className="text-base text-stone/40 ml-2">{unit}</span> : null}

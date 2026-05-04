@@ -55,7 +55,7 @@ export function CompDistributionChart({ p25, p50, p75, subject }: CompDistributi
               />
             </div>
             <span
-              className={`font-serif text-base tabular-nums ${
+              className={`font-serif text-base tabular-nums tracking-[-0.005em] ${
                 row.subject ? 'text-gold' : 'text-stone/85'
               }`}
             >
@@ -64,8 +64,8 @@ export function CompDistributionChart({ p25, p50, p75, subject }: CompDistributi
           </div>
         );
       })}
-      <p className="caps text-[9px] text-stone/35 tracking-widest pt-1">
-        Range across comp set: {DOLLAR(min)} – {DOLLAR(max)} per sqft
+      <p className="caps text-[9px] text-stone/35 tracking-[0.28em] pt-1">
+        Range across comp set: <span className="tabular-nums">{DOLLAR(min)} – {DOLLAR(max)}</span> per sqft
       </p>
     </div>
   );

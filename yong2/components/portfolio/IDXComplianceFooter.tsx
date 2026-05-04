@@ -60,7 +60,7 @@ export function IDXComplianceFooter({
           ARMLS<br />
           <span className="text-[8px] tracking-wider">IDX</span>
         </div>
-        <div className="space-y-3 text-xs text-stone/75 leading-relaxed">
+        <div className="space-y-3 text-[13px] text-stone/75 leading-[1.6]">
           {(listAgentName || listOfficeName) && (
             <p>
               <span className="text-stone font-medium">Listed by</span>{' '}

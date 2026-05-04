@@ -45,8 +45,8 @@ export function KeyFactsCard({
   if (financialRows.length === 0 && schoolRows.length === 0) return null;
 
   return (
-    <div className="bg-ink-elevated/30 p-6 md:p-7 border border-white/5">
-      <CapsLabel as="h3" className="text-[10px] text-stone/60 mb-5">Key Facts</CapsLabel>
+    <div className="bg-ink-elevated/30 p-6 md:p-8 border border-white/5 hover:border-white/15 transition-colors duration-300">
+      <CapsLabel as="h3" className="text-[10px] text-stone/60 mb-5 tracking-[0.3em]">Key Facts</CapsLabel>
       <dl className="space-y-0">
         {financialRows.map((r, i) => (
           <Row key={r.label} row={r} isLast={i === financialRows.length - 1 && schoolRows.length === 0} />

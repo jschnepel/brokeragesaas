@@ -44,12 +44,12 @@ export function HeroTopBar({
   return (
     <div className="flex items-center justify-between gap-4">
       {/* Left — status + DOM */}
-      <div className="flex items-center gap-3 caps text-[10px] md:text-[11px]">
-        <span className="bg-ink/80 backdrop-blur-sm border border-stone/20 px-3 py-1.5 text-stone tracking-widest">
+      <div className="flex items-center gap-3 md:gap-4 caps text-[10px] md:text-[11px]">
+        <span className="bg-ink/80 backdrop-blur-sm border border-stone/20 px-3 py-2 text-stone tracking-[0.32em] leading-none">
           {status.toUpperCase()}
         </span>
         {daysOnMarket != null ? (
-          <span className="hidden md:inline text-stone/60">
+          <span className="hidden md:inline text-stone/65 tracking-[0.28em] tabular-nums">
             {daysOnMarket} {daysOnMarket === 1 ? 'day' : 'days'} on market
           </span>
         ) : null}
@@ -69,7 +69,7 @@ export function HeroTopBar({
         <button
           type="button"
           onClick={onToggleSave}
-          className={`caps inline-flex items-center gap-2 text-[10px] md:text-[11px] px-3 py-1.5 backdrop-blur-sm transition-colors border ${
+          className={`caps inline-flex items-center gap-2 text-[10px] md:text-[11px] tracking-[0.3em] px-3 py-2 backdrop-blur-sm border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink transition-colors ${
             isSaved
               ? 'bg-gold/95 text-ink border-gold'
               : 'bg-ink/70 text-stone border-stone/20 hover:border-gold hover:text-gold'
@@ -81,7 +81,7 @@ export function HeroTopBar({
           <span className="hidden md:inline">{isSaved ? 'Saved' : 'Save'}</span>
         </button>
         {listingId ? (
-          <span className="hidden md:inline caps text-stone/40 text-[10px] tracking-widest">
+          <span className="hidden md:inline caps text-stone/45 text-[10px] tracking-[0.28em] tabular-nums">
             MLS# {listingId}
           </span>
         ) : null}

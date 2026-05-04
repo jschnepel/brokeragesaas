@@ -26,7 +26,7 @@ export function AgentMiniCard({
   tourHref,
 }: AgentMiniCardProps) {
   return (
-    <div className="bg-ink-elevated/30 p-6 md:p-7 border border-white/5">
+    <div className="bg-ink-elevated/30 p-6 md:p-8 border border-white/5 hover:border-white/15 transition-colors duration-300">
       <div className="flex items-center gap-4">
         <div className="relative w-16 h-16 shrink-0 overflow-hidden rounded-full border border-gold/30">
           <Image
@@ -48,13 +48,13 @@ export function AgentMiniCard({
       <div className="grid grid-cols-2 gap-2 mt-5 pt-5 border-t border-white/10">
         <a
           href={phoneHref}
-          className="caps text-[10px] tracking-widest text-stone/85 hover:text-gold transition-colors text-center py-2 border border-white/10 hover:border-gold/40"
+          className="caps text-[10px] tracking-[0.3em] text-stone/85 hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink transition-colors text-center py-2.5 border border-white/10 hover:border-gold/40"
         >
           Call ↗
         </a>
         <Link
           href={tourHref}
-          className="caps text-[10px] tracking-widest text-gold hover:text-stone transition-colors text-center py-2 border border-gold/40 hover:border-gold"
+          className="caps text-[10px] tracking-[0.3em] text-gold hover:bg-gold hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink transition-colors text-center py-2.5 border border-gold/40 hover:border-gold"
         >
           Tour ↗
         </Link>

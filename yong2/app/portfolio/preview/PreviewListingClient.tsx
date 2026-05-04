@@ -219,18 +219,22 @@ export function PreviewListingClient() {
       </SectionFrame>
 
       {/* ── 6. ACTION ROW ── */}
-      <SectionFrame className="py-12 border-t border-white/10">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <Link href="/portfolio" className="caps hover:text-gold transition-colors text-[10px] tracking-widest">
+      <SectionFrame className="py-12 md:py-16 border-t border-white/10">
+        <div className="flex flex-wrap items-center justify-between gap-6">
+          <Link
+            href="/portfolio"
+            className="caps text-[10px] tracking-[0.3em] text-stone/75 hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 focus-visible:ring-offset-4 focus-visible:ring-offset-ink transition-colors"
+          >
             ← The Portfolio
           </Link>
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4 md:gap-6">
             <button
               type="button"
-              className="caps text-[10px] tracking-widest text-stone/65 hover:text-gold transition-colors"
+              className="caps text-[10px] tracking-[0.3em] text-stone/65 hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 focus-visible:ring-offset-4 focus-visible:ring-offset-ink transition-colors inline-flex items-center gap-2"
               aria-label="Documents available — request to view"
             >
-              📄 Documents on request →
+              <span aria-hidden="true">📄</span>
+              <span>Documents on request →</span>
             </button>
             <ShareButton
               url={listingUrl}

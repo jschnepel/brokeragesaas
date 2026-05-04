@@ -119,6 +119,13 @@ export function ListingHeroGallery({ listing, photos: rawPhotos, topOverlay }: L
         className="relative w-full overflow-hidden"
         style={{ height: '90vh', minHeight: '640px' }}
       >
+        {/* Top gradient — preserves nav + top-bar legibility against
+         * variable photo content. Subtle: 0 → 0.45 alpha over the top
+         * 200px. Doesn't darken the hero composition. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-48 md:h-56 z-10 pointer-events-none bg-gradient-to-b from-ink/70 via-ink/30 to-transparent"
+        />
         {topOverlay ? (
           <div className="absolute inset-x-0 top-0 z-20 pt-24 md:pt-28 px-6 md:px-12 lg:px-16 pointer-events-none">
             <div className="pointer-events-auto">{topOverlay}</div>
@@ -283,22 +290,30 @@ function HeroOverlay({
 }) {
   return (
     <div className="absolute inset-x-0 bottom-0 pb-12 md:pb-16 z-10 pointer-events-none">
+      {/* Bottom-anchored legibility gradient — heavier than the
+       * page-level overlay so the type stack reads against any
+       * photograph. Pinned to the overlay container so it scales
+       * with the bottom padding. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 bottom-0 h-[calc(100%+5rem)] -z-10 bg-gradient-to-t from-ink/85 via-ink/45 to-transparent"
+      />
       <div className="max-w-[1400px] mx-auto px-6 md:px-12 lg:px-16">
         {kicker ? (
-          <CapsLabel as="div">
+          <CapsLabel as="div" className="text-[10px] md:text-[11px] tracking-[0.32em]">
             {kicker}{cityRegion ? ` · ${cityRegion}` : ''}
           </CapsLabel>
         ) : null}
-        <h1 className="display-xl mt-4 text-stone">
+        <h1 className="display-xl mt-5 md:mt-6 text-stone tracking-[-0.015em]">
           <em className="font-light">{headline}</em>
         </h1>
         {cityLine ? (
-          <p className="text-stone/70 text-sm mt-2">{cityLine}</p>
+          <p className="text-stone/65 text-sm md:text-base mt-3 tabular-nums">{cityLine}</p>
         ) : null}
-        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 mt-4">
-          <span className="font-serif text-2xl md:text-3xl text-stone">{price}</span>
+        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 mt-6 md:mt-8">
+          <span className="font-serif text-3xl md:text-4xl text-stone tabular-nums tracking-[-0.005em]">{price}</span>
           {quickStats.length > 0 ? (
-            <span className="text-stone/60 text-sm">
+            <span className="text-stone/65 text-sm md:text-base tabular-nums">
               {quickStats.join(' · ')}
             </span>
           ) : null}
