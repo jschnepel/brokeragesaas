@@ -71,7 +71,36 @@ export function CookieBanner() {
     setShowPrefs(false);
   }
 
+  // Mobile starts collapsed as a corner pill (bottom-right) so the hero
+  // fold isn't dominated by a full-width 3-button strip. Tapping the pill
+  // expands the bottom-sheet form. Desktop keeps the full strip layout.
+  const [mobileExpanded, setMobileExpanded] = useState(false);
+
   if (!show) return null;
+
+  // Mobile collapsed state — small bottom-right pill.
+  if (!mobileExpanded && !showPrefs) {
+    return (
+      <>
+        {/* Mobile pill (< md) */}
+        <button
+          type="button"
+          onClick={() => setMobileExpanded(true)}
+          className="md:hidden fixed bottom-4 right-4 z-50 bg-ink/90 backdrop-blur-sm border border-gold/30 text-gold caps text-[10px] px-4 py-2.5 rounded-full shadow-lg hover:border-gold transition-colors"
+          aria-label="Cookie preferences"
+          data-testid="cookie-banner-pill"
+        >
+          Cookies ⚙
+        </button>
+        {/* Desktop full bar (>= md) */}
+        <DesktopBar
+          onAccept={handleAcceptAll}
+          onReject={handleRejectAll}
+          onPrefs={() => setShowPrefs(true)}
+        />
+      </>
+    );
+  }
 
   return (
     <div
@@ -141,6 +170,59 @@ export function CookieBanner() {
             <ConsentSettings variant="banner" onSaved={handleSaved} showShortcuts />
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Desktop-only full strip — used when mobile is collapsed to its pill.
+ * Hides at < md so it doesn't compete with the pill.
+ */
+function DesktopBar({
+  onAccept,
+  onReject,
+  onPrefs,
+}: {
+  onAccept: () => void;
+  onReject: () => void;
+  onPrefs: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-label="Cookie preferences"
+      className="hidden md:block fixed bottom-0 inset-x-0 z-40 bg-ink/95 backdrop-blur-sm border-t border-white/10 text-stone"
+    >
+      <div className="max-w-[1400px] mx-auto px-6 md:px-12 lg:px-16 py-4">
+        <div className="flex items-center justify-between gap-5">
+          <p className="text-sm leading-relaxed text-stone/85 max-w-2xl">
+            We use cookies for analytics and to improve your experience.{' '}
+            <Link href="/privacy/policy" className="text-gold hover:text-gold-muted underline underline-offset-4">
+              Read our Privacy Policy
+            </Link>
+            .
+          </p>
+          <div className="flex items-center gap-3 shrink-0">
+            <button type="button" onClick={onReject} className="caps text-stone/80 hover:text-gold transition-colors">
+              Reject All
+            </button>
+            <button
+              type="button"
+              onClick={onPrefs}
+              className="caps text-gold border border-gold/40 px-4 py-2 hover:border-gold transition-colors"
+            >
+              Preferences
+            </button>
+            <button
+              type="button"
+              onClick={onAccept}
+              className="caps bg-gold text-ink px-5 py-2 hover:bg-gold-muted transition-colors"
+            >
+              Accept All
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -118,6 +118,65 @@
 @keyframes kenBurns { from { transform: scale(1); } to { transform: scale(1.08); } }
 .animate-ken-burns { animation: kenBurns 24s ease-out forwards; }
 
+/* Hero CTA — ghost-style link per the luxury convention surveyed across
+ * Sotheby's-tier sites. Thin gold border, transparent fill at rest;
+ * hover fills gold with ink-color text. Single primary action per hero
+ * (multi-CTA hero correlates with up to 266% conversion drop per
+ * Prismic / Shopify research). */
+.cta-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1.5rem;
+  border: 1px solid var(--color-gold);
+  color: var(--color-gold);
+  font-size: 0.7rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  text-decoration: none;
+  background: transparent;
+  transition: background-color 320ms ease, color 320ms ease, border-color 320ms ease;
+}
+.cta-ghost:hover,
+.cta-ghost:focus-visible {
+  background: var(--color-gold);
+  color: var(--color-ink);
+  outline: none;
+}
+.cta-ghost:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 3px;
+}
+
+/* Hero scroll affordance — thin animated line, bottom-center.
+ * Pattern: Sotheby's, Aman, Mandarin Oriental — line over chevron.
+ * Fades out once the visitor scrolls past 100px (handled by parent
+ * via :has() if needed; stays visible by default). */
+.scroll-line {
+  position: relative;
+  display: block;
+  width: 1px;
+  height: 32px;
+  background: var(--color-gold);
+  opacity: 0.5;
+  overflow: hidden;
+}
+.scroll-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--color-stone);
+  animation: scroll-line-pulse 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes scroll-line-pulse {
+  0%   { transform: translateY(-100%); }
+  60%  { transform: translateY(100%); }
+  100% { transform: translateY(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-line::after { animation: none; }
+}
+
 /* Infinite syndication marquee — duplicated track scrolls 0 → -50%.
  * Edge mask fades the row into the section background so logos enter
  * and exit without a hard cut. Logos collapse to a uniform stone

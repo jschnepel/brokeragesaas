@@ -45,7 +45,7 @@ export const communitiesContent: Record<string, CuratedCommunity> = {
     scopeType: 'community',
     scopeKey: 'silverleaf-at-dc-ranch',
     communitySlug: 'silverleaf-at-dc-ranch',
-    heroImageUrl: '/hero/silverleaf.svg',
+    heroImageUrl: '/hero/silverleaf.jpg',
     narrative: [
       "Silverleaf is the gold standard of North Scottsdale — a gated village inside DC Ranch with an architectural committee that has kept the neighborhood coherent while still producing some of the most ambitious custom homes in the Valley.",
       'Buyer profile skews toward second-home owners with a base outside Arizona, though primary residents are a growing share. Pace has stayed measured through every recent cycle.',
@@ -58,7 +58,7 @@ export const communitiesContent: Record<string, CuratedCommunity> = {
     scopeType: 'community',
     scopeKey: 'desert-mountain',
     communitySlug: 'desert-mountain',
-    heroImageUrl: '/hero/desert-mountain.svg',
+    heroImageUrl: '/hero/desert-mountain.jpg',
     aerialVideoId: 'AWZEVnZC3FoDtxr8ifXBgo',
     narrative: [
       'Seven Jack Nicklaus courses, 8,000 acres of Sonoran preserve, and a member roster spanning North America’s top family offices.',
@@ -72,7 +72,7 @@ export const communitiesContent: Record<string, CuratedCommunity> = {
     scopeType: 'community',
     scopeKey: 'estancia',
     communitySlug: 'estancia',
-    heroImageUrl: '/hero/estancia.svg',
+    heroImageUrl: '/hero/estancia.jpg',
     narrative: [
       'Pinnacle Peak’s most private enclave. Tom Fazio routing, dramatic topography, and an architectural vocabulary rooted in the Sonoran landscape rather than transplanted from elsewhere.',
     ],
@@ -87,7 +87,7 @@ export const communitiesContent: Record<string, CuratedCommunity> = {
     scopeType: 'region',
     scopeKey: 'paradise-valley',
     communitySlug: null,
-    heroImageUrl: '/hero/paradise-valley.svg',
+    heroImageUrl: '/hero/paradise-valley.jpg',
     narrative: [
       'The valley floor — minimum-one-acre lots, Camelback and Mummy Mountain views, and a buyer pool that skews local, generational, and discreet.',
     ],

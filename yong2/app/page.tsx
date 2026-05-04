@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Navigation } from '@/components/chrome/Navigation';
 import { Footer } from '@/components/chrome/Footer';
 import { HeroCinematic } from '@/components/hero/HeroCinematic';
+import { StatsBand } from '@/components/home/StatsBand';
 import { HomeIntro } from '@/components/home/HomeIntro';
 import { FeaturedPortfolio } from '@/components/home/FeaturedPortfolio';
 import { SyndicationMarquee } from '@/components/home/SyndicationMarquee';
@@ -39,6 +40,7 @@ export default async function Home() {
     <>
       <Navigation initialTransparent />
       <HeroCinematic />
+      <StatsBand />
       <HomeIntro />
       <FeaturedPortfolio listings={featured} />
       <SyndicationMarquee />
