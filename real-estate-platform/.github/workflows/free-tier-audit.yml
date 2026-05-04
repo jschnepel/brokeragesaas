@@ -1,0 +1,49 @@
+name: Free-Tier Audit
+
+on:
+  schedule:
+    # Every Monday 09:00 UTC = 02:00 PT, before the work week starts
+    - cron: '0 9 * * 1'
+  workflow_dispatch: {}
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          # Prefer OIDC role assumption; fall back to access keys for backwards compat.
+          role-to-assume: ${{ secrets.AWS_AUDIT_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Run free-tier audit
+        id: audit
+        run: |
+          node scripts/check-free-tier.mjs --json > audit.json
+          cat audit.json
+          # Surface human-readable too for the run summary
+          node scripts/check-free-tier.mjs > audit-report.txt 2>&1 || AUDIT_FAILED=1
+          cat audit-report.txt >> "$GITHUB_STEP_SUMMARY"
+          if [ "${AUDIT_FAILED:-0}" = "1" ]; then exit 1; fi
+
+      - name: Upload audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: free-tier-audit-${{ github.run_number }}
+          path: |
+            audit.json
+            audit-report.txt
+          retention-days: 30

@@ -44,3 +44,22 @@ pnpm-debug.log*
 
 # OS
 Thumbs.db
+
+# Override parent .gitignore — scripts/ at this level is intentional
+!scripts/
+
+# TypeScript build info (generated, regenerated per build)
+*.tsbuildinfo
+
+# Lambda debug artifacts (local-only AWS CLI response/payload captures)
+infra/lambda/*-resp.json
+infra/lambda/*-payload.json
+infra/lambda/smoke-response*.json
+infra/lambda/cdc-resp*.json
+infra/lambda/dist/
+
+# Local export scratch
+_export_tmp/
+
+# Playwright MCP temp
+.playwright-mcp/

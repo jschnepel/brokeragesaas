@@ -1,0 +1,24 @@
+FROM node:20-alpine
+
+RUN apk add --no-cache libc6-compat
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+
+WORKDIR /app
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
+
+COPY apps/premium-site/package.json ./apps/premium-site/
+COPY apps/template-site/package.json ./apps/template-site/
+COPY apps/backend/package.json ./apps/backend/
+COPY apps/platform/package.json ./apps/platform/
+COPY packages/database/package.json ./packages/database/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/ui/package.json ./packages/ui/
+
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV WATCHPACK_POLLING=true
+ENV CHOKIDAR_USEPOLLING=true

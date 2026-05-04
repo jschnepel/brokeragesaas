@@ -1,0 +1,94 @@
+# dbt-bouncer enforces conventions in CI.
+# Run with: dbt-bouncer --dbt-artifacts-dir target
+# See: https://godatadriven.github.io/dbt-bouncer/
+
+dbt_artifacts_dir: target
+
+manifest_checks:
+  # ─── Naming conventions ────────────────────────────────────────────
+  - name: check_model_names
+    include: ^models/staging/
+    model_name_pattern: ^stg_[a-z0-9_]+$
+
+  - name: check_model_names
+    include: ^models/intermediate/
+    model_name_pattern: ^int_[a-z0-9_]+$
+
+  - name: check_model_names
+    include: ^models/marts/
+    model_name_pattern: ^(fct|dim)_[a-z0-9_]+$
+
+  # ─── Materialization rules ─────────────────────────────────────────
+  # Staging: TABLE not view — bronze NDJSON dedup must run once per build
+  - name: check_model_materialization_by_path
+    include: ^models/staging/
+    materialization: table
+
+  # Intermediate: incremental or table (no views — too expensive on bronze)
+  - name: check_model_materialization_by_path
+    include: ^models/intermediate/
+    materialization_in: [incremental, table]
+
+  # Marts: external (Parquet on S3) or table
+  - name: check_model_materialization_by_path
+    include: ^models/marts/
+    materialization_in: [external, table]
+
+  # ─── Layer dependency rules ────────────────────────────────────────
+  # Staging only selects from sources — never from refs
+  - name: check_model_directories
+    include: ^models/staging/
+    permitted_sub_directories: [armls]
+
+  # ─── Test coverage ─────────────────────────────────────────────────
+  # Every staging model must test for not_null on key columns
+  - name: check_model_has_tests_by_name
+    include: ^models/staging/
+    test_name: not_null
+
+  # Every fact + dim mart must have a unique-key test (surrogate key)
+  - name: check_model_has_unique_test
+    include: ^models/marts/.*/(fct|dim)_
+
+  # Every model must have at least 2 tests
+  - name: check_model_has_tests
+    include: ^models/
+    min_tests: 2
+
+  # ─── Documentation ─────────────────────────────────────────────────
+  # Every model must have a description
+  - name: check_model_has_description
+    include: ^models/
+
+  # Mart columns must be documented
+  - name: check_model_has_documented_columns
+    include: ^models/marts/
+
+  # Marts must declare ownership + refresh cadence in meta
+  - name: check_model_has_meta_keys
+    include: ^models/marts/
+    keys: [owner, refresh_cadence]
+
+  # ─── Surrogate keys on facts ───────────────────────────────────────
+  - name: check_model_has_unique_test
+    include: ^models/marts/.*/fct_
+
+source_checks:
+  # Every source must declare freshness expectations
+  - name: check_source_has_freshness
+    include: ^models/staging/armls/
+
+  # Every source must have not_null tests on key columns
+  - name: check_source_has_tests_by_name
+    test_name: not_null
+    include: ^models/staging/armls/
+
+  # Every source must have a description
+  - name: check_source_has_description
+
+exposure_checks:
+  # Every exposure must have an owner with email
+  - name: check_exposure_has_owner_email
+
+  # Every exposure must have a description
+  - name: check_exposure_has_description

@@ -1,0 +1,159 @@
+version: 2
+
+# ARMLS source families:
+#   1. armls_parquet — Per-run Parquet snapshots from the rlsir-armls-parquet-export
+#      Lambda (the canonical analytics source as of 2026-05-04). Every staging
+#      model in this directory reads from this family.
+#   2. armls_active — Hourly active-snapshot Parquet from rlsir-active-snapshot
+#      Lambda (gated by enable_active flag).
+#
+# The legacy NDJSON.gz path (bronze/listings/) and the direct RDS reads
+# (postgres extension on listing_change_log, listing_geography) are retired —
+# the parquet-export Lambda dual-pulls those tables every 4 hours, and dbt
+# staging globs the resulting Parquet snapshots.
+
+sources:
+
+  # ─── PARQUET SNAPSHOTS (primary) ───────────────────────────────────────────
+  # Produced by `rlsir-armls-parquet-export` Lambda (rate(4 hours)) which reads
+  # each ARMLS table from the PG mirror via DuckDB's postgres extension and
+  # writes per-run Parquet snapshots — preserving full history of every
+  # adjustment across each listing's lifecycle.
+  - name: armls_parquet
+    description: |
+      Per-run Parquet snapshots of every ARMLS PG-mirror table.
+      Path layout (per run, never overwritten):
+        s3://rlsir-platform-assets-us-east-1/bronze/parquet/{table}/
+            sync_year=YYYY/sync_month=MM/sync_day=DD/run_id=<uuid>/data.parquet
+
+      Two export modes:
+        - SNAPSHOT  (full table dump, 5 tables): listing_records, listing_members,
+                    listing_offices, listing_open_houses, listing_geography.
+                    Staging picks latest row per business key.
+        - INCREMENTAL (watermark on `id`, 1 table): listing_change_log.
+                    Each run writes only NEW rows since last_max_id.
+
+      Cadence: rate(4 hours). Storage retention: indefinite (per-run history is
+      part of the audit story for price/status adjustments).
+    meta:
+      ingestion: rlsir-armls-parquet-export Lambda, rate(4 hours), Python container
+      contains_pii: false
+      sla_owner: joeyschnepel@gmail.com
+
+    freshness:
+      warn_after:  { count: 6,  period: hour }
+      error_after: { count: 12, period: hour }
+    loaded_at_field: sync_observed_at
+
+    tables:
+      - name: listing_records
+        description: |
+          Full snapshot of armls.listing_records (1.9M rows in PG mirror).
+          Includes all RESO Property fields the sync Lambda persists, plus
+          provenance cols (sync_run_id, sync_observed_at). PG mirror has
+          richer fields than raw Spark API — original_list_price,
+          previous_list_price, pending_timestamp, etc. are populated here.
+        meta:
+          external_location: 's3://rlsir-platform-assets-us-east-1/bronze/parquet/listing_records/sync_year=*/sync_month=*/sync_day=*/run_id=*/data.parquet'
+
+      - name: listing_change_log
+        description: |
+          Append-only field-change log (~4.1 M rows back to 2011-10-01).
+          Source of truth for every list_price / status / date adjustment
+          throughout each listing's lifecycle. Watermark-based incremental
+          export (id > last_max_id from _state.json).
+        meta:
+          external_location: 's3://rlsir-platform-assets-us-east-1/bronze/parquet/listing_change_log/sync_year=*/sync_month=*/sync_day=*/run_id=*/data.parquet'
+
+      - name: listing_geography
+        description: |
+          Per-listing PostGIS classification (~1.6 M rows). EXCLUDE point geom
+          column at export time — DuckDB postgres extension doesn't decode WKB.
+          Slugs (region_slug, community_slug) and ids preserved.
+        meta:
+          external_location: 's3://rlsir-platform-assets-us-east-1/bronze/parquet/listing_geography/sync_year=*/sync_month=*/sync_day=*/run_id=*/data.parquet'
+
+      - name: listing_members
+        description: |
+          Agent (member) entity. Currently 0 rows — sync Lambda's ENTITY_ORDER
+          cycles through Member but recent runs may only execute Property.
+          Snapshot still produced; staging will return empty until sync
+          re-engages this entity.
+        meta:
+          external_location: 's3://rlsir-platform-assets-us-east-1/bronze/parquet/listing_members/sync_year=*/sync_month=*/sync_day=*/run_id=*/data.parquet'
+
+      - name: listing_offices
+        description: |
+          Office (brokerage) entity. Same status as listing_members — 0 rows
+          until sync re-engages.
+        meta:
+          external_location: 's3://rlsir-platform-assets-us-east-1/bronze/parquet/listing_offices/sync_year=*/sync_month=*/sync_day=*/run_id=*/data.parquet'
+
+      - name: listing_open_houses
+        description: |
+          OpenHouse entity. 0 rows in current PG mirror.
+        meta:
+          external_location: 's3://rlsir-platform-assets-us-east-1/bronze/parquet/listing_open_houses/sync_year=*/sync_month=*/sync_day=*/run_id=*/data.parquet'
+
+  # ─── ACTIVE SNAPSHOT (hourly current-state, separate Lambda) ───────────────
+  - name: armls_active
+    description: |
+      Hourly snapshot of Maricopa Active + Active Under Contract listings,
+      pulled directly from Spark API by the rlsir-active-snapshot Lambda.
+      Atomic-ish swap: prior page files deleted at run start, then per-page
+      NDJSON.gz files (~32 pages × 1000 records) written under current/.
+      Used for current-state analytics (months-of-supply, listing pace, etc.)
+      that demand <1-h freshness.
+
+      Pending and Coming Soon dropped 2026-04-29 (Spark per-token rate cap).
+    meta:
+      external_location: 's3://rlsir-platform-assets-us-east-1/bronze/active_snapshot/current/page_*.ndjson.gz'
+      ingestion: rlsir-active-snapshot Lambda, rate(1 hour)
+      contains_pii: false
+      sla_owner: joeyschnepel@gmail.com
+
+    freshness:
+      warn_after:  { count: 90, period: minute }
+      error_after: { count: 4,  period: hour }
+    loaded_at_field: sync_observed_at
+
+    tables:
+      - name: active_snapshot
+        description: |
+          Current-state snapshot of every active+AUC listing in Maricopa.
+          ~32K rows, refreshed every hour. Each row carries sync_run_id +
+          sync_observed_at provenance.
+        meta:
+          external_location: 's3://rlsir-platform-assets-us-east-1/bronze/active_snapshot/current/page_*.ndjson.gz'
+        columns:
+          - name: ListingKey
+          - name: StandardStatus
+            data_tests:
+              - accepted_values:
+                  arguments:
+                    values: ['Active', 'Active Under Contract']
+                  config:
+                    severity: warn   # 1 stale row from before the Maricopa+Active+AUC filter narrowed; tolerate
+          - name: ModificationTimestamp
+          - name: CountyOrParish
+            description: Always 'Maricopa' per the active-snapshot Lambda's `$filter` clause.
+
+  # ─── RDS sources kept for ad-hoc / backstop only ───────────────────────────
+  # These are no longer read by staging models (they all read armls_parquet).
+  # Kept here as documentation — geographic_boundaries is still PG-resident
+  # because the boundaries themselves don't change frequently.
+  - name: armls
+    description: |
+      RDS sources retained for ad-hoc query backstop only. Production dbt
+      staging reads from armls_parquet — RDS is operational/source-of-record
+      but no longer in the analytics path.
+    database: "{{ env_var('RDS_DATABASE', 'rlsir_platform') }}"
+    schema: public
+    loader: rlsir-armls-sync (Lambda) — operational mirror only
+    meta:
+      contains_pii: false
+      sla_owner: joeyschnepel@gmail.com
+    tables:
+      - name: geographic_boundaries
+        identifier: geographic_boundaries
+        description: 80 PostGIS polygons — 13 regions + 67 communities. Used by the PostGIS classifier; not read directly by analytics models.

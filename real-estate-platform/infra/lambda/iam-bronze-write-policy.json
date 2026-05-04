@@ -1,0 +1,37 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BronzeWritePages",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:PutObjectAcl",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::rlsir-platform-assets-us-east-1/bronze/listings/*",
+        "arn:aws:s3:::rlsir-platform-assets-us-east-1/bronze/active_snapshot.ndjson.gz",
+        "arn:aws:s3:::rlsir-platform-assets-us-east-1/bronze/active_snapshot/*"
+      ]
+    },
+    {
+      "Sid": "BronzeListForReconciliation",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::rlsir-platform-assets-us-east-1"
+      ],
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "bronze/listings/*",
+            "bronze/active_snapshot*"
+          ]
+        }
+      }
+    }
+  ]
+}
