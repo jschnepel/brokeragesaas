@@ -93,9 +93,17 @@ export type EventCatalog = {
   contact_form_abandon: { fields_completed: string[] };
 
   // CTAs
-  cta_request_tour_click: { listingKey: string };
+  // `surface` lets us see which placement of the same CTA actually
+  // converts — the sticky pill versus the closing action row, etc.
+  cta_request_tour_click: { listingKey: string; surface?: 'inline' | 'sticky' | 'sticky-mobile' };
   cta_share_click: { method: 'navigator' | 'clipboard'; listingKey: string };
   cta_phone_click: { value: 'mobile' | 'office' };
+  /**
+   * Listing-detail click-to-call — distinct from the global
+   * `cta_phone_click` (which is footer / contact-page scoped) so
+   * the per-listing funnel stays clean.
+   */
+  cta_call_click: { listingKey: string; surface: 'sticky' | 'sticky-mobile' | 'inline' };
   cta_email_click: Record<string, never>;
   cta_instagram_click: Record<string, never>;
   cta_market_intelligence_click: Record<string, never>;
