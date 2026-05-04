@@ -84,7 +84,7 @@ export function ListingHeroGallery({ listing, photos: rawPhotos }: ListingHeroGa
   // Empty fallback — solid hero with overlay only.
   if (photos.length === 0) {
     return (
-      <section className="relative w-full h-[65vh] min-h-[480px] overflow-hidden">
+      <section className="relative w-full h-[80vh] min-h-[560px] overflow-hidden">
         <div className="absolute inset-0 bg-ink-elevated" />
         <HeroOverlay
           kicker={kicker}
@@ -111,7 +111,7 @@ export function ListingHeroGallery({ listing, photos: rawPhotos }: ListingHeroGa
     <>
       <section
         className="relative w-full overflow-hidden"
-        style={{ height: '65vh', minHeight: '480px' }}
+        style={{ height: '80vh', minHeight: '560px' }}
       >
         {/* Desktop hero photo */}
         <button
