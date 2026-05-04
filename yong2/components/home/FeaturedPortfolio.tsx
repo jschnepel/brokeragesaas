@@ -39,10 +39,21 @@ export function FeaturedPortfolio({ listings }: FeaturedPortfolioProps) {
           <CapsLabel as="div">{portfolio.kicker}</CapsLabel>
           <h2 className="display-lg italic mt-3">{portfolio.headline}</h2>
         </div>
-        <Link href={portfolio.cta.href} className="caps hover:text-stone transition-colors hidden md:inline">
+        <Link href={portfolio.cta.href} className="caps hover:text-gold transition-colors hidden md:inline">
           {portfolio.cta.label} →
         </Link>
       </div>
+      {listings.length === 0 ? (
+        <div className="border border-white/10 px-8 py-16 text-center">
+          <p className="font-serif italic text-stone/80 text-xl">Inventory refreshes daily.</p>
+          <Link
+            href={portfolio.cta.href}
+            className="caps inline-block mt-6 hover:text-gold transition-colors"
+          >
+            Visit the Portfolio →
+          </Link>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {listings.map((l, index) => (
           <Link
@@ -81,6 +92,16 @@ export function FeaturedPortfolio({ listings }: FeaturedPortfolioProps) {
           </Link>
         ))}
       </div>
+      )}
+      {/* Mobile-only trailing CTA — desktop pattern hides it (the header
+       * row CTA covers it); mobile needs the affordance below the grid. */}
+      {listings.length > 0 && (
+        <div className="md:hidden mt-8 text-center">
+          <Link href={portfolio.cta.href} className="caps hover:text-gold transition-colors">
+            {portfolio.cta.label} →
+          </Link>
+        </div>
+      )}
     </SectionFrame>
   );
 }
