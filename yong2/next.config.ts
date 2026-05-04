@@ -1,6 +1,21 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  // Amplify Hosting Next.js Compute does NOT pass app/branch env vars
+  // to the SSR Lambda runtime — verified via /api/diag/env returning
+  // 0 of our custom vars even though .env.production.local was loaded
+  // at build. For non-NEXT_PUBLIC_ vars, the `env` field inlines the
+  // *value* into the compiled server bundle as a literal, so
+  // process.env.X at runtime is replaced with "actual_value" before
+  // the Lambda even starts. NEXT_PUBLIC_ vars Next handles natively
+  // via the same mechanism for client bundles, so we don't list them
+  // here.
+  env: {
+    RDS_DATABASE_URL: process.env.RDS_DATABASE_URL ?? '',
+    RESEND_API_KEY: process.env.RESEND_API_KEY ?? '',
+    CONTACT_TO_EMAIL: process.env.CONTACT_TO_EMAIL ?? '',
+    CONTACT_FROM_EMAIL: process.env.CONTACT_FROM_EMAIL ?? '',
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'images.unsplash.com', pathname: '/**' },
