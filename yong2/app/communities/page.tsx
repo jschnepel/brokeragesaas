@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Navigation } from '@/components/chrome/Navigation';
 import { Footer } from '@/components/chrome/Footer';
 import { SectionFrame } from '@/components/shared/SectionFrame';
+import { PageHero } from '@/components/shared/PageHero';
 import { CommunityIndex } from '@/components/communities/CommunityIndex';
 import { getCuratedCommunities, getAllCommunityScorecards } from '@/lib/communities';
 import { communitiesContent, communitySlugs } from '@/content/communities';
@@ -22,10 +23,16 @@ export default async function CommunitiesPage() {
   );
   return (
     <>
-      <Navigation />
-      <main className="pt-24">
-        <SectionFrame className="py-12">
-          <h1 className="display-xl italic border-b border-white/10 pb-6 mb-10">The Communities</h1>
+      <Navigation initialTransparent />
+      <PageHero
+        imageSrc="/page-heroes/communities.jpg"
+        kicker="The Communities"
+        headline="Where buyers"
+        headlineItalic="choose to live."
+        sub="A handful of enclaves carry most of the Valley's top-tier inventory. These are the addresses Yong represents."
+      />
+      <main>
+        <SectionFrame className="py-16 md:py-20">
           <CommunityIndex communities={communities} kpisByKey={kpisByKey} slugToKey={slugToKey} />
         </SectionFrame>
       </main>

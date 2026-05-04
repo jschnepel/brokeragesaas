@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Navigation } from '@/components/chrome/Navigation';
 import { Footer } from '@/components/chrome/Footer';
 import { SectionFrame } from '@/components/shared/SectionFrame';
+import { PageHero } from '@/components/shared/PageHero';
 import { ContactForm, type ContactFormInitialValues } from '@/components/contact/ContactForm';
 import { siteContent } from '@/content/site';
 import { breadcrumbListSchema } from '@/lib/jsonld';
@@ -43,9 +44,16 @@ export default async function ContactPage({
         // JSON.stringify of an internal Schema.org object; XSS not applicable.
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbs) }}
       />
-      <Navigation />
-      <main className="pt-24">
-        <SectionFrame className="py-20">
+      <Navigation initialTransparent />
+      <PageHero
+        imageSrc="/page-heroes/contact.jpg"
+        kicker="An Invitation"
+        headline="Begin"
+        headlineItalic="a conversation."
+        sub="Whether you're months or years from a move, every engagement starts with a conversation."
+      />
+      <main>
+        <SectionFrame className="py-16 md:py-20">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
             <div>
               <h1 className="display-xl"><em className="font-light">Begin</em> a conversation.</h1>

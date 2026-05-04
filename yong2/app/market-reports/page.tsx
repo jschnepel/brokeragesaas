@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { siteContent } from '@/content/site';
 import { Navigation } from '@/components/chrome/Navigation';
 import { Footer } from '@/components/chrome/Footer';
+import { PageHero } from '@/components/shared/PageHero';
 import { TrendChartBlock } from '@/components/charts/ReportCharts';
 import { buildReportNarrative } from '@/lib/narrative';
 import { getReports } from '@/lib/market-reports';
@@ -25,42 +26,15 @@ export default async function MarketReportsPage() {
 
   return (
     <>
-      <Navigation />
-      <main className="bg-ink text-stone pt-16">
-        {/* Hero */}
-        <section className="relative h-[55svh] md:h-[70svh] min-h-[440px] overflow-hidden">
-          <Image
-            src="/hero/hero-poster.jpg"
-            alt=""
-            fill
-            priority
-            fetchPriority="high"
-            quality={70}
-            sizes="100vw"
-            className="object-cover"
-          />
-          <div className="absolute inset-0 bg-ink/70" />
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                'linear-gradient(to top, var(--ink) 0%, rgba(11,22,32,0.4) 60%, transparent 100%)',
-            }}
-          />
-          <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
-            <div className="max-w-3xl animate-fade-up">
-              <p className="caps text-[11px]">Luxury market intelligence</p>
-              <h1 className="display-xl mt-6">
-                Quarterly <em className="font-light">market reports.</em>
-              </h1>
-              <p className="mt-6 text-sm md:text-base text-stone/75 max-w-xl mx-auto leading-relaxed">
-                A quarterly read on the Valley&rsquo;s top-tier market —
-                authored by Yong Choi, grounded in the transactions the MLS
-                alone doesn&rsquo;t capture.
-              </p>
-            </div>
-          </div>
-        </section>
+      <Navigation initialTransparent />
+      <PageHero
+        imageSrc="/page-heroes/market.jpg"
+        kicker="Luxury Market Intelligence"
+        headline="Quarterly"
+        headlineItalic="market reports."
+        sub="A quarterly read on the Valley's top-tier market — authored by Yong Choi, grounded in the transactions the MLS alone doesn't capture."
+      />
+      <main className="bg-ink text-stone">
 
         {/* Why these matter */}
         <section className="py-20 md:py-28 px-6 md:px-12 lg:px-20 border-b border-[color:var(--hairline)]">
