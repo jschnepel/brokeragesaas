@@ -18,6 +18,18 @@ type MockReadProps = {
   areaYoYPriceChangePct: number;
   /** Area scope label — "Silverleaf", "North Scottsdale", etc. */
   areaLabel: string;
+  /**
+   * Narrative-workflow-supplied 1-sentence interpretation of the
+   * comp-position number. Templated against the magnitude + sign of
+   * the delta. Optional — workflow may omit if delta is too small to
+   * warrant commentary (within ±2%).
+   */
+  compsCommentary?: string;
+  /**
+   * Narrative-workflow-supplied 1-sentence interpretation of the area
+   * aggregate vs metro baseline. Optional.
+   */
+  areaCommentary?: string;
 };
 
 /**
@@ -42,6 +54,8 @@ export function MockTheRead({
   areaMonthsOfSupply,
   areaYoYPriceChangePct,
   areaLabel,
+  compsCommentary,
+  areaCommentary,
 }: MockReadProps) {
   const ppsfDelta = subjectPpsf - compMedianPpsf;
   const ppsfDeltaPct = (ppsfDelta / compMedianPpsf) * 100;
@@ -69,6 +83,11 @@ export function MockTheRead({
               accent={positionedAbove ? 'gold' : 'stone'}
             />
           </dl>
+          {compsCommentary ? (
+            <p className="mt-5 text-sm text-stone/70 leading-relaxed border-l-2 border-gold/40 pl-4">
+              {compsCommentary}
+            </p>
+          ) : null}
         </div>
         {/* Right: Area aggregate */}
         <div>
@@ -85,6 +104,11 @@ export function MockTheRead({
               accent={areaYoYPriceChangePct >= 0 ? 'gold' : 'stone'}
             />
           </dl>
+          {areaCommentary ? (
+            <p className="mt-5 text-sm text-stone/70 leading-relaxed border-l-2 border-gold/40 pl-4">
+              {areaCommentary}
+            </p>
+          ) : null}
         </div>
       </div>
       <p className="caps text-stone/40 text-[10px] mt-10 tracking-wider">

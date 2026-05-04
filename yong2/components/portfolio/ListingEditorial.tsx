@@ -1,38 +1,48 @@
 import { CapsLabel } from '@/components/shared/CapsLabel';
-
-export type EditorialEntry = {
-  heading: string;
-  body: string;
-};
+import type { NarrativeEditorial } from '@/lib/listing-narrative';
 
 type ListingEditorialProps = {
-  entries: ReadonlyArray<EditorialEntry>;
+  editorial: NarrativeEditorial;
 };
 
 /**
  * Optional editorial sub-sections — italic-serif heading + body
- * paragraph. Modeled on Jeane's listing detail editorial pattern
- * (Jeane/jeane-site/app/listings/[slug] lines 77-90).
+ * paragraph. Slot order is fixed: site → materials → program →
+ * presentation. Slots the workflow leaves undefined are skipped.
  *
- * Used to add narrative depth to top listings: siting, materials,
- * program, presentation. Hand-curated by Yong / listing-prep team
- * for hero properties only — most listings will pass `entries: []`
- * and this component renders nothing.
+ * Headings are derived from the slot key, not free-form text. This
+ * lets the narrative workflow operate against a small enum and
+ * guarantees consistent reading rhythm across listings.
  */
-export function ListingEditorial({ entries }: ListingEditorialProps) {
-  if (entries.length === 0) return null;
+const SLOT_HEADINGS: Record<keyof NarrativeEditorial, string> = {
+  site: 'The site',
+  materials: 'Materials',
+  program: 'Program',
+  presentation: 'Presentation',
+};
+
+const SLOT_ORDER: ReadonlyArray<keyof NarrativeEditorial> = [
+  'site',
+  'materials',
+  'program',
+  'presentation',
+];
+
+export function ListingEditorial({ editorial }: ListingEditorialProps) {
+  const filled = SLOT_ORDER.filter((slot) => editorial[slot]);
+  if (filled.length === 0) return null;
 
   return (
     <section data-track="editorial" className="border-t border-white/10 pt-10">
       <CapsLabel as="h2" className="mb-8">A closer look</CapsLabel>
       <div className="space-y-10 max-w-2xl">
-        {entries.map((entry) => (
-          <div key={entry.heading}>
+        {filled.map((slot) => (
+          <div key={slot}>
             <p className="font-serif italic text-gold text-xl md:text-2xl leading-snug">
-              {entry.heading}.
+              {SLOT_HEADINGS[slot]}.
             </p>
             <p className="mt-3 text-stone/85 leading-relaxed text-base md:text-lg">
-              {entry.body}
+              {editorial[slot]}
             </p>
           </div>
         ))}
