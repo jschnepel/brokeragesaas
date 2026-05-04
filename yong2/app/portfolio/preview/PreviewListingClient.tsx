@@ -26,7 +26,6 @@ import { HeroTopBar, useSavedListing } from '@/components/portfolio/HeroTopBar';
 import { ListingStory } from '@/components/portfolio/ListingStory';
 import { AgentMiniCard } from '@/components/portfolio/AgentMiniCard';
 import { KeyFactsCard } from '@/components/portfolio/KeyFactsCard';
-import { ScheduleShowingForm } from '@/components/portfolio/ScheduleShowingForm';
 import { KeyFeaturesGrid } from '@/components/portfolio/KeyFeaturesGrid';
 import { TheReadVisualized } from '@/components/portfolio/TheReadVisualized';
 import { LocationIntelligence } from '@/components/portfolio/LocationIntelligence';
@@ -178,10 +177,9 @@ export function PreviewListingClient() {
                 highSchoolDistrict: 'Scottsdale Unified District',
               }}
             />
-            <ScheduleShowingForm
-              listingKey={listing.listingKey}
-              listingAddress={listing.unparsedAddress}
-            />
+            {/* Tour request lives on the AgentMiniCard 'Tour ↗' link,
+             * the bottom action row's RequestTourCta, and the sticky
+             * contact pill — no inline sidebar form here. */}
           </aside>
         </div>
       </SectionFrame>
