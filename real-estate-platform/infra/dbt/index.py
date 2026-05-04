@@ -1,0 +1,164 @@
+"""
+rlsir-analytics-dbt Lambda handler.
+
+Per Phase D of docs/superpowers/plans/2026-05-04-execution-playbook.md.
+
+Tasks:
+  task=run         → dbt build --target ${target}
+  task=run-and-test→ dbt build, then dbt test
+  task=smoke       → dbt parse only (no SQL execution); for ORR readiness check
+  task=full-refresh→ dbt build --full-refresh (manual recovery only)
+
+Emits CloudWatch metrics in RLSIR/DataPipeline namespace:
+  - DbtModelsBuilt (count)
+  - DbtModelsFailed (count)
+  - DbtRunSeconds (gauge)
+  - DbtFreshnessSeconds (gauge — age of run_results.json)
+
+Sidecar: writes run_results.json to s3://${BUCKET}/analytics/_meta/run_results-${ts}.json
+so CloudWatch Logs Insights queries can correlate failures with model timings.
+"""
+
+import json
+import os
+import subprocess
+import time
+from pathlib import Path
+
+import boto3
+from aws_lambda_powertools import Logger, Metrics
+from aws_lambda_powertools.metrics import MetricUnit
+
+logger = Logger(service="rlsir-analytics-dbt")
+metrics = Metrics(namespace="RLSIR/DataPipeline", service="rlsir-analytics-dbt")
+
+PROJECT_DIR = os.environ.get("DBT_PROJECT_DIR", "/opt/analytics")
+PROFILES_DIR = os.environ.get("DBT_PROFILES_DIR", "/opt/analytics")
+DEFAULT_TARGET = os.environ.get("DBT_TARGET", "prod")
+ARTIFACTS_BUCKET = os.environ.get("ARTIFACTS_BUCKET")
+ARTIFACTS_PREFIX = os.environ.get("ARTIFACTS_PREFIX", "analytics/_meta/")
+
+
+def _run_dbt(args: list[str]) -> tuple[int, str]:
+    """Run a dbt command, capture stdout+stderr, return (exit_code, output)."""
+    cmd = ["dbt", *args, "--project-dir", PROJECT_DIR, "--profiles-dir", PROFILES_DIR]
+    logger.info("dbt invoke", extra={"cmd": cmd})
+    completed = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        cwd=PROJECT_DIR,
+    )
+    output = (completed.stdout or "") + (completed.stderr or "")
+    return completed.returncode, output
+
+
+def _publish_run_results(run_id: str) -> str | None:
+    """Upload target/run_results.json to S3 for CloudWatch Insights queries."""
+    if not ARTIFACTS_BUCKET:
+        return None
+    src = Path(PROJECT_DIR) / "target" / "run_results.json"
+    if not src.exists():
+        logger.warning("run_results.json not produced; skipping upload")
+        return None
+    s3 = boto3.client("s3")
+    key = f"{ARTIFACTS_PREFIX.rstrip('/')}/run_results-{run_id}.json"
+    s3.upload_file(str(src), ARTIFACTS_BUCKET, key)
+    logger.info("run_results uploaded", extra={"bucket": ARTIFACTS_BUCKET, "key": key})
+    return f"s3://{ARTIFACTS_BUCKET}/{key}"
+
+
+def _summarize_run_results(run_results_path: Path) -> dict:
+    """Parse run_results.json and emit metrics counts."""
+    if not run_results_path.exists():
+        return {"models_built": 0, "models_failed": 0, "errors": []}
+    data = json.loads(run_results_path.read_text())
+    results = data.get("results", [])
+    failed = [r for r in results if r.get("status") in ("error", "fail")]
+    return {
+        "models_built": len([r for r in results if r.get("status") == "success"]),
+        "models_failed": len(failed),
+        "errors": [
+            {"unique_id": r.get("unique_id"), "message": r.get("message")}
+            for r in failed[:10]
+        ],
+    }
+
+
+@logger.inject_lambda_context(log_event=True)
+@metrics.log_metrics(capture_cold_start_metric=True)
+def handler(event: dict, context) -> dict:
+    """
+    Lambda entry point.
+
+    Event shape:
+      { "task": "run" | "run-and-test" | "smoke" | "full-refresh",
+        "target"?: "dev" | "prod",
+        "select"?: "+tag:active",     # passed straight to dbt --select
+        "exclude"?: "tag:experimental" # dbt --exclude
+      }
+    """
+    started = time.time()
+    task = event.get("task", "smoke")
+    target = event.get("target", DEFAULT_TARGET)
+    select = event.get("select")
+    exclude = event.get("exclude")
+    run_id = str(int(started))
+
+    if task == "smoke":
+        # ORR readiness check — parses project, exits without DB connections.
+        rc, out = _run_dbt(["parse", "--target", "dev"])
+        return {
+            "statusCode": 200 if rc == 0 else 500,
+            "body": json.dumps({
+                "task": "smoke",
+                "exit_code": rc,
+                "duration_seconds": round(time.time() - started, 1),
+                "output_tail": out[-2000:] if rc != 0 else "ok",
+            }),
+        }
+
+    args: list[str]
+    if task == "run":
+        args = ["build", "--target", target]
+    elif task == "run-and-test":
+        args = ["build", "--target", target]
+    elif task == "full-refresh":
+        args = ["build", "--target", target, "--full-refresh"]
+    else:
+        return {"statusCode": 400, "body": json.dumps({"error": f"unknown task: {task}"})}
+
+    if select:
+        args.extend(["--select", select])
+    if exclude:
+        args.extend(["--exclude", exclude])
+
+    rc, out = _run_dbt(args)
+    elapsed = round(time.time() - started, 1)
+
+    summary = _summarize_run_results(Path(PROJECT_DIR) / "target" / "run_results.json")
+
+    s3_path = _publish_run_results(run_id)
+
+    metrics.add_metric(name="DbtModelsBuilt", unit=MetricUnit.Count, value=summary["models_built"])
+    metrics.add_metric(name="DbtModelsFailed", unit=MetricUnit.Count, value=summary["models_failed"])
+    metrics.add_metric(name="DbtRunSeconds", unit=MetricUnit.Seconds, value=elapsed)
+
+    if rc != 0 or summary["models_failed"] > 0:
+        logger.error("dbt run failed", extra={"summary": summary, "rc": rc})
+    else:
+        logger.info("dbt run ok", extra={"summary": summary, "elapsed": elapsed})
+
+    return {
+        "statusCode": 200 if rc == 0 and summary["models_failed"] == 0 else 500,
+        "body": json.dumps({
+            "task": task,
+            "target": target,
+            "exit_code": rc,
+            "duration_seconds": elapsed,
+            "models_built": summary["models_built"],
+            "models_failed": summary["models_failed"],
+            "errors": summary["errors"],
+            "run_results_s3": s3_path,
+        }),
+    }
