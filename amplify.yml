@@ -36,6 +36,7 @@ applications:
                 printf 'RDS_DATABASE_URL=%s\n' "${RDS_DATABASE_URL:-}"
                 printf 'NEXT_PUBLIC_SITE_URL=%s\n' "${NEXT_PUBLIC_SITE_URL:-https://feature-yong2-amplify.d2tuygdje4mmy3.amplifyapp.com}"
                 printf 'NEXT_PUBLIC_MAPTILER_KEY=%s\n' "${NEXT_PUBLIC_MAPTILER_KEY:-6DagWlYgkxoFxL5RaX6S}"
+                printf 'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=%s\n' "${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}"
                 printf 'NEXT_PUBLIC_CLARITY_PROJECT_ID=%s\n' "${NEXT_PUBLIC_CLARITY_PROJECT_ID:-}"
                 printf 'NEXT_PUBLIC_POSTHOG_KEY=%s\n' "${NEXT_PUBLIC_POSTHOG_KEY:-}"
                 printf 'RESEND_API_KEY=%s\n' "${RESEND_API_KEY:-}"
