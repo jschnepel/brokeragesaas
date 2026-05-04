@@ -45,6 +45,9 @@ pnpm-debug.log*
 # OS
 Thumbs.db
 
+# Override parent .gitignore — scripts/ at this level is intentional
+!scripts/
+
 # TypeScript build info (generated, regenerated per build)
 *.tsbuildinfo
 
