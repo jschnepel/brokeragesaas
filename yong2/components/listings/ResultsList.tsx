@@ -42,32 +42,27 @@ export function ResultsList({
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [scrollToKey]);
 
-  if (loading && listings.length === 0) {
+  // Single empty branch: always show the skeleton when there are no
+  // results — covers both the "data layer in flight" loading window
+  // (real users hitting search) and today's pre-data state where the
+  // S3 listings pipeline isn't wired yet. When data flows, the
+  // skeleton appears only briefly during the loading round-trip.
+  // The 'Reset filters' affordance still surfaces if the user has
+  // applied filters that cause the empty result.
+  if (listings.length === 0) {
     return (
-      <div className="p-6">
+      <div className="p-3 md:p-4">
         <SkeletonGrid />
-      </div>
-    );
-  }
-
-  if (!loading && listings.length === 0) {
-    return (
-      <div className="p-12 text-center">
-        <span aria-hidden="true" className="block w-12 h-px bg-gold/60 mx-auto mb-6" />
-        <p className="font-serif italic text-stone text-xl md:text-2xl mb-3">
-          Yong's curated inventory may not match these filters today.
+        <p className="caps text-stone/50 text-[10px] text-center mt-6 tracking-widest">
+          {loading ? 'Searching…' : 'Loading curated inventory…'}
         </p>
-        <p className="text-sm text-mute mb-8 max-w-sm mx-auto">
-          Try widening the price band, clearing your shape, or panning the map. Or browse the full portfolio.
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-3">
+        <div className="flex justify-center mt-3">
           <button
             type="button"
             onClick={onResetFilters}
-            className="cta-ghost"
+            className="caps text-stone/40 hover:text-gold transition-colors text-[10px]"
           >
-            <span>Reset filters</span>
-            <span aria-hidden="true">→</span>
+            Reset filters
           </button>
         </div>
       </div>
@@ -97,16 +92,32 @@ export function ResultsList({
   );
 }
 
+/**
+ * Ghost loaders shaped like ResultCards — staggered animation so they
+ * read as a wave loading the panel, not eight identical pulsing
+ * blocks. Count = 10 so the grid fills the right panel at a typical
+ * viewport (5 rows × 2 cols at md+, 10 rows × 1 col on mobile).
+ */
 function SkeletonGrid() {
+  const count = 10;
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-pulse">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="bg-ink-elevated border border-white/5">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-hidden="true">
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className="bg-ink-elevated border border-white/5 animate-pulse"
+          // Stagger the pulse so cards don't tick in unison — reads as
+          // a loading wave instead of eight strobes.
+          style={{ animationDelay: `${(i % 5) * 120}ms` }}
+        >
           <div className="aspect-[4/3] bg-ink-surface" />
           <div className="p-3 space-y-2">
             <div className="h-2 w-1/3 bg-white/10" />
             <div className="h-3 w-3/4 bg-white/10" />
-            <div className="h-3 w-1/2 bg-white/10" />
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="h-3 w-1/2 bg-white/10" />
+              <div className="h-3 w-1/4 bg-white/10" />
+            </div>
           </div>
         </div>
       ))}
