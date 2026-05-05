@@ -12,12 +12,14 @@ export const dynamic = 'force-dynamic';
 export async function GET(): Promise<Response> {
   const keys = Object.keys(process.env).sort();
   const interesting = keys.filter((k) =>
-    /^(RDS_|NEXT_PUBLIC_|AMPLIFY_|AWS_|NODE_|RESEND_|CONTACT_)/.test(k),
+    /^(RDS_|NEXT_PUBLIC_|AMPLIFY_|AWS_|NODE_|RESEND_|CONTACT_|SPARK_)/.test(k),
   );
   const rdsHasValue = !!process.env.RDS_DATABASE_URL;
   const rdsPrefix = rdsHasValue
     ? (process.env.RDS_DATABASE_URL ?? '').slice(0, 12)
     : null;
+  const sparkTokenLen = (process.env.SPARK_ACCESS_TOKEN ?? '').length;
+  const sparkTokenInKeys = keys.includes('SPARK_ACCESS_TOKEN');
 
   let mvList: string[] | null = null;
   let mvActiveExists: boolean | null = null;
@@ -44,6 +46,8 @@ export async function GET(): Promise<Response> {
       interesting,
       rdsHasValue,
       rdsPrefix,
+      sparkTokenInKeys,
+      sparkTokenLen,
       mvList,
       mvActiveExists,
       listingsTrialError,
