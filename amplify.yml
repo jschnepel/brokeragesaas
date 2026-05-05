@@ -52,11 +52,24 @@ applications:
                 # exact-match filter); SPARK_LIST_AGENT_NAME = name
                 # substring fallback (default 'Yong Choi').
                 if [ -z "${SPARK_ACCESS_TOKEN:-}" ]; then
-                  SPARK_ACCESS_TOKEN=$(aws secretsmanager get-secret-value \
+                  # Show what role/identity the build runner has —
+                  # tells us whether AmplifySSRServiceRole's inline
+                  # policy is actually in effect here.
+                  echo "[spark-token] caller-identity:" >&2
+                  aws sts get-caller-identity --output text >&2 2>&1 || echo "[spark-token] caller-identity failed" >&2
+                  echo "[spark-token] attempting SM read from rlsir/armls/tokens..." >&2
+                  SM_JSON=$(aws secretsmanager get-secret-value \
                     --secret-id rlsir/armls/tokens \
                     --region us-east-1 \
-                    --query SecretString --output text 2>/dev/null \
-                    | python3 -c "import sys, json; print(json.load(sys.stdin).get('access_token', ''))" 2>/dev/null) || SPARK_ACCESS_TOKEN=""
+                    --query SecretString --output text 2>&1)
+                  SM_RC=$?
+                  if [ $SM_RC -ne 0 ]; then
+                    echo "[spark-token] SM read failed (rc=$SM_RC): ${SM_JSON:0:200}" >&2
+                    SPARK_ACCESS_TOKEN=""
+                  else
+                    SPARK_ACCESS_TOKEN=$(printf '%s' "$SM_JSON" | python3 -c "import sys, json; print(json.load(sys.stdin).get('access_token', ''))" 2>&1) || SPARK_ACCESS_TOKEN=""
+                    echo "[spark-token] SM read OK, token bytes: ${#SPARK_ACCESS_TOKEN}" >&2
+                  fi
                 fi
                 printf 'SPARK_ACCESS_TOKEN=%s\n' "${SPARK_ACCESS_TOKEN:-}"
               } > .env.production.local
