@@ -59,8 +59,6 @@ applications:
                     | python3 -c "import sys, json; print(json.load(sys.stdin).get('access_token', ''))" 2>/dev/null) || SPARK_ACCESS_TOKEN=""
                 fi
                 printf 'SPARK_ACCESS_TOKEN=%s\n' "${SPARK_ACCESS_TOKEN:-}"
-                printf 'SPARK_LIST_AGENT_KEY=%s\n' "${SPARK_LIST_AGENT_KEY:-}"
-                printf 'SPARK_LIST_AGENT_NAME=%s\n' "${SPARK_LIST_AGENT_NAME:-Yong Choi}"
               } > .env.production.local
             # Sanity check: confirm the DSN made it into the file (no
             # value leak — just checks length).
