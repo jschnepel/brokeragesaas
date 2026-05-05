@@ -174,9 +174,19 @@ function expandStatuses(filter: StatusFilter[]): string[] {
  * Build the OData $filter for a search request. Defaults to
  * Active+Pending+ActiveUnderContract when no status is provided,
  * matching the IDX-active baseline.
+ *
+ * @compliance IDX (ARMLS): The InternetEntireListingDisplayYN
+ *   predicate is MANDATORY — sellers can opt out of IDX display, and
+ *   surfacing an opted-out listing is an ARMLS rules violation
+ *   (~$21K/occurrence). See docs/compliance/idx-compliance.md in
+ *   the platform repo. Do not remove without legal review.
  */
 function buildSearchFilter(opts: SearchOpts): string {
   const clauses: string[] = [];
+
+  // IDX opt-out — sellers can flag a listing as "do not display via
+  // syndication." We must respect that flag.
+  clauses.push(`InternetEntireListingDisplayYN eq true`);
 
   // Status filter — defaults to all IDX-active variants if unset.
   const statuses =
@@ -314,6 +324,35 @@ export async function searchListings(opts: SearchOpts = {}): Promise<SearchResul
   }
 
   return { listings, pins, total };
+}
+
+/**
+ * Resolve a slug → single Listing via direct ListingId lookup.
+ * The slug ends in the ARMLS listing_id (digits); we match exactly,
+ * then fall through to a substring scan if not found.
+ *
+ * @compliance IDX: applies the same InternetEntireListingDisplayYN
+ *   opt-out filter as searchListings — never bypass.
+ */
+export async function getListingBySlug(slug: string): Promise<Listing | null> {
+  const match = slug.match(/-(\d+)$/);
+  const listingId = match ? match[1] : null;
+  if (!listingId) return null;
+
+  try {
+    const records = await fetchAllProperties({
+      filter:
+        `ListingId eq '${escapeLiteral(listingId)}' ` +
+        `and InternetEntireListingDisplayYN eq true`,
+      top: 1,
+      maxPages: 1,
+    });
+    return records.length > 0 ? sparkRecordToListing(records[0]) : null;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[spark/search] getListingBySlug failed:', err);
+    return null;
+  }
 }
 
 export async function searchListingPins(opts: SearchOpts = {}): Promise<PinPoint[]> {

@@ -12,10 +12,24 @@ type ResultCardProps = {
   onCardClick: (key: string) => void;
 };
 
+function formatUpdated(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return null;
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
 /**
- * Compact 2-column grid card. Slightly denser than the portfolio tile so
- * we can fit the full result panel without forcing the user to scroll past
- * mostly-photo cards.
+ * Compact 2-column grid card.
+ *
+ * @compliance IDX (ARMLS): "Listed by {agent}, {office}" line and the
+ *   last-updated timestamp are mandatory display elements on each
+ *   IDX search-result card. Both render at 12px (text-[12px]) per
+ *   the ≥12px font rule. Do not remove without legal review.
  */
 export function ResultCard({ listing, highlighted, onHover, onCardClick }: ResultCardProps) {
   const headline = listing.unparsedAddress
@@ -25,6 +39,12 @@ export function ResultCard({ listing, highlighted, onHover, onCardClick }: Resul
   const beds = listing.bedrooms != null ? `${listing.bedrooms} bd` : null;
   const baths = listing.bathroomsTotal != null ? `${listing.bathroomsTotal} ba` : null;
   const sqft = listing.livingArea != null ? formatSqft(listing.livingArea) : null;
+
+  const updated = formatUpdated(listing.modificationTimestamp);
+  const attribution =
+    listing.listAgentName || listing.listAgentKey
+      ? `Listed by ${listing.listAgentName ?? 'Agent'}`
+      : null;
 
   return (
     <article
@@ -39,7 +59,7 @@ export function ResultCard({ listing, highlighted, onHover, onCardClick }: Resul
       }`}
     >
       <Link
-        href={`/portfolio/${listing.slug}`}
+        href={`/listings/${listing.slug}`}
         className="relative aspect-[4/3] overflow-hidden bg-ink"
         onClick={(e) => e.stopPropagation()}
       >
@@ -66,6 +86,20 @@ export function ResultCard({ listing, highlighted, onHover, onCardClick }: Resul
         <div className="text-xs text-mute">
           {[beds, baths, sqft].filter(Boolean).join(' · ') || '—'}
         </div>
+        {(attribution || updated) && (
+          <div className="mt-2 pt-2 border-t border-white/5 space-y-1">
+            {attribution && (
+              <p className="text-[12px] text-stone/65 leading-tight truncate">
+                {attribution}
+              </p>
+            )}
+            {updated && (
+              <p className="text-[12px] text-stone/45 leading-tight tabular-nums">
+                Updated {updated}
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </article>
   );

@@ -12,6 +12,7 @@ import {
 } from '@/components/listings/FilterChips';
 import { ResultsList } from '@/components/listings/ResultsList';
 import { MapPanel, type MapPanelHandle } from '@/components/listings/MapPanel';
+import { IDXSearchFooter } from '@/components/listings/IDXSearchFooter';
 import { track } from '@/lib/analytics/events';
 
 const INITIAL_FILTER: FilterState = {
@@ -246,6 +247,18 @@ export function ListingsClient({ initialListings, initialPins, initialTotal }: L
     setViewMode((v) => (v === 'list' ? 'split' : v));
   }, [listings]);
 
+  // Newest modificationTimestamp across the visible result set —
+  // drives the IDX freshness indicator + the >12h staleness warning.
+  const lastSyncISO = useMemo(() => {
+    let newest = 0;
+    for (const l of listings) {
+      if (!l.modificationTimestamp) continue;
+      const t = new Date(l.modificationTimestamp).getTime();
+      if (Number.isFinite(t) && t > newest) newest = t;
+    }
+    return newest > 0 ? new Date(newest).toISOString() : null;
+  }, [listings]);
+
   // ── Layout ─────────────────────────────────────────
 
   return (
@@ -296,7 +309,7 @@ export function ListingsClient({ initialListings, initialPins, initialTotal }: L
           />
           <FilterChips value={filters} onChange={setFilters} />
           <p className="px-4 md:px-6 py-2 text-[0.65rem] uppercase tracking-wider text-mute border-b border-white/5">
-            Scoped to Yong's service area · Scottsdale, Paradise Valley, Arcadia, Carefree, Cave Creek, Fountain Hills
+            Active &amp; pending listings across the full ARMLS
           </p>
           <div className="flex-1 overflow-y-auto min-h-0">
             <ResultsList
@@ -308,6 +321,15 @@ export function ListingsClient({ initialListings, initialPins, initialTotal }: L
               onCardClick={handleCardClick}
               onResetFilters={handleResetFilters}
               scrollToKey={scrollToKey}
+            />
+            {/* IDX compliance footer — required on every IDX search
+             *  surface (ARMLS rules + docs/compliance/idx-compliance.md).
+             *  Renders inside the scroll container so it's always reachable
+             *  without breaking the full-height map+list layout. Lastsync
+             *  uses the newest modificationTimestamp in the result set. */}
+            <IDXSearchFooter
+              lastSyncISO={lastSyncISO}
+              brokerage="Russ Lyon Sotheby's International Realty"
             />
           </div>
         </aside>
