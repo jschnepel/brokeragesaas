@@ -76,6 +76,13 @@ applications:
             # Sanity check: confirm the DSN made it into the file (no
             # value leak — just checks length).
             - 'echo "DSN bytes baked: $(grep ^RDS_DATABASE_URL= .env.production.local | wc -c)"'
+            # Same for the Spark token. If this prints 0, the token line
+            # never reached the .env file. If it prints >0 but runtime
+            # still sees empty, the value contains a newline / special
+            # char that breaks .env parsing.
+            - 'echo "Spark token line bytes: $(grep ^SPARK_ACCESS_TOKEN= .env.production.local | wc -c)"'
+            - 'echo "Total .env lines: $(wc -l < .env.production.local)"'
+            - 'echo "Env var keys: $(grep -oE "^[A-Z_]+=" .env.production.local | tr "\n" " ")"'
             - npm run build
             - test -f .next/BUILD_ID || (echo "Next build did not emit BUILD_ID — compilation failed" && exit 1)
       artifacts:
