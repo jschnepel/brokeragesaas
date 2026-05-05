@@ -55,7 +55,11 @@ export default function MarketReportsPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-5">
+              {/* 2-col on mobile/tablet, 5-col only at lg+ — avoids the
+               *  awkward "5 stats in 3-col leaves an empty cell" zone at
+               *  iPad portrait. 5th tile spans both cols on mobile so the
+               *  bottom row is balanced. */}
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 md:gap-5">
                 <PulseStat label="Median PPSF" value={latest.pulse.medianPpsf} />
                 <PulseStat
                   label="QoQ change"
@@ -65,7 +69,7 @@ export default function MarketReportsPage() {
                 />
                 <PulseStat label="Median DOM" value={`${latest.pulse.medianDom}`} unit="days" />
                 <PulseStat label="Months supply" value={latest.pulse.monthsSupply.toFixed(1)} unit="mo" />
-                <PulseStat label="Active inventory" value={`${latest.pulse.activeCount}`} className="col-span-2 sm:col-span-1" />
+                <PulseStat label="Active inventory" value={`${latest.pulse.activeCount}`} className="col-span-2 lg:col-span-1" />
               </div>
             </div>
           </section>
@@ -203,11 +207,43 @@ export default function MarketReportsPage() {
                       <p className="font-serif italic text-stone/85 text-lg md:text-xl mt-4 leading-snug max-w-xl">
                         Median price per square foot, last 12 months.
                       </p>
-                      <div className="mt-10 max-w-3xl">
-                        <PriceTrendSparkline
-                          monthlyMedianPpsf={latest.monthlyTrend}
-                          caption="Monthly · Valley top-tier"
-                        />
+                      {/* Chart wrapper — proper card chrome (matches
+                       *  TheReadVisualized tile system) + endpoint stats
+                       *  flanking the sparkline so the chart anchors to
+                       *  real numbers. Sparkline scaled up via h-32 md:h-40. */}
+                      <div className="mt-10 bg-ink-elevated/30 border border-white/5 p-6 md:p-10">
+                        <div className="flex items-end justify-between mb-6 pb-6 border-b border-white/5">
+                          <div>
+                            <p className="caps text-[10px] text-stone/45 mb-2 tracking-[0.32em]">
+                              May 2025
+                            </p>
+                            <p
+                              className="font-serif text-stone/65 tabular-nums leading-none"
+                              style={{ fontSize: 'clamp(20px, 2vw, 26px)' }}
+                            >
+                              ${latest.monthlyTrend[0].toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="caps text-[10px] text-gold/80 mb-2 tracking-[0.32em]">
+                              May 2026 · Now
+                            </p>
+                            <p
+                              className="font-serif text-gold tabular-nums leading-none"
+                              style={{ fontSize: 'clamp(28px, 2.6vw, 36px)' }}
+                            >
+                              ${latest.monthlyTrend[latest.monthlyTrend.length - 1].toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="h-32 md:h-40 lg:h-48 [&_svg]:h-full [&_svg]:w-full">
+                          <PriceTrendSparkline
+                            monthlyMedianPpsf={latest.monthlyTrend}
+                          />
+                        </div>
+                        <p className="caps text-[10px] text-stone/40 tracking-[0.32em] text-center mt-6 pt-6 border-t border-white/5">
+                          Monthly · Valley top-tier
+                        </p>
                       </div>
                       <div className="mt-8">
                         <Link
@@ -243,7 +279,12 @@ export default function MarketReportsPage() {
                 negotiating posture differ sharply by band.
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mt-12">
+              {/* 3-col only at lg+ — at md (768px iPad portrait) cards
+               *  are 224px which crams the band label ($5M – $10M wraps
+               *  to 2 lines) and stat labels (CLOSED (90D), MEDIAN PPSF
+               *  wrap). Stack vertically until the viewport can hold
+               *  ≥320px-wide cards. */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-6 mt-12">
                 {latest.tierBreakdown.map((tier) => (
                   <TierCard key={tier.band} tier={tier} />
                 ))}
