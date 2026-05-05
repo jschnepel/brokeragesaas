@@ -20,7 +20,7 @@
  * lite-index over UnparsedAddress + SubdivisionName + City.
  */
 
-import { fetchAllProperties, buildPropertyUrl, type SparkProperty } from './client';
+import { fetchAllProperties, type SparkProperty } from './client';
 import type { Listing } from '@/lib/types';
 import { listingSlug } from '@/lib/listings';
 import type {
@@ -265,28 +265,17 @@ export async function searchListings(opts: SearchOpts = {}): Promise<SearchResul
   const offset = Math.max(opts.offset ?? 0, 0);
   const filter = buildSearchFilter(opts);
 
-  // Two Spark calls in parallel.
+  // Two Spark calls in parallel. Both go through fetchAllProperties
+  // (which uses the SM-backed getSparkToken in client.ts).
   const [listingsResult, pinsResult] = await Promise.allSettled([
     (async () => {
-      const url = buildPropertyUrl({
+      const records = await fetchAllProperties({
         filter,
         top: limit,
         orderby: 'ListPrice desc',
+        maxPages: 1,
       });
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${process.env.SPARK_ACCESS_TOKEN ?? ''}`,
-          Accept: 'application/json',
-        },
-      });
-      if (!res.ok) throw new Error(`Spark listings ${res.status}`);
-      const json = (await res.json()) as {
-        value: SparkProperty[];
-        '@odata.count'?: number;
-      };
-      // Note: $count not requested above (some Spark deployments are
-      // strict about it); approximate via pin count below.
-      return json.value.map(sparkRecordToListing).slice(offset, offset + limit);
+      return records.map(sparkRecordToListing).slice(offset, offset + limit);
     })(),
     (async () => {
       const records = await fetchAllProperties({
