@@ -66,7 +66,7 @@ export default function MarketReportsPage() {
               <p className="caps">The latest report</p>
               <Link
                 href={`/market-reports/${latest.slug}`}
-                className="group mt-8 grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-8 md:gap-14 items-stretch"
+                className="group mt-8 grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-8 md:gap-14 items-start"
               >
                 <div
                   className="relative aspect-[4/3] lg:aspect-[5/4] overflow-hidden"
