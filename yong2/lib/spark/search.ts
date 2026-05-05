@@ -84,6 +84,18 @@ function derivePricePerSqft(r: SparkProperty): number | null {
   return null;
 }
 
+/** Best-effort string-array extractor for RESO multi-value fields. */
+function asStringArray(v: unknown): string[] {
+  if (Array.isArray(v)) {
+    return v.filter((x): x is string => typeof x === 'string' && x.length > 0);
+  }
+  if (typeof v === 'string' && v.length > 0) {
+    // RESO sometimes returns comma-separated single-strings.
+    return v.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
 function sparkRecordToListing(r: SparkProperty): Listing {
   const { photos, cover } = extractPhotos(r);
   const listingId = asString(r['ListingId']) ?? asString(r['ListingKey']) ?? '';
@@ -91,6 +103,7 @@ function sparkRecordToListing(r: SparkProperty): Listing {
   const unparsed = asString(r['UnparsedAddress']) ?? '';
   const community =
     asString(r['SubdivisionName']) ?? asString(r['CityRegion']) ?? asString(r['City']) ?? '';
+  const garageSpaces = asInt(r['GarageSpaces']);
 
   return {
     listingKey,
@@ -127,7 +140,7 @@ function sparkRecordToListing(r: SparkProperty): Listing {
     propertySubType: asString(r['PropertySubType']),
     hasPool: asBool(r['PoolPrivateYN']),
     hasFireplace: asBool(r['FireplaceYN']),
-    hasGarage: asInt(r['GarageSpaces']) ? true : false,
+    hasGarage: garageSpaces ? true : false,
     isLuxury: (asNumber(r['ListPrice']) ?? 0) >= 3_000_000,
     publicRemarks: asString(r['PublicRemarks']),
     coverPhotoUrl: cover,
@@ -136,6 +149,54 @@ function sparkRecordToListing(r: SparkProperty): Listing {
     listAgentKey: asString(r['ListAgentMlsId']),
     listAgentName: asString(r['ListAgentFullName']),
     modificationTimestamp: asString(r['ModificationTimestamp']),
+
+    // ── Rich detail-page fields ─────────────────────────
+    originalListPrice: asNumber(r['OriginalListPrice']),
+    cumulativeDaysOnMarket: asInt(r['CumulativeDaysOnMarket']),
+    storiesTotal: asInt(r['StoriesTotal']),
+    fireplacesTotal: asInt(r['FireplacesTotal']),
+    garageSpaces,
+
+    architecturalStyle: asStringArray(r['ArchitecturalStyle']),
+    constructionMaterials: asStringArray(r['ConstructionMaterials']),
+    flooring: asStringArray(r['Flooring']),
+    appliances: asStringArray(r['Appliances']),
+    interiorFeatures: asStringArray(r['InteriorFeatures']),
+    exteriorFeatures: asStringArray(r['ExteriorFeatures']),
+    poolFeatures: asStringArray(r['PoolFeatures']),
+    spaFeatures: asStringArray(r['SpaFeatures']),
+    fireplaceFeatures: asStringArray(r['FireplaceFeatures']),
+    parkingFeatures: asStringArray(r['ParkingFeatures']),
+    view: asStringArray(r['View']),
+    heating: asStringArray(r['Heating']),
+    cooling: asStringArray(r['Cooling']),
+    windowFeatures: asStringArray(r['WindowFeatures']),
+    laundryFeatures: asStringArray(r['LaundryFeatures']),
+    lotFeatures: asStringArray(r['LotFeatures']),
+    fencing: asStringArray(r['Fencing']),
+    vegetation: asStringArray(r['Vegetation']),
+    associationAmenities: asStringArray(r['AssociationAmenities']),
+
+    associationName: asString(r['AssociationName']),
+    associationFee: asNumber(r['AssociationFee']),
+    associationFeeFrequency: asString(r['AssociationFeeFrequency']),
+    associationYn: asBool(r['AssociationYN']),
+
+    taxAnnualAmount: asNumber(r['TaxAnnualAmount']),
+    taxYear: asInt(r['TaxYear']),
+    parcelNumber: asString(r['ParcelNumber']),
+
+    elementarySchool: asString(r['ElementarySchool']),
+    middleOrJuniorSchool: asString(r['MiddleOrJuniorSchool']),
+    highSchool: asString(r['HighSchool']),
+    highSchoolDistrict: asString(r['HighSchoolDistrict']),
+
+    listOfficeName: asString(r['ListOfficeName']),
+    listOfficePhone: asString(r['ListOfficePhone']),
+    listAgentDirectPhone: asString(r['ListAgentDirectPhone']),
+
+    hasSpa: asBool(r['SpaYN']),
+    hasWaterfront: asBool(r['WaterfrontYN']),
   };
 }
 

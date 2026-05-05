@@ -92,6 +92,69 @@ export interface Listing {
   listAgentKey: string | null;
   listAgentName: string | null;
   modificationTimestamp: string | null;
+
+  // ── Rich detail-page fields ─────────────────────────
+  // All optional — present only when Spark returns them. Detail page
+  // components conditionally render. Card surfaces ignore.
+
+  /** Original list price — drives the price-drop badge when ListPrice < OriginalListPrice. */
+  originalListPrice?: number | null;
+  /** Cumulative DOM (alternative to daysOnMarket). */
+  cumulativeDaysOnMarket?: number | null;
+  /** Stories. */
+  storiesTotal?: number | null;
+  /** Number of fireplaces (count, not just hasFireplace). */
+  fireplacesTotal?: number | null;
+  /** Number of garage spaces. */
+  garageSpaces?: number | null;
+
+  /** Multi-value RESO arrays. */
+  architecturalStyle?: string[];
+  constructionMaterials?: string[];
+  flooring?: string[];
+  appliances?: string[];
+  interiorFeatures?: string[];
+  exteriorFeatures?: string[];
+  poolFeatures?: string[];
+  spaFeatures?: string[];
+  fireplaceFeatures?: string[];
+  parkingFeatures?: string[];
+  view?: string[];
+  heating?: string[];
+  cooling?: string[];
+  windowFeatures?: string[];
+  laundryFeatures?: string[];
+  lotFeatures?: string[];
+  fencing?: string[];
+  vegetation?: string[];
+  associationAmenities?: string[];
+
+  /** HOA. */
+  associationName?: string | null;
+  associationFee?: number | null;
+  associationFeeFrequency?: string | null;
+  associationYn?: boolean;
+
+  /** Tax + parcel. */
+  taxAnnualAmount?: number | null;
+  taxYear?: number | null;
+  parcelNumber?: string | null;
+
+  /** Schools. */
+  elementarySchool?: string | null;
+  middleOrJuniorSchool?: string | null;
+  highSchool?: string | null;
+  highSchoolDistrict?: string | null;
+
+  /** Listing office (for IDX footer). */
+  listOfficeName?: string | null;
+  listOfficePhone?: string | null;
+  listAgentDirectPhone?: string | null;
+
+  /** Spa flag. */
+  hasSpa?: boolean;
+  /** Waterfront flag. */
+  hasWaterfront?: boolean;
 }
 
 // ── Communities ─────────────────────────────────────
