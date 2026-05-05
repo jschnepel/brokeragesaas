@@ -9,22 +9,8 @@
    differing in (scope_type, scope_key) — keeping behaviour identical across
    levels so dbt-WASM/UI can switch scope without per-scope code paths. #}
 
-{#
-  Scope ladder:
-    metro       → phoenix_metro                                     (1 key)
-    region      → c.region_slug — polygon point-in-polygon          (~13 keys, fully covered)
-    community   → c.community_unified_slug — polygon-canonical
-                  with subdivision_canonical_map fallback           (~95% coverage)
-    subdivision → c.subdivision_slug — finest grain                 (every recognized subdivision)
-    zipcode     → c.postal_code                                     (~426 keys)
-#}
-{%- set scopes = [
-  {'name': 'metro',       'group_col': "'phoenix_metro'",          'scope_type_lit': "'metro'",       'where': "TRUE"},
-  {'name': 'region',      'group_col': 'c.region_slug',            'scope_type_lit': "'region'",      'where': "c.region_slug IS NOT NULL"},
-  {'name': 'community',   'group_col': 'c.community_unified_slug', 'scope_type_lit': "'community'",   'where': "c.community_unified_slug IS NOT NULL"},
-  {'name': 'subdivision', 'group_col': 'c.subdivision_slug',       'scope_type_lit': "'subdivision'", 'where': "c.subdivision_slug IS NOT NULL"},
-  {'name': 'zipcode',     'group_col': 'c.postal_code',            'scope_type_lit': "'zipcode'",     'where': "c.postal_code IS NOT NULL"},
-] -%}
+{# Scope ladder defined in macros/scope_dimensions.sql (single source of truth). #}
+{%- set scopes = [{'name':'metro','group_col':"'phoenix_metro'",'scope_type_lit':"'metro'",'where':'TRUE'},{'name':'region','group_col':'c.region_slug','scope_type_lit':"'region'",'where':'c.region_slug IS NOT NULL'},{'name':'community','group_col':'c.community_unified_slug','scope_type_lit':"'community'",'where':'c.community_unified_slug IS NOT NULL'},{'name':'subdivision','group_col':'c.subdivision_slug','scope_type_lit':"'subdivision'",'where':'c.subdivision_slug IS NOT NULL'},{'name':'zipcode','group_col':'c.postal_code','scope_type_lit':"'zipcode'",'where':'c.postal_code IS NOT NULL'}] -%}
 
 WITH segments AS (
   {{ property_segments() }}

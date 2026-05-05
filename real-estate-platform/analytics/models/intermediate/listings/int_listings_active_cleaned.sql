@@ -25,6 +25,28 @@ WITH source AS (
 
 geo AS (
   SELECT * FROM {{ ref('stg_armls__listing_geography') }}
+),
+
+-- Canonical-map fallback for community/subdivision identification when
+-- the listing_geography polygon doesn't cover the listing. See
+-- int_listings_geographic_enriched for the same pattern on closed listings.
+canonical_map AS (
+  SELECT
+    UPPER(TRIM(raw_subdivision_name)) AS raw_key,
+    canonical_community,
+    ROW_NUMBER() OVER (
+      PARTITION BY UPPER(TRIM(raw_subdivision_name))
+      ORDER BY confidence DESC NULLS LAST, mapping_method
+    ) AS rn
+  FROM rlsir_platform.public.subdivision_canonical_map
+  WHERE NOT COALESCE(is_garbage, FALSE)
+    AND canonical_community IS NOT NULL
+    AND TRIM(canonical_community) NOT IN ('', 'NONE', 'N/A', 'METES AND BOUNDS')
+),
+dedup_canonical AS (
+  SELECT raw_key, canonical_community
+  FROM canonical_map
+  WHERE rn = 1
 )
 
 SELECT
@@ -98,15 +120,16 @@ SELECT
 
   s.stories,
 
-  -- Price band (derived for histogram marts)
+  -- Price band (derived for histogram marts). Brackets per yong2 chart spec.
   CASE
-    WHEN s.list_price <  400000 THEN '200K-400K'
-    WHEN s.list_price <  600000 THEN '400K-600K'
-    WHEN s.list_price <  800000 THEN '600K-800K'
-    WHEN s.list_price < 1000000 THEN '800K-1M'
-    WHEN s.list_price < 2000000 THEN '1M-2M'
-    WHEN s.list_price < 5000000 THEN '2M-5M'
-    ELSE '5M+'
+    WHEN s.list_price <   400000 THEN '200K-400K'
+    WHEN s.list_price <   600000 THEN '400K-600K'
+    WHEN s.list_price <   800000 THEN '600K-800K'
+    WHEN s.list_price <  1000000 THEN '800K-1M'
+    WHEN s.list_price <  2000000 THEN '1M-2M'
+    WHEN s.list_price <  5000000 THEN '2M-5M'
+    WHEN s.list_price < 10000000 THEN '5M-10M'
+    ELSE '10M+'
   END AS price_band,
 
   -- DOM band (derived for histogram marts)
@@ -125,19 +148,21 @@ SELECT
   s.list_agent_full_name,
   s.list_agent_key,
 
-  -- Community features
+  -- Community features. Stored as JSON-text VARCHAR in parquet (PG JSONB
+  -- doesn't round-trip as DuckDB array). LIKE-pattern boolean flags;
+  -- '= ANY(col)' triggers correlated UNNEST (unsupported).
   s.community_features,
-  COALESCE('Gated' = ANY(s.community_features), FALSE)         AS is_gated,
-  COALESCE('Golf Course' = ANY(s.community_features), FALSE)   AS is_golf_community,
+  COALESCE(s.community_features LIKE '%"Gated"%',       FALSE) AS is_gated,
+  COALESCE(s.community_features LIKE '%"Golf Course"%', FALSE) AS is_golf_community,
   COALESCE(
-    'Adult Community' = ANY(s.community_features) OR
-    'Adult Living'    = ANY(s.community_features) OR
-    'Age Restricted'  = ANY(s.community_features),
+    s.community_features LIKE '%"Adult Community"%'
+    OR s.community_features LIKE '%"Adult Living"%'
+    OR s.community_features LIKE '%"Age Restricted"%',
     FALSE
   ) AS is_age_restricted,
   COALESCE(
-    'Community Pool' = ANY(s.community_features) OR
-    'Pool'           = ANY(s.community_features),
+    s.community_features LIKE '%"Community Pool"%'
+    OR s.community_features LIKE '%"Pool"%',
     FALSE
   ) AS has_community_pool,
 
@@ -156,6 +181,24 @@ SELECT
   geo.community_slug,
   geo.community_name,
   geo.section_slug,
+
+  -- Unified community + subdivision slugs (mirror of int_listings_geographic_enriched
+  -- for closed). Polygon-canonical preferred, canonical-map fallback. Junk values
+  -- ('none', 'metes-bounds', etc.) filtered to NULL.
+  CASE
+    WHEN geo.community_slug IS NOT NULL THEN geo.community_slug
+    WHEN dc.canonical_community IS NULL THEN NULL
+    WHEN LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(dc.canonical_community), '[^A-Za-z0-9]+', '-', 'g'), '^-+|-+$', '', 'g')) IN (
+      'none', 'na', 'n-a', 'unknown', 'metes-bounds', 'metes-and-bounds',
+      'no-subdivision', 'no-subdivisions', 'no-sub', 'tbd', 'see-remarks',
+      'rural', 'farm', 'subdivision', ''
+    ) THEN NULL
+    ELSE LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(dc.canonical_community), '[^A-Za-z0-9]+', '-', 'g'), '^-+|-+$', '', 'g'))
+  END AS community_unified_slug,
+  COALESCE(
+    NULLIF(LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(dc.canonical_community), '[^A-Za-z0-9]+', '-', 'g'), '^-+|-+$', '', 'g')), ''),
+    NULLIF(LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(s.subdivision_name),     '[^A-Za-z0-9]+', '-', 'g'), '^-+|-+$', '', 'g')), '')
+  ) AS subdivision_slug,
 
   -- Schools
   s.elementary_school,
@@ -176,3 +219,4 @@ SELECT
 
 FROM source s
 LEFT JOIN geo USING (listing_key)
+LEFT JOIN dedup_canonical dc ON UPPER(TRIM(s.subdivision_name)) = dc.raw_key

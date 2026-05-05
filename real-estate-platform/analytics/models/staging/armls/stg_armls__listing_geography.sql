@@ -14,23 +14,16 @@
 -- slow-changing (PostGIS classification only re-runs when boundaries update)
 -- but per-run snapshots could surface stale rows; pick the freshest.
 
-WITH bronze AS (
+-- Each run is a full snapshot (~1.6M rows). Read only the LATEST run via
+-- the latest_bronze_path() macro (resolves s3 path from _freshness.json at
+-- compile time). The old glob + dedup approach OOMed at scale, same as
+-- listing_records.
+
+WITH source AS (
   SELECT * FROM read_parquet(
-    's3://rlsir-platform-assets-us-east-1/bronze/parquet/listing_geography/sync_year=*/sync_month=*/sync_day=*/run_id=*/data.parquet',
-    hive_partitioning=true,
+    '{{ latest_bronze_path("listing_geography") }}',
     union_by_name=true
   )
-),
-
-dedup AS (
-  SELECT
-    *,
-    ROW_NUMBER() OVER (
-      PARTITION BY listing_key
-      ORDER BY classified_at    DESC NULLS LAST,
-               sync_observed_at DESC NULLS LAST
-    ) AS rn
-  FROM bronze
 )
 
 SELECT
@@ -49,5 +42,4 @@ SELECT
   classified_at,
   sync_run_id,
   sync_observed_at
-FROM dedup
-WHERE rn = 1
+FROM source

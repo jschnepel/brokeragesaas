@@ -1,12 +1,5 @@
-{{
-  config(
-    materialized='incremental',
-    incremental_strategy='merge',
-    unique_key='listing_key',
-    on_schema_change='append_new_columns',
-    tags=['intermediate', 'shared']
-  )
-}}
+{# Was incremental — switched to table to avoid dbt-duckdb correlated-UNNEST codegen #}
+{{ config(materialized='table', tags=['intermediate']) }}
 
 -- Per-listing status transition timeline derived from listing_change_log.
 -- Used by BOTH active and closed marts:

@@ -1,9 +1,11 @@
+{# Was incremental+merge — emitted a correlated UNNEST against the JSONB
+   array columns that DuckDB doesn't support. delete+insert had the same
+   issue (likely dbt-duckdb's column-detection codegen). Switched to table
+   for v0; full rebuild each run is fine at this scale. Revisit incremental
+   once dbt-duckdb correlated-UNNEST limitation is resolved. #}
 {{
   config(
-    materialized='incremental',
-    incremental_strategy='merge',
-    unique_key='listing_key',
-    on_schema_change='append_new_columns',
+    materialized='table',
     tags=['intermediate']
   )
 }}
@@ -128,17 +130,30 @@ SELECT
   CASE WHEN buyer_agent_full_name IN ('Non-MLS Agent', 'Unknown', '') THEN NULL ELSE buyer_agent_full_name END AS buyer_agent_full_name,
   CASE WHEN buyer_agent_full_name IN ('Non-MLS Agent', 'Unknown', '') THEN NULL ELSE buyer_agent_key       END AS buyer_agent_key,
 
-  -- Community features (text array)
+  -- Community features. Stored as JSON-text VARCHAR in parquet (PG JSONB
+  -- doesn't round-trip as DuckDB array). Use LIKE pattern matching against
+  -- the JSON-quoted form ('"Value"') — exact-string boolean flags.
+  -- Avoid '= ANY(col)' which DuckDB rewrites to correlated UNNEST (unsupported).
   community_features,
-  COALESCE('Gated' = ANY(community_features), FALSE)        AS is_gated,
-  COALESCE('Golf Course' = ANY(community_features), FALSE)  AS is_golf_community,
+  COALESCE(community_features LIKE '%"Gated"%',       FALSE) AS is_gated,
+  COALESCE(community_features LIKE '%"Golf Course"%', FALSE) AS is_golf_community,
   COALESCE(
-    'Adult Community' = ANY(community_features) OR 'Adult Living' = ANY(community_features) OR 'Age Restricted' = ANY(community_features),
+    community_features LIKE '%"Adult Community"%'
+    OR community_features LIKE '%"Adult Living"%'
+    OR community_features LIKE '%"Age Restricted"%',
     FALSE
   ) AS is_age_restricted,
-  COALESCE('Community Pool' = ANY(community_features) OR 'Pool' = ANY(community_features), FALSE) AS has_community_pool,
-  -- DuckDB: len() for arrays, cardinality() is MAP-only
-  COALESCE(len(community_features), 0) AS community_amenity_count,
+  COALESCE(
+    community_features LIKE '%"Community Pool"%'
+    OR community_features LIKE '%"Pool"%',
+    FALSE
+  ) AS has_community_pool,
+  -- Count commas + 1 as a proxy for array length when stored as JSON text.
+  -- Returns 0 for NULL or empty array '[]'.
+  CASE
+    WHEN community_features IS NULL OR community_features IN ('[]', '') THEN 0
+    ELSE LENGTH(community_features) - LENGTH(REPLACE(community_features, ',', '')) + 1
+  END AS community_amenity_count,
 
   -- Address / geography (raw — joined to dim_communities downstream)
   unparsed_address,

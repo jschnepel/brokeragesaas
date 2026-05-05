@@ -1,12 +1,5 @@
-{{
-  config(
-    materialized='incremental',
-    incremental_strategy='merge',
-    unique_key='listing_key',
-    on_schema_change='append_new_columns',
-    tags=['intermediate']
-  )
-}}
+{# Was incremental — switched to table to avoid dbt-duckdb correlated-UNNEST codegen #}
+{{ config(materialized='table', tags=['intermediate']) }}
 
 -- One row per closed listing, with price-trajectory metrics derived from
 -- listing_change_log. ARMLS strips OriginalListPrice from the Property entity,

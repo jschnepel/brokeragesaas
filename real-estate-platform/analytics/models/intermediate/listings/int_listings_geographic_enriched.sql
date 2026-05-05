@@ -68,11 +68,33 @@ slug_helpers AS (
 SELECT
   *,
   -- Unified community: polygon-canonical preferred, canonical-map slug as fallback.
-  -- Reaches ~95%+ of listings vs the 3% from polygons alone.
-  COALESCE(community_slug, NULLIF(canonical_slug, '')) AS community_unified_slug,
+  -- Reaches ~95%+ of listings vs the 3% from polygons alone. Junk slugs (literal
+  -- "none", "metes & bounds" variants, etc.) filtered to NULL so they don't
+  -- pollute scope keys.
+  CASE
+    WHEN community_slug IS NOT NULL THEN community_slug
+    WHEN canonical_slug IS NULL OR canonical_slug = '' THEN NULL
+    WHEN canonical_slug IN (
+      'none', 'na', 'n-a', 'unknown', 'metes-bounds', 'metes-and-bounds',
+      'no-subdivision', 'no-subdivisions', 'no-sub', 'tbd', 'see-remarks',
+      'rural', 'farm', 'subdivision'
+    ) THEN NULL
+    ELSE canonical_slug
+  END AS community_unified_slug,
   -- Subdivision (finest-grain): canonical-map preferred for naming consistency,
-  -- else cleaned subdivision_name slug. Captures every recognizable subdivision.
-  COALESCE(NULLIF(canonical_slug, ''), NULLIF(subdivision_raw_slug, '')) AS subdivision_slug,
+  -- else cleaned subdivision_name slug. Same junk-slug filter applied to both.
+  CASE
+    WHEN canonical_slug IS NOT NULL AND canonical_slug NOT IN (
+      'none', 'na', 'n-a', 'unknown', 'metes-bounds', 'metes-and-bounds',
+      'no-subdivision', 'no-subdivisions', 'no-sub', 'tbd', 'see-remarks',
+      'rural', 'farm', 'subdivision'
+    ) AND canonical_slug != '' THEN canonical_slug
+    WHEN subdivision_raw_slug IS NOT NULL AND subdivision_raw_slug NOT IN (
+      'none', 'na', 'n-a', 'unknown', 'metes-bounds', 'metes-and-bounds',
+      'no-subdivision', 'no-subdivisions', 'no-sub', 'tbd', 'see-remarks'
+    ) AND subdivision_raw_slug != '' THEN subdivision_raw_slug
+    ELSE NULL
+  END AS subdivision_slug,
 
   -- Price band as a derived dimension. Brackets per yong2 chart spec:
   -- 200-400K, 400-600K, 600-800K, 800K-1M, 1M-2M, 2M-5M, 5M-10M, 10M+.
