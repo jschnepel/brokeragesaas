@@ -71,7 +71,13 @@ applications:
                     echo "[spark-token] SM read OK, token bytes: ${#SPARK_ACCESS_TOKEN}" >&2
                   fi
                 fi
-                printf 'SPARK_ACCESS_TOKEN=%s\n' "${SPARK_ACCESS_TOKEN:-}"
+                # Single-quote the value so Next.js's dotenv-expand
+                # treats it literally — opaque tokens often contain `$`
+                # which gets interpreted as variable expansion (silently
+                # returning empty) without quoting. Confirmed via build
+                # #54: file write was fine (45 bytes of SPARK_ACCESS_TOKEN=
+                # line, all 10 env keys present) but runtime saw empty.
+                printf "SPARK_ACCESS_TOKEN='%s'\n" "${SPARK_ACCESS_TOKEN:-}"
               } > .env.production.local
             # Sanity check: confirm the DSN made it into the file (no
             # value leak — just checks length).
