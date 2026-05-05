@@ -15,6 +15,14 @@ const nextConfig: NextConfig = {
     RESEND_API_KEY: process.env.RESEND_API_KEY ?? '',
     CONTACT_TO_EMAIL: process.env.CONTACT_TO_EMAIL ?? '',
     CONTACT_FROM_EMAIL: process.env.CONTACT_FROM_EMAIL ?? '',
+    // Spark API token for the IDX listings feed (see lib/spark/client.ts).
+    // Source-of-truth = AWS Secrets Manager rlsir/armls/tokens; amplify.yml
+    // syncs it to the Amplify branch env on every build, and this `env`
+    // entry inlines it into the server bundle so the Lambda runtime can
+    // read it. Build #59's /api/diag/env confirmed the absence of this
+    // entry was the root cause: SPARK was in branch env + .env.production
+    // .local but never reached process.env at request time.
+    SPARK_ACCESS_TOKEN: process.env.SPARK_ACCESS_TOKEN ?? '',
   },
   images: {
     remotePatterns: [
