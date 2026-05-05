@@ -1,45 +1,40 @@
-{{ config(materialized='table') }}
+-- materialized=view: downstream intermediates have WHERE filters (closed-only,
+-- active-only, etc.) that DuckDB pushes down through the view into the parquet
+-- read. Materializing as table would peak ~9GB on Lambda for the 1.9M-row x
+-- 80-col snapshot. View streams; cumulative downstream cost is similar but
+-- peak memory is bounded by the smallest downstream filter.
+{{ config(materialized='view') }}
 
--- 1:1 staging over the bronze Parquet snapshot (rlsir-armls-parquet-export Lambda).
--- Globs every per-run snapshot under bronze/parquet/listing_records/, dedupes by
--- listing_key keeping the row with the latest modification_timestamp (and latest
--- sync_observed_at as the tiebreaker — newer runs win on ties).
+-- 1:1 staging over bronze listing_records Parquet — full historical base +
+-- daily 14-day-modification deltas, deduplicated to latest state per listing.
 --
--- Source: s3://.../bronze/parquet/listing_records/sync_year=*/sync_month=*/sync_day=*/run_id=*/data.parquet
--- One Parquet per Lambda run, partitioned by sync_year/sync_month/sync_day/run_id.
--- Cadence: rate(4 hours).
+-- The rlsir-armls-parquet-export Lambda writes listing_records as a 14-day
+-- delta on each run: only rows where standard_status IN ('Closed', 'Expired',
+-- 'Withdrawn', 'Cancelled') AND modification_timestamp >= NOW() - 14 days.
+-- A historical-base full snapshot (from before delta-mode flip, or from
+-- periodic full_refresh runs) sits in S3 alongside the daily deltas.
 --
--- Materialized as table (NOT view) so the multi-hundred-Parquet glob scan only
--- runs once per dbt build, not per downstream reference.
+-- Active inventory analytics flow through bronze/active_snapshot.ndjson.gz
+-- (separate Lambda, separate staging model). Only Closed/historical statuses
+-- live in this stream.
 --
--- The old NDJSON.gz path (bronze/listings/) is being deprecated; this staging
--- model now exclusively reads bronze/parquet/. RDS direct reads via the
--- postgres extension are also retired here (snake_case columns come straight
--- from the PG mirror via the export Lambda's COPY).
---
--- Renames, type casts, NULLIFs only. NO business logic.
+-- Glob every parquet file, then dedupe by listing_key keeping the row with
+-- the latest modification_timestamp. The downstream `int_listings_closed_*`
+-- WHERE filter pushes through the view and bounds dedup memory to the
+-- closed-row subset (~1.83M rows base + ~5K rows/day delta).
 
-WITH bronze AS (
+WITH source AS (
   SELECT * FROM read_parquet(
-    's3://rlsir-platform-assets-us-east-1/bronze/parquet/listing_records/sync_year=*/sync_month=*/sync_day=*/run_id=*/data.parquet',
-    hive_partitioning=true,
-    union_by_name=true
+    's3://rlsir-platform-assets-us-east-1/bronze/parquet/listing_records/**/*.parquet',
+    union_by_name=true,
+    hive_partitioning=true
   )
-),
-
-dedup AS (
-  SELECT
-    *,
-    ROW_NUMBER() OVER (
-      PARTITION BY listing_key
-      ORDER BY modification_timestamp DESC NULLS LAST,
-               sync_observed_at         DESC NULLS LAST
-    ) AS rn
-  FROM bronze
-),
-
-source AS (
-  SELECT * FROM dedup WHERE rn = 1
+  WHERE listing_key IS NOT NULL
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY listing_key
+    ORDER BY modification_timestamp DESC NULLS LAST,
+             sync_observed_at DESC NULLS LAST
+  ) = 1
 )
 
 SELECT

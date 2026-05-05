@@ -58,8 +58,21 @@ REGION = os.environ.get("AWS_REGION", "us-east-1")
 # `select_columns` defaults to "*"; override for tables with PostGIS geom columns
 # (DuckDB's postgres extension doesn't decode WKB natively — we keep the join
 # keys + slugs and drop the geometry).
+# `where_filter` (optional): SQL fragment applied as a WHERE clause to bound
+# the export. Used for listing_records to ship only historical-status rows
+# modified in the last N days — full snapshots take >900s and timeout, while
+# incremental deltas finish in <30s. The historical base from the most recent
+# full run stays in S3 and dbt staging globs both. Active-status analytics flow
+# through bronze/active_snapshot.ndjson.gz (separate Lambda), not this stream.
 SNAPSHOT_TABLES: list[dict[str, str]] = [
-    {"table": "listing_records",     "select_columns": "*"},
+    {
+        "table": "listing_records",
+        "select_columns": "*",
+        "where_filter": (
+            "standard_status IN ('Closed', 'Expired', 'Withdrawn', 'Cancelled') "
+            "AND modification_timestamp >= NOW() - INTERVAL '14 days'"
+        ),
+    },
     {"table": "listing_members",     "select_columns": "*"},
     {"table": "listing_offices",     "select_columns": "*"},
     {"table": "listing_open_houses", "select_columns": "*"},
@@ -82,9 +95,22 @@ sm = boto3.client("secretsmanager", region_name=REGION)
 s3 = boto3.client("s3", region_name=REGION)
 cw = boto3.client("cloudwatch", region_name=REGION)
 
+# Set by handler() at the start of each invocation; used by step() to show
+# elapsed seconds since invocation start so a stuck run is diagnosable from
+# CloudWatch alone (timestamps + step labels pinpoint which phase hangs).
+_HANDLER_START_PERF: float = 0.0
+
+
+def step(label: str) -> None:
+    """Structured progress log. Format: '[step  +12.3s] label'."""
+    elapsed = time.perf_counter() - _HANDLER_START_PERF
+    print(f"[step {elapsed:+7.2f}s] {label}", flush=True)
+
 
 def get_dsn() -> str:
+    step("secrets:get_dsn:start")
     secret = sm.get_secret_value(SecretId=DSN_SECRET_ID)
+    step("secrets:get_dsn:done")
     return secret["SecretString"]
 
 
@@ -144,23 +170,66 @@ def export_snapshot(
     partition_path: str,
     run_id: str,
     select_columns: str = "*",
+    where_filter: str | None = None,
 ) -> dict[str, Any]:
-    """Full-table snapshot exported as Parquet. Per-run partition preserves history."""
+    """Snapshot exported as Parquet. Per-run partition preserves history.
+
+    `where_filter`: optional SQL fragment for the WHERE clause. When set, this
+    is a bounded delta export (e.g. last-14-day modification window) rather
+    than a full snapshot. The historical base from the most recent full run
+    remains in S3 and dbt staging globs both.
+
+    When `where_filter` is set, the query is dispatched to PG via
+    `postgres_query('rds', ...)` so PG executes the predicate (using indexes
+    where available). DuckDB's postgres extension foreign-table reads do NOT
+    push predicates down — without this, a "WHERE modification_timestamp >= ..."
+    over 1.9M rows pulls the full table to DuckDB then filters locally
+    (≥7min, exceeding Lambda's 900s budget).
+    """
     started_at = time.perf_counter()
     out_path = s3_path(table, partition_path, run_id)
+    mode = "snapshot_delta" if where_filter else "snapshot"
 
-    count_row = con.execute(f"SELECT COUNT(*) FROM rds.public.{table}").fetchone()
+    if where_filter:
+        # Escape single quotes ONCE so the inner SQL becomes a valid string
+        # literal inside DuckDB's postgres_query('rds', '...') call. DuckDB
+        # un-doubles the quotes when parsing the literal and sends correctly
+        # quoted SQL to PG. Don't escape twice — that produces ''''Closed''''
+        # which PG rejects as a syntax error.
+        pg_where = where_filter.replace("'", "''")
+        # COUNT goes server-side — PG returns one integer, instant.
+        count_sql = (
+            f"SELECT * FROM postgres_query('rds', "
+            f"'SELECT COUNT(*) AS n FROM {table} WHERE {pg_where}')"
+        )
+        # SELECT for COPY also goes server-side; PG streams matching rows only.
+        # Note: select_columns ('*' or '* EXCLUDE (...)') is interpreted by
+        # DuckDB *after* the rows arrive, so it still works.
+        source_expr = (
+            f"postgres_query('rds', "
+            f"'SELECT {select_columns} FROM {table} WHERE {pg_where}')"
+        )
+    else:
+        # No filter — full snapshot via DuckDB's foreign-table read (parallel scan).
+        count_sql = f"SELECT COUNT(*) AS n FROM rds.public.{table}"
+        source_expr = f"(SELECT {select_columns} FROM rds.public.{table})"
+
+    step(f"{mode}:{table}:count:start")
+    count_row = con.execute(count_sql).fetchone()
     row_count = int(count_row[0]) if count_row else 0
+    step(f"{mode}:{table}:count:done rows={row_count:,}")
 
+    step(f"{mode}:{table}:copy:start -> {out_path}")
     con.execute(f"""
         COPY (
-            SELECT {select_columns},
+            SELECT *,
                    '{run_id}'::VARCHAR             AS sync_run_id,
                    CURRENT_TIMESTAMP::TIMESTAMP    AS sync_observed_at
-            FROM rds.public.{table}
+            FROM {source_expr}
         )
         TO '{out_path}' (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 100000)
     """)
+    step(f"{mode}:{table}:copy:done")
 
     elapsed_s = time.perf_counter() - started_at
     bytes_written = head_object_size(out_path)
@@ -195,13 +264,17 @@ def export_incremental(
     by id_column > last_max_id from the state file.
     """
     started_at = time.perf_counter()
+    step(f"incremental:{table}:state:start")
     state = get_state(table)
     last_max_id = state.get("last_max_id")  # may be None on first run
+    step(f"incremental:{table}:state:done last_max_id={last_max_id}")
 
     # Find this run's new max(id). If table is empty, skip.
+    step(f"incremental:{table}:bounds:start")
     bounds_row = con.execute(
         f"SELECT MIN({id_column}), MAX({id_column}) FROM rds.public.{table}"
     ).fetchone()
+    step(f"incremental:{table}:bounds:done")
     if not bounds_row or bounds_row[1] is None:
         print(f"[incremental:{table}] table empty; nothing to export")
         return {"table": table, "mode": "incremental", "rows": 0, "status": "skipped_empty"}
@@ -227,6 +300,7 @@ def export_incremental(
         }
 
     out_path = s3_path(table, partition_path, run_id)
+    step(f"incremental:{table}:copy:start rows={row_count:,} -> {out_path}")
     con.execute(f"""
         COPY (
             SELECT *,
@@ -238,6 +312,7 @@ def export_incremental(
         )
         TO '{out_path}' (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 100000)
     """)
+    step(f"incremental:{table}:copy:done")
 
     elapsed_s = time.perf_counter() - started_at
     bytes_written = head_object_size(out_path)
@@ -275,6 +350,9 @@ def export_incremental(
 
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    global _HANDLER_START_PERF
+    _HANDLER_START_PERF = time.perf_counter()
+
     start = datetime.now(timezone.utc)
     run_id = getattr(context, "aws_request_id", str(uuid.uuid4()))
 
@@ -284,11 +362,14 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         f"/sync_day={start.strftime('%d')}"
     )
 
-    print(f"[armls-parquet-export] run_id={run_id} partition={partition_path}")
+    step(f"handler:start run_id={run_id} partition={partition_path} event={json.dumps(event)[:200]}")
 
     dsn = get_dsn()
 
+    step("duckdb:connect:start")
     con = duckdb.connect(":memory:")
+    step("duckdb:connect:done")
+
     # Lambda runtime has no $HOME; DuckDB extension install needs a writable
     # path. /tmp is the only writable filesystem on Lambda.
     con.execute("SET home_directory='/tmp/duckdb_home'")
@@ -297,13 +378,26 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # directory is read-only; /tmp is the only writable filesystem.
     con.execute("SET temp_directory='/tmp/duckdb_temp'")
     con.execute("SET memory_limit = '3000MB'")
+
+    step("duckdb:install:httpfs:start")
     con.execute("INSTALL httpfs; LOAD httpfs;")
+    step("duckdb:install:httpfs:done")
+
+    step("duckdb:install:postgres:start")
     con.execute("INSTALL postgres; LOAD postgres;")
+    step("duckdb:install:postgres:done")
+
     con.execute("SET s3_region = 'us-east-1'")
+
+    step("duckdb:attach_rds:start")
     con.execute(f"ATTACH '{dsn}' AS rds (TYPE postgres, READ_ONLY)")
+    step("duckdb:attach_rds:done")
 
     # Allow optional event payload to filter tables (for ad-hoc partial runs).
     requested = event.get("tables") if isinstance(event, dict) else None
+    # `full_refresh=True` bypasses any spec-level `where_filter` so the run
+    # produces a complete snapshot (used for periodic re-baselining).
+    full_refresh = bool(event.get("full_refresh")) if isinstance(event, dict) else False
 
     results: list[dict[str, Any]] = []
 
@@ -315,6 +409,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             results.append(export_snapshot(
                 con, table, partition_path, run_id,
                 select_columns=spec.get("select_columns", "*"),
+                where_filter=None if full_refresh else spec.get("where_filter"),
             ))
         except Exception as exc:
             err = str(exc)[:300]
