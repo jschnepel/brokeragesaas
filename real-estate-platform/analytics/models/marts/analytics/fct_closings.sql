@@ -72,6 +72,8 @@ SELECT
   c.region_name,
   c.community_slug,
   c.community_name,
+  c.community_unified_slug,
+  c.subdivision_slug,
   c.section_slug,
   c.price_band,
   c.latitude,

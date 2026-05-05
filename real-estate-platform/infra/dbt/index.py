@@ -95,11 +95,19 @@ def _run_dbt(args: list[str]) -> tuple[int, str]:
     avoids the fork+SemLock path. Lambda's /opt is also read-only, so
     --log-path and --target-path must point at /tmp.
     """
-    os.makedirs("/tmp/dbt-logs", exist_ok=True)
-    os.makedirs("/tmp/dbt-target", exist_ok=True)
-    # Clear stale state from a previous warm-container invocation. Each run
-    # should start clean; otherwise dbt-duckdb can see stale tables in the
-    # persistent /tmp/dbt-prod.duckdb file.
+    # Clear stale state from prior warm-container invocations. Lambda /tmp is
+    # 5GB but persists across warm invocations; without cleanup we accumulate
+    # DuckDB spill files, dbt target artifacts, manifests, and old log files
+    # until "No space left on device". Wipe target/ + logs/ each run, recreate.
+    import shutil
+    for d in ("/tmp/dbt-logs", "/tmp/dbt-target"):
+        try:
+            shutil.rmtree(d, ignore_errors=True)
+        except Exception:
+            pass
+        os.makedirs(d, exist_ok=True)
+    # Files (not dirs): the persistent DuckDB file + WAL + any DuckDB spill
+    # tempfiles that linger if a previous run was killed mid-build.
     for stale in ("/tmp/dbt-prod.duckdb", "/tmp/dbt-prod.duckdb.wal"):
         try:
             os.remove(stale)
@@ -167,7 +175,16 @@ def _summarize_run_results(run_results_path: Path) -> dict:
     }
     if not run_results_path.exists():
         return empty
-    data = json.loads(run_results_path.read_text())
+    raw = run_results_path.read_text()
+    if not raw.strip():
+        # Empty file — dbt crashed before it could finish writing. Treat as empty
+        # rather than raising, so the handler still surfaces the dbt stdout tail.
+        return empty
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        # Truncated / partial write — same fallback as empty.
+        return empty
     results = data.get("results", [])
 
     def is_kind(r: dict, prefix: str) -> bool:
