@@ -145,22 +145,6 @@ function escapeLiteral(s: string): string {
   return s.replace(/'/g, "''");
 }
 
-/** Add bbox spatial predicate as an OData WKT polygon. */
-function bboxToFilterClause(b: BBox): string {
-  // Counter-clockwise outer ring, closed.
-  const wkt =
-    `POLYGON((${b.minLng} ${b.minLat}, ${b.maxLng} ${b.minLat}, ` +
-    `${b.maxLng} ${b.maxLat}, ${b.minLng} ${b.maxLat}, ${b.minLng} ${b.minLat}))`;
-  return `geo.intersects(Coordinates, geography'${wkt}')`;
-}
-
-function polygonToFilterClause(p: PolygonGeoJSON): string {
-  const ring = p.coordinates[0];
-  if (!ring || ring.length < 4) return '';
-  const wktPoints = ring.map(([lng, lat]) => `${lng} ${lat}`).join(', ');
-  return `geo.intersects(Coordinates, geography'POLYGON((${wktPoints}))')`;
-}
-
 function expandStatuses(filter: StatusFilter[]): string[] {
   const out = new Set<string>();
   for (const s of filter) {
@@ -189,20 +173,13 @@ function buildSearchFilter(opts: SearchOpts): string {
   const clauses: string[] = [];
 
   // Status filter — defaults to all IDX-active variants if unset.
+  // Status, price, beds are confirmed Spark-queryable.
   const statuses =
     opts.status && opts.status.length > 0
       ? expandStatuses(opts.status)
       : ['Active', 'Pending', 'Active Under Contract'];
   const statusClause = statuses.map((s) => `StandardStatus eq '${escapeLiteral(s)}'`).join(' or ');
   clauses.push(`(${statusClause})`);
-
-  // Spatial — polygon wins over bbox if both present.
-  if (opts.polygonGeoJSON) {
-    const c = polygonToFilterClause(opts.polygonGeoJSON);
-    if (c) clauses.push(c);
-  } else if (opts.bbox) {
-    clauses.push(bboxToFilterClause(opts.bbox));
-  }
 
   if (typeof opts.priceMin === 'number') {
     clauses.push(`ListPrice ge ${opts.priceMin}`);
@@ -214,17 +191,72 @@ function buildSearchFilter(opts: SearchOpts): string {
     clauses.push(`BedroomsTotal ge ${opts.bedsMin}`);
   }
 
-  // Text search — best-effort substring on UnparsedAddress + City + SubdivisionName.
-  if (opts.q && opts.q.trim()) {
-    const q = escapeLiteral(opts.q.trim());
-    clauses.push(
-      `(substringof('${q}', UnparsedAddress) ` +
-        `or substringof('${q}', City) ` +
-        `or substringof('${q}', SubdivisionName))`,
-    );
-  }
+  // Spatial filtering (bbox/polygon) and text search (substringof) are
+  // applied post-fetch in applyClientFilters() — Spark's OData rejects
+  // `geo.intersects` and `substringof` (verified build #62 → 400 'field
+  // does not exist'). The platform's rlsir-active-snapshot Lambda hits
+  // the same constraint, which is why it doesn't filter spatially in
+  // OData either. We over-fetch, then narrow client-side.
 
   return clauses.join(' and ');
+}
+
+/**
+ * Post-fetch narrow: bbox/polygon spatial check + text-search substring
+ * match. Equivalent semantics to the OData clauses we used to send,
+ * but applied to the response payload because Spark's $filter rejects
+ * spatial + substring functions.
+ */
+function applyClientFilters(records: SparkProperty[], opts: SearchOpts): SparkProperty[] {
+  let out = records;
+
+  if (opts.polygonGeoJSON) {
+    const ring = opts.polygonGeoJSON.coordinates[0];
+    if (ring && ring.length >= 4) {
+      out = out.filter((r) => {
+        const lat = asNumber(r['Latitude']);
+        const lng = asNumber(r['Longitude']);
+        if (lat == null || lng == null) return false;
+        return pointInPolygon(lng, lat, ring);
+      });
+    }
+  } else if (opts.bbox) {
+    const b = opts.bbox;
+    out = out.filter((r) => {
+      const lat = asNumber(r['Latitude']);
+      const lng = asNumber(r['Longitude']);
+      if (lat == null || lng == null) return false;
+      return lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng;
+    });
+  }
+
+  if (opts.q && opts.q.trim()) {
+    const q = opts.q.trim().toLowerCase();
+    out = out.filter((r) => {
+      const ua = asString(r['UnparsedAddress']) ?? '';
+      const city = asString(r['City']) ?? '';
+      const sub = asString(r['SubdivisionName']) ?? '';
+      return (
+        ua.toLowerCase().includes(q) ||
+        city.toLowerCase().includes(q) ||
+        sub.toLowerCase().includes(q)
+      );
+    });
+  }
+
+  return out;
+}
+
+function pointInPolygon(x: number, y: number, ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    const intersect =
+      yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
 }
 
 // ── Public API — same shape as lib/listings-search.ts ──
@@ -272,15 +304,15 @@ export async function searchListings(opts: SearchOpts = {}): Promise<SearchResul
   // in $filter, so the check has to happen on the response payload.
   const [listingsResult, pinsResult] = await Promise.allSettled([
     (async () => {
-      // Over-fetch by 2x so the IDX opt-out drop doesn't shrink the
-      // page below the requested size for typical opt-out rates.
+      // Over-fetch (limit*4 + capped) so post-fetch IDX/spatial/text
+      // filters don't shrink the page below the requested size.
       const records = await fetchAllProperties({
         filter,
-        top: limit * 2,
+        top: 1000,
         orderby: 'ListPrice desc',
         maxPages: 1,
       });
-      return records
+      return applyClientFilters(records, opts)
         .filter(isIdxDisplayable)
         .map(sparkRecordToListing)
         .slice(offset, offset + limit);
@@ -293,8 +325,9 @@ export async function searchListings(opts: SearchOpts = {}): Promise<SearchResul
         select: PIN_SELECT,
         maxPages: 2,
       });
+      const filtered = applyClientFilters(records, opts);
       const pins: PinPoint[] = [];
-      for (const r of records) {
+      for (const r of filtered) {
         if (!isIdxDisplayable(r)) continue;
         const p = pinFromRecord(r);
         if (p) pins.push(p);
@@ -380,8 +413,9 @@ export async function searchListingPins(opts: SearchOpts = {}): Promise<PinPoint
       select: PIN_SELECT,
       maxPages: 2,
     });
+    const filtered = applyClientFilters(records, opts);
     const pins: PinPoint[] = [];
-    for (const r of records) {
+    for (const r of filtered) {
       if (!isIdxDisplayable(r)) continue;
       const p = pinFromRecord(r);
       if (p) pins.push(p);
