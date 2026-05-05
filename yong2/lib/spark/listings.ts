@@ -1,14 +1,12 @@
 /**
- * Yong's listings, sourced live from the Spark API.
+ * Active + Pending listings, sourced live from the Spark API.
  *
- * Filter scope:
- *   - StandardStatus IN ('Active', 'Pending')
- *   - List agent matches Yong (configurable via SPARK_LIST_AGENT_KEY env)
+ * Filter scope: StandardStatus IN ('Active', 'Pending', 'Active Under
+ * Contract') — no agent narrowing. Same scope premium-site uses.
  *
  * Caches per-Lambda-instance for 60s — Spark has rate limits (one
  * identical request per ~15min triggers 429), and yong2 traffic doesn't
- * need second-by-second freshness for what is effectively a static
- * portfolio page.
+ * need second-by-second freshness for an IDX listings page.
  *
  * Maps the Spark Property record to the existing `Listing` type so
  * components downstream (ListingGrid, ListingHeroGallery, etc.) work
@@ -28,32 +26,14 @@ interface CacheEntry {
 let listingsCache: CacheEntry | null = null;
 
 /**
- * Build the OData $filter clause for Yong's Active+Pending listings.
- *
- * Identifier resolution order:
- *   1. SPARK_LIST_AGENT_KEY env (preferred — exact MLS member ID match)
- *   2. SPARK_LIST_AGENT_NAME env (substring match on ListAgentFullName)
- *   3. Fallback: substring "Yong Choi"
- *
- * The fallback exists so the page renders something during initial setup
- * before the env var is provisioned, but in production at least one of
- * the env vars should be set.
+ * Build the OData $filter clause for Active + Pending IDX listings.
+ * No agent narrowing — premium-site doesn't filter at the query layer
+ * either; the IDX scope is the entire ARMLS Active+Pending universe.
  */
-function buildAgentClause(): string {
-  const key = process.env.SPARK_LIST_AGENT_KEY?.trim();
-  const name = process.env.SPARK_LIST_AGENT_NAME?.trim() ?? 'Yong Choi';
-  if (key) {
-    return `(ListAgentMlsId eq '${key.replace(/'/g, "''")}' or CoListAgentMlsId eq '${key.replace(/'/g, "''")}')`;
-  }
-  // OData substring match for the name fallback.
-  return `(substringof('${name.replace(/'/g, "''")}', ListAgentFullName))`;
-}
-
-function buildYongActivePendingFilter(): string {
-  const agent = buildAgentClause();
+function buildActivePendingFilter(): string {
   return (
-    `(StandardStatus eq 'Active' or StandardStatus eq 'Pending') ` +
-    `and ${agent}`
+    `(StandardStatus eq 'Active' or StandardStatus eq 'Pending' ` +
+    `or StandardStatus eq 'Active Under Contract')`
   );
 }
 
@@ -188,9 +168,10 @@ function sparkRecordToListing(r: SparkProperty): Listing {
 // ── Public API ──────────────────────────────────────
 
 /**
- * All of Yong's Active + Pending listings. Cached per Lambda instance
- * for 60s. Returns [] (not throws) on Spark errors so the portfolio
- * page renders an empty grid rather than a 500.
+ * Top-N Active + Pending listings, ordered by ListPrice desc — used to
+ * power /portfolio (curated card grid). Cached per Lambda instance
+ * for 60s. Returns [] (not throws) on Spark errors so the page renders
+ * an empty grid rather than a 500.
  */
 export async function getYongActiveListings(): Promise<Listing[]> {
   const now = Date.now();
@@ -201,9 +182,10 @@ export async function getYongActiveListings(): Promise<Listing[]> {
   const promise = (async () => {
     try {
       const records = await fetchAllProperties({
-        filter: buildYongActivePendingFilter(),
-        top: 200,
+        filter: buildActivePendingFilter(),
+        top: 60,
         orderby: 'ListPrice desc',
+        maxPages: 1,
       });
       return records.map(sparkRecordToListing);
     } catch (err) {
@@ -222,7 +204,7 @@ export async function getYongActiveListings(): Promise<Listing[]> {
 /**
  * Single listing by slug. Resolves slug → listing_id (the trailing
  * digits) → Spark direct lookup by ListingId. Falls back to a scan of
- * the full active-listing set if direct lookup yields nothing.
+ * the cached top listings if direct lookup yields nothing.
  */
 export async function getYongListingBySlug(slug: string): Promise<Listing | null> {
   const match = slug.match(/-(\d+)$/);
@@ -233,7 +215,7 @@ export async function getYongListingBySlug(slug: string): Promise<Listing | null
       const records = await fetchAllProperties({
         filter:
           `ListingId eq '${listingId}' ` +
-          `and (StandardStatus eq 'Active' or StandardStatus eq 'Pending')`,
+          `and ${buildActivePendingFilter()}`,
         top: 1,
       });
       if (records.length > 0) {
@@ -245,7 +227,7 @@ export async function getYongListingBySlug(slug: string): Promise<Listing | null
     }
   }
 
-  // Fallback: scan Yong's active set by slug.
+  // Fallback: scan the cached top set.
   const all = await getYongActiveListings();
   return all.find((l) => l.slug === slug) ?? null;
 }
