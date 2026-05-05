@@ -262,6 +262,20 @@ function pointInPolygon(x: number, y: number, ring: number[][]): boolean {
 // ── Public API — same shape as lib/listings-search.ts ──
 
 /**
+ * Per-Lambda-instance result cache. 60s TTL — Spark hourly refresh
+ * gives plenty of headroom, and this absorbs traffic spikes without
+ * tripping Spark's per-token rate limit (429 "exceeds performance
+ * threshold"). Keyed on full SearchOpts JSON.
+ */
+const SEARCH_CACHE_TTL_MS = 60_000;
+const searchCache = new Map<string, { at: number; promise: Promise<SearchResult> }>();
+
+function searchCacheKey(opts: SearchOpts): string {
+  // Stable key: omits identity-irrelevant fields, sorts keys.
+  return JSON.stringify(opts, Object.keys(opts).sort());
+}
+
+/**
  * Pin record fields — minimal $select for the map's GeoJSON source.
  * Excludes Media (huge per record) and remarks/details.
  */
@@ -293,6 +307,24 @@ function pinFromRecord(r: SparkProperty): PinPoint | null {
 }
 
 export async function searchListings(opts: SearchOpts = {}): Promise<SearchResult> {
+  // Cache check first — every visitor for the same query in a 60s
+  // window shares one Spark round-trip. Critical for cold-start UX
+  // (cold Lambda + cold Spark = 2-4s; warm cache = <100ms).
+  const cacheKey = searchCacheKey(opts);
+  const now = Date.now();
+  const cached = searchCache.get(cacheKey);
+  if (cached && now - cached.at < SEARCH_CACHE_TTL_MS) {
+    return cached.promise;
+  }
+
+  const promise = doSearchListings(opts);
+  searchCache.set(cacheKey, { at: now, promise });
+  // Evict the cache entry on rejection so next call can retry fresh.
+  promise.catch(() => searchCache.delete(cacheKey));
+  return promise;
+}
+
+async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
   const limit = Math.min(Math.max(opts.limit ?? 60, 1), 200);
   const offset = Math.max(opts.offset ?? 0, 0);
   const filter = buildSearchFilter(opts);
@@ -304,15 +336,17 @@ export async function searchListings(opts: SearchOpts = {}): Promise<SearchResul
   // in $filter, so the check has to happen on the response payload.
   const [listingsResult, pinsResult] = await Promise.allSettled([
     (async () => {
-      // Over-fetch (top: 1000 capped) so post-fetch IDX/spatial/text
-      // filters don't shrink the page below the requested size. Expand
-      // Media so cover photos come back inline (Spark omits the nested
-      // Media collection by default).
+      // Over-fetch (top: 250) so post-fetch IDX/spatial/text filters
+      // don't shrink the page below the requested size. NO \$expand
+      // on the search call — \$expand=Media inflated the response
+      // ~30x and triggered Spark's per-token rate limit (429
+      // "exceeds performance threshold"). Cards display without
+      // cover photos for now; detail page (getListingBySlug) does
+      // expand Media for its full gallery.
       const records = await fetchAllProperties({
         filter,
-        top: 1000,
+        top: 250,
         orderby: 'ListPrice desc',
-        expand: ['Media'],
         maxPages: 1,
       });
       return applyClientFilters(records, opts)
@@ -326,7 +360,7 @@ export async function searchListings(opts: SearchOpts = {}): Promise<SearchResul
         top: 1000,
         orderby: 'ListPrice desc',
         select: PIN_SELECT,
-        maxPages: 2,
+        maxPages: 1,
       });
       const filtered = applyClientFilters(records, opts);
       const pins: PinPoint[] = [];
