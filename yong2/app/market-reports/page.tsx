@@ -16,8 +16,11 @@ export const metadata: Metadata = {
   alternates: { canonical: siteUrl('/market-reports') },
 };
 
-// ISR: refresh hourly so newly-refreshed MV data flows through.
-export const revalidate = 3600;
+// Per-request render — Amplify build timeout (60s) trips when this
+// page is prerendered against RDS. Data is already hot from MVs, so
+// rendering on demand is fine. Match /communities/[slug] + /market-
+// reports/[slug] which are both force-dynamic for the same reason.
+export const dynamic = 'force-dynamic';
 
 export default async function MarketReportsPage() {
   const reports = await getReports().catch(() => []);
