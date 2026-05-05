@@ -11,8 +11,15 @@ import { siteUrl } from '@/lib/seo';
 // The client will refit on the data once mounted.
 const DEFAULT_BBOX = { minLng: -112.5, minLat: 33.0, maxLng: -111.3, maxLat: 34.1 };
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// ISR with 5-minute cache — Spark refreshes hourly, so 5min staleness
+// is well within tolerance and gives every visitor sub-100ms TTFB.
+// First visitor in each window pays cold-start (Spark fetch); next 250+
+// visitors hit the CDN-cached HTML. The in-Lambda 60s cache (lib/spark/
+// search.ts) absorbs concurrent first-window traffic.
+//
+// A Lambda warmer cron pings this endpoint every 5min so the page stays
+// continuously warm even during low-traffic periods.
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: 'Discover Listings · Search the Valley',
