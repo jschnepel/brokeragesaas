@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized=('external' if target.name == 'prod' else 'table')) }}
 
 -- Monthly time series: closings, medians, ppsf, DOM, volume.
 -- Calendar-spined (zero-gap) × scope_type × property_segment.

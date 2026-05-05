@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized=('external' if target.name == 'prod' else 'table')) }}
 
 -- Buyer-side office leaderboard, by year.
 -- Excludes Non-MLS placeholders (already nulled in intermediate).

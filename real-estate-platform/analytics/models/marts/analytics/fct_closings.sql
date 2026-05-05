@@ -1,5 +1,5 @@
 {{ config(
-    materialized='table'
+    materialized=('external' if target.name == 'prod' else 'table')
 ) }}
 
 -- The atomic fact: one row per closed listing, with every dimension joined.

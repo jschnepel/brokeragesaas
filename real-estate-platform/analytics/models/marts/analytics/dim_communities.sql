@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized=('external' if target.name == 'prod' else 'table')) }}
 
 -- One row per (region, community) — for join + display in the dashboard.
 -- Augmented with rolling 12-month closing volume so dim is self-describing

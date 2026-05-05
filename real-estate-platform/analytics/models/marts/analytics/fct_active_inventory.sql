@@ -1,4 +1,4 @@
-{{ config(materialized='table', enabled=(var('enable_active', false))) }}
+{{ config(materialized=('external' if target.name == 'prod' else 'table'), enabled=(var('enable_active', false))) }}
 
 -- Current snapshot KPIs for active inventory.
 -- Grain: scope_type × scope_key × property_segment.

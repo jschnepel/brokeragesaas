@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized=('external' if target.name == 'prod' else 'table')) }}
 
 -- Monthly price-reduction metrics: % w/ reduction, mean reduction $, mean reduction %.
 -- Calendar-spined × property_segment × price_band.

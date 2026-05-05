@@ -1,4 +1,4 @@
-{{ config(materialized='table', enabled=(var('enable_active', false))) }}
+{{ config(materialized=('external' if target.name == 'prod' else 'table'), enabled=(var('enable_active', false))) }}
 
 -- H3 hex aggregation of currently-active listings for map visualization.
 -- Grain: h3_cell_8 × property_segment.

@@ -35,17 +35,24 @@ SELECT
 
   -- Prices
   NULLIF(ListPrice,  0)::NUMERIC            AS list_price,
-  NULLIF(OriginalListPrice, 0)::NUMERIC     AS original_list_price_source,  -- 0% populated; recovered via change_log
+  -- OriginalListPrice was 0% populated in the active snapshot, and the Spark
+  -- NDJSON only includes 'OriginalListPrice@Core.Permissions' metadata, not the
+  -- field itself. Recovered downstream via change_log when needed.
+  CAST(NULL AS NUMERIC)                     AS original_list_price_source,
 
   -- Time / dates
   ListingContractDate                       AS listing_contract_date,
   OnMarketDate                              AS on_market_date,
-  PendingTimestamp                          AS pending_timestamp,
+  -- PendingTimestamp + DaysOnMarket are 'Core.Permissions'-restricted on the
+  -- active snapshot (Spark RESO returns only the metadata key, not the value
+  -- itself). Recover from the change_log + close_date - listing_contract_date
+  -- in downstream models when needed.
+  CAST(NULL AS TIMESTAMP)                   AS pending_timestamp,
   StatusChangeTimestamp                     AS status_change_timestamp,
   PriceChangeTimestamp                      AS price_change_timestamp,
   ModificationTimestamp                     AS modification_timestamp,
   OriginalEntryTimestamp                    AS original_entry_timestamp,
-  DaysOnMarket                              AS days_on_market,
+  CAST(NULL AS INT)                         AS days_on_market,
 
   -- Property core
   BedroomsTotal                             AS bedrooms,
@@ -73,8 +80,9 @@ SELECT
   ListAgentFullName                         AS list_agent_full_name,
   ListAgentKey                              AS list_agent_key,
 
-  -- Community features
-  CommunityFeatures                         AS community_features,
+  -- Community features. NDJSON sources arrays as VARCHAR[]. Cast to JSON-text
+  -- so downstream LIKE patterns (consistent with listing_records bronze) work.
+  to_json(CommunityFeatures)::VARCHAR        AS community_features,
 
   -- Photos / media
   PhotosCount                               AS photos_count,

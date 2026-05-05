@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized=('external' if target.name == 'prod' else 'table')) }}
 
 -- Monthly negotiation metrics. Includes BOTH the legacy close_to_list ratio
 -- and the new close_to_original ratio (true negotiation strength).

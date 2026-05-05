@@ -1,4 +1,4 @@
-{{ config(materialized='table', enabled=(var('enable_active', false))) }}
+{{ config(materialized=('external' if target.name == 'prod' else 'table'), enabled=(var('enable_active', false))) }}
 
 -- Per-community active counts + median list/DOM.
 -- Grain: community × property_segment.

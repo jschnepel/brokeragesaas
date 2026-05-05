@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized=('external' if target.name == 'prod' else 'table')) }}
 
 -- One row per community — current snapshot for the /phoenix/[region]/[community] page.
 -- Rolling 12-month metrics; community must have ≥5 closings to qualify.

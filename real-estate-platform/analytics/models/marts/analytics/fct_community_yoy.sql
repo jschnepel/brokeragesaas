@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized=('external' if target.name == 'prod' else 'table')) }}
 
 -- YoY % change in median ppsf per community.
 -- "Hot" / "cold" leaderboards drop out of this with ORDER BY ppsf_pct_change DESC/ASC.

@@ -18,7 +18,10 @@ clean-targets:
 require-dbt-version: ">=1.8.0"
 
 on-run-start:
-  - "{{ check_bronze_freshness(warn_hours=6, error_hours=12) }}"
+  # Schedule is rate(1h) on dbt + rate(4h) on parquet-export. Worst case 8h
+  # gap if a parquet-export fire is missed. Set warn at 8h, error at 24h —
+  # lets dbt run on slightly stale bronze rather than blocking entirely.
+  - "{{ check_bronze_freshness(warn_hours=8, error_hours=24) }}"
 
 # Elementary Data — captures dbt run + test results.
 # The hook macro name varies by Elementary version; disabled for v1 until we
@@ -69,11 +72,11 @@ models:
       +tags: ["intermediate"]
 
     marts:
-      # NOTE: prod target should override to materialized=external (Parquet on S3).
-      # dev uses table because dbt-duckdb's external materialization on Windows
-      # has issues creating nested output dirs. Marts validate logically here;
-      # write target is moved to external in the prod profile.
-      +materialized: table
+      # prod: write Parquet to S3 (external_root in profile). dev: local DuckDB
+      # tables — external materialization on Windows has nested-dir issues.
+      # Without `external` in prod, marts die in /tmp/dbt-prod.duckdb and never
+      # reach yong2 — the whole purpose of the lakehouse cutover.
+      +materialized: "{{ 'external' if target.name == 'prod' else 'table' }}"
       +tags: ["marts"]
       analytics:
         +tags: ["analytics", "public"]

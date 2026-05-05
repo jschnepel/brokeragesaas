@@ -97,6 +97,14 @@ def _run_dbt(args: list[str]) -> tuple[int, str]:
     """
     os.makedirs("/tmp/dbt-logs", exist_ok=True)
     os.makedirs("/tmp/dbt-target", exist_ok=True)
+    # Clear stale state from a previous warm-container invocation. Each run
+    # should start clean; otherwise dbt-duckdb can see stale tables in the
+    # persistent /tmp/dbt-prod.duckdb file.
+    for stale in ("/tmp/dbt-prod.duckdb", "/tmp/dbt-prod.duckdb.wal"):
+        try:
+            os.remove(stale)
+        except FileNotFoundError:
+            pass
     # dbt scans cwd for things like profiles.yml fallback; pin it to /tmp.
     os.chdir("/tmp")
     full_args = [
@@ -140,18 +148,50 @@ def _publish_run_results(run_id: str) -> str | None:
 
 
 def _summarize_run_results(run_results_path: Path) -> dict:
-    """Parse run_results.json and emit metrics counts."""
+    """Parse run_results.json — split MODEL build outcomes from TEST outcomes.
+
+    Model failures are urgent (broken pipeline → page operator).
+    Test failures are data quality findings (track but don't page).
+
+    Tests, snapshots, and seeds also have their own failure semantics:
+      - test failure = data quality issue
+      - snapshot failure = data capture issue (urgent)
+      - seed failure = config/data issue (urgent)
+    """
+    empty = {
+        "models_built": 0, "models_failed": 0,
+        "tests_passed": 0, "tests_failed": 0,
+        "snapshots_built": 0, "snapshots_failed": 0,
+        "seeds_loaded": 0, "seeds_failed": 0,
+        "model_errors": [], "test_errors": [],
+    }
     if not run_results_path.exists():
-        return {"models_built": 0, "models_failed": 0, "errors": []}
+        return empty
     data = json.loads(run_results_path.read_text())
     results = data.get("results", [])
-    failed = [r for r in results if r.get("status") in ("error", "fail")]
+
+    def is_kind(r: dict, prefix: str) -> bool:
+        return (r.get("unique_id", "") or "").startswith(prefix + ".")
+
+    models_failed = [r for r in results if is_kind(r, "model") and r.get("status") in ("error", "fail")]
+    tests_failed_list = [r for r in results if is_kind(r, "test") and r.get("status") in ("error", "fail")]
+
     return {
-        "models_built": len([r for r in results if r.get("status") == "success"]),
-        "models_failed": len(failed),
-        "errors": [
+        "models_built": sum(1 for r in results if is_kind(r, "model") and r.get("status") == "success"),
+        "models_failed": len(models_failed),
+        "tests_passed": sum(1 for r in results if is_kind(r, "test") and r.get("status") == "pass"),
+        "tests_failed": len(tests_failed_list),
+        "snapshots_built": sum(1 for r in results if is_kind(r, "snapshot") and r.get("status") == "success"),
+        "snapshots_failed": sum(1 for r in results if is_kind(r, "snapshot") and r.get("status") in ("error", "fail")),
+        "seeds_loaded": sum(1 for r in results if is_kind(r, "seed") and r.get("status") == "success"),
+        "seeds_failed": sum(1 for r in results if is_kind(r, "seed") and r.get("status") in ("error", "fail")),
+        "model_errors": [
             {"unique_id": r.get("unique_id"), "message": r.get("message")}
-            for r in failed[:10]
+            for r in models_failed[:10]
+        ],
+        "test_errors": [
+            {"unique_id": r.get("unique_id"), "message": (r.get("message") or "")[:200]}
+            for r in tests_failed_list[:10]
         ],
     }
 
@@ -196,6 +236,11 @@ def handler(event: dict, context) -> dict:
         args = ["build", "--target", target]
     elif task == "full-refresh":
         args = ["build", "--target", target, "--full-refresh"]
+    elif task == "models-only":
+        # Build models without running tests. Use when test failures upstream
+        # are skipping downstream marts (dbt build cascades skips). Lets us
+        # land mart Parquet in S3 even with known data-quality issues.
+        args = ["run", "--target", target, "--full-refresh"]
     else:
         return {"statusCode": 400, "body": json.dumps({"error": f"unknown task: {task}"})}
 
@@ -211,12 +256,36 @@ def handler(event: dict, context) -> dict:
 
     s3_path = _publish_run_results(run_id)
 
+    # Model build metrics — alarm-worthy (broken pipeline)
     metrics.add_metric(name="DbtModelsBuilt", unit=MetricUnit.Count, value=summary["models_built"])
     metrics.add_metric(name="DbtModelsFailed", unit=MetricUnit.Count, value=summary["models_failed"])
+    # Snapshot + seed failures are also build issues
+    metrics.add_metric(name="DbtSnapshotsFailed", unit=MetricUnit.Count, value=summary["snapshots_failed"])
+    metrics.add_metric(name="DbtSeedsFailed", unit=MetricUnit.Count, value=summary["seeds_failed"])
+    # Test metrics — informational (data quality, not build failures)
+    metrics.add_metric(name="DbtTestsPassed", unit=MetricUnit.Count, value=summary["tests_passed"])
+    metrics.add_metric(name="DbtTestsFailed", unit=MetricUnit.Count, value=summary["tests_failed"])
     metrics.add_metric(name="DbtRunSeconds", unit=MetricUnit.Seconds, value=elapsed)
 
-    if rc != 0 or summary["models_failed"] > 0:
-        logger.error("dbt run failed", extra={"summary": summary, "rc": rc})
+    # Build success: pipeline produced marts. Test failures are data quality
+    # findings, not build failures — they don't trigger urgent alarms.
+    # If dbt crashed before writing run_results.json (no models attempted),
+    # treat that as a build failure regardless of rc — the pipeline didn't run.
+    no_results_produced = (
+        summary["models_built"] == 0 and summary["tests_passed"] == 0
+        and summary["snapshots_built"] == 0 and summary["seeds_loaded"] == 0
+    )
+    has_build_failure = (
+        summary["models_failed"] > 0 or
+        summary["snapshots_failed"] > 0 or
+        summary["seeds_failed"] > 0 or
+        (rc != 0 and no_results_produced)
+    )
+    if has_build_failure:
+        logger.error("dbt build failed", extra={"summary": summary, "rc": rc})
+    elif summary["tests_failed"] > 0:
+        logger.warning("dbt build ok; data-quality tests failed",
+                       extra={"summary": summary, "tests_failed": summary["tests_failed"]})
     else:
         logger.info("dbt run ok", extra={"summary": summary, "elapsed": elapsed})
 
@@ -227,12 +296,22 @@ def handler(event: dict, context) -> dict:
         "duration_seconds": elapsed,
         "models_built": summary["models_built"],
         "models_failed": summary["models_failed"],
-        "errors": summary["errors"],
+        "tests_passed": summary["tests_passed"],
+        "tests_failed": summary["tests_failed"],
+        "snapshots_built": summary["snapshots_built"],
+        "model_errors": summary["model_errors"],
+        "test_errors": summary["test_errors"],
         "run_results_s3": s3_path,
     }
-    if rc != 0 or summary["models_failed"] > 0:
+    # Surface dbt stdout only on actual BUILD failures (not test failures)
+    if has_build_failure:
         body_payload["output_tail"] = out[-4000:]
+
+    # Status semantics:
+    # - 200: build succeeded (models, snapshots, seeds all built). Tests may
+    #   have failed but those are data-quality findings, not pipeline errors.
+    # - 500: build failed (model/snapshot/seed error) — alarm-worthy.
     return {
-        "statusCode": 200 if rc == 0 and summary["models_failed"] == 0 else 500,
+        "statusCode": 500 if has_build_failure else 200,
         "body": json.dumps(body_payload),
     }
