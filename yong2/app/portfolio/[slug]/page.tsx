@@ -12,30 +12,32 @@ import { ListingDetailTracker } from '@/components/portfolio/ListingDetailTracke
 import { RequestTourCta } from '@/components/portfolio/RequestTourCta';
 import { StickyContact } from '@/components/portfolio/StickyContact';
 import { TheRead } from '@/components/listing/TheRead';
-import { getListingBySlug, getActiveListings } from '@/lib/listings';
+import {
+  getYongActiveListings,
+  getYongListingBySlug,
+} from '@/lib/spark/listings';
 import { getActiveComps } from '@/lib/analytics/comps';
 import { getAreaRead } from '@/lib/analytics/area';
 import { getListingPace } from '@/lib/analytics/listing-pace';
 import { realEstateListingSchema, breadcrumbListSchema } from '@/lib/jsonld';
 import { siteUrl } from '@/lib/seo';
 
-export const revalidate = 3600;
+// Listings come live from the Spark API per-request — see lib/spark.
+// Analytics blocks (comps, area, listing-pace) keep their existing
+// data sources and degrade gracefully via .catch() wrappers below.
+export const dynamic = 'force-dynamic';
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3200';
 
 type PageProps = { params: Promise<{ slug: string }> };
 
-export async function generateStaticParams() {
-  // mv_active_listings has ~52K rows; pre-render only the top 24 luxury actives
-  // and let the rest render via dynamic ISR (App Router default dynamicParams=true).
-  const listings = await getActiveListings({ limit: 24, isLuxury: true }).catch(() => []);
-  return listings.map((l) => ({ slug: l.slug }));
-}
+// generateStaticParams disabled — see `dynamic = 'force-dynamic'` above.
+// Pages render on demand from the Spark API per request.
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const listing = await getListingBySlug(slug).catch(() => null);
+  const listing = await getYongListingBySlug(slug).catch(() => null);
   if (!listing) return { title: 'Listing' };
   return {
     title: `${listing.unparsedAddress} · ${listing.community}`,
@@ -49,7 +51,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ListingDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const listing = await getListingBySlug(slug).catch(() => null);
+  const listing = await getYongListingBySlug(slug).catch(() => null);
   if (!listing) notFound();
 
   const listingUrl = `${SITE_URL}/portfolio/${listing.slug}`;

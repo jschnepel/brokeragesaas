@@ -4,10 +4,14 @@ import { Footer } from '@/components/chrome/Footer';
 import { SectionFrame } from '@/components/shared/SectionFrame';
 import { PageHero } from '@/components/shared/PageHero';
 import { ListingGrid } from '@/components/portfolio/ListingGrid';
-import { getActiveListings } from '@/lib/listings';
+import { getYongActiveListings } from '@/lib/spark/listings';
 import { siteUrl } from '@/lib/seo';
 
-export const revalidate = 1800;
+// Listings come live from the Spark API per-request — see lib/spark.
+// In-memory Lambda cache (60s TTL) absorbs traffic spikes without
+// hammering Spark's per-token rate limit.
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'The Portfolio',
   description: 'Current and recent representations across the Phoenix Metro.',
@@ -15,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 export default async function PortfolioPage() {
-  const listings = await getActiveListings({ limit: 60 }).catch(() => []);
+  const listings = await getYongActiveListings();
   return (
     <>
       <Navigation initialTransparent />

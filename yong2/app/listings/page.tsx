@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { Navigation } from '@/components/chrome/Navigation';
 import { ListingsClient } from './ListingsClient';
-import { searchListings } from '@/lib/listings-search';
+// Listings search is now Spark-backed — full ARMLS Active+Pending
+// inventory, no RDS dependency. See lib/spark/search.ts.
+import { searchListings } from '@/lib/spark/search';
 import { siteUrl } from '@/lib/seo';
 
 // Default to a Phoenix-metro bbox centered on Yong's service area (zoom ~9).

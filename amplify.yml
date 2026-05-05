@@ -42,6 +42,15 @@ applications:
                 printf 'RESEND_API_KEY=%s\n' "${RESEND_API_KEY:-}"
                 printf 'CONTACT_TO_EMAIL=%s\n' "${CONTACT_TO_EMAIL:-}"
                 printf 'CONTACT_FROM_EMAIL=%s\n' "${CONTACT_FROM_EMAIL:-}"
+                # Spark API — listings come live from Spark per-request.
+                # Same non-expiring access token stored in AWS Secrets Manager
+                # (`rlsir/armls/tokens`); set the Amplify branch env to that
+                # secret's `access_token` value. SPARK_LIST_AGENT_KEY is Yong's
+                # ARMLS member ID (preferred); SPARK_LIST_AGENT_NAME is the
+                # name-substring fallback used until the key is set.
+                printf 'SPARK_ACCESS_TOKEN=%s\n' "${SPARK_ACCESS_TOKEN:-}"
+                printf 'SPARK_LIST_AGENT_KEY=%s\n' "${SPARK_LIST_AGENT_KEY:-}"
+                printf 'SPARK_LIST_AGENT_NAME=%s\n' "${SPARK_LIST_AGENT_NAME:-Yong Choi}"
               } > .env.production.local
             # Sanity check: confirm the DSN made it into the file (no
             # value leak — just checks length).
