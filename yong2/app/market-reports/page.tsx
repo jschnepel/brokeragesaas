@@ -7,7 +7,8 @@ import { Footer } from '@/components/chrome/Footer';
 import { PageHero } from '@/components/shared/PageHero';
 import { TrendChartBlock } from '@/components/charts/ReportCharts';
 import { buildReportNarrative } from '@/lib/narrative';
-import { getReports } from '@/lib/market-reports';
+import { getReport } from '@/lib/market-reports';
+import { MARKET_REPORT_COPY } from '@/content/market-reports';
 import { siteUrl } from '@/lib/seo';
 
 export const metadata: Metadata = {
@@ -23,8 +24,17 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function MarketReportsPage() {
-  const reports = await getReports().catch(() => []);
-  const [latest, ...rest] = reports;
+  // Only the latest report needs full DB-backed data (charts, headline
+  // stats, narrative). The archive cards below render copy-only fields
+  // (slug/quarter/coverImage/title/summary) which all live in the
+  // editorial layer — no DB needed. Cuts page-render queries from ~36
+  // (4 reports × 9 each, serial) to ~9, comfortably inside Lambda
+  // timeout. Earlier `getReports()` design timed out the page (504).
+  const [latestCopy, ...restCopy] = MARKET_REPORT_COPY;
+  const latest = latestCopy
+    ? await getReport(latestCopy.slug).catch(() => null)
+    : null;
+  const rest = restCopy;
   const latestNarrative = latest ? buildReportNarrative(latest) : null;
 
   return (
