@@ -124,6 +124,7 @@ export function buildPropertyUrl(opts: {
   top?: number;
   orderby?: string;
   select?: string[];
+  expand?: string[];
 }): string {
   const params = new URLSearchParams();
   params.set('$filter', opts.filter);
@@ -131,6 +132,9 @@ export function buildPropertyUrl(opts: {
   params.set('$orderby', opts.orderby ?? 'ModificationTimestamp desc');
   if (opts.select && opts.select.length > 0) {
     params.set('$select', opts.select.join(','));
+  }
+  if (opts.expand && opts.expand.length > 0) {
+    params.set('$expand', opts.expand.join(','));
   }
   return `${getSparkBase()}/Property?${params.toString()}`;
 }
@@ -146,6 +150,7 @@ export async function fetchAllProperties(opts: {
   top?: number;
   orderby?: string;
   select?: string[];
+  expand?: string[];
   maxPages?: number;
 }): Promise<SparkProperty[]> {
   const maxPages = opts.maxPages ?? 5;

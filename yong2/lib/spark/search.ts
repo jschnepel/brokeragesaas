@@ -304,12 +304,15 @@ export async function searchListings(opts: SearchOpts = {}): Promise<SearchResul
   // in $filter, so the check has to happen on the response payload.
   const [listingsResult, pinsResult] = await Promise.allSettled([
     (async () => {
-      // Over-fetch (limit*4 + capped) so post-fetch IDX/spatial/text
-      // filters don't shrink the page below the requested size.
+      // Over-fetch (top: 1000 capped) so post-fetch IDX/spatial/text
+      // filters don't shrink the page below the requested size. Expand
+      // Media so cover photos come back inline (Spark omits the nested
+      // Media collection by default).
       const records = await fetchAllProperties({
         filter,
         top: 1000,
         orderby: 'ListPrice desc',
+        expand: ['Media'],
         maxPages: 1,
       });
       return applyClientFilters(records, opts)
@@ -374,6 +377,7 @@ export async function getListingBySlug(slug: string): Promise<Listing | null> {
     const records = await fetchAllProperties({
       filter: `ListingId eq '${escapeLiteral(listingId)}'`,
       top: 1,
+      expand: ['Media'],
       maxPages: 1,
     });
     if (records.length === 0) return null;
