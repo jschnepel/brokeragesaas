@@ -15,11 +15,6 @@
  * time per amplify.yml).
  */
 
-import {
-  SecretsManagerClient,
-  GetSecretValueCommand,
-} from '@aws-sdk/client-secrets-manager';
-
 function getSparkBase(): string {
   return (
     process.env.SPARK_REPLICATION_URL ??
@@ -28,49 +23,20 @@ function getSparkBase(): string {
 }
 
 /**
- * Spark API token — single source of truth is AWS Secrets Manager
- * (`rlsir/armls/tokens`), the same secret the rlsir-armls-sync and
- * rlsir-active-snapshot Lambdas read.
+ * Spark API token — read from process.env at call time. The token is
+ * populated in the Amplify branch env on every build by amplify.yml
+ * step 3, which fetches the canonical value from AWS Secrets Manager
+ * (`rlsir/armls/tokens`) and syncs it to the branch env via
+ * `aws amplify update-branch`. Single source of truth = SM; the
+ * branch env is a build-time projection of it.
  *
- * On Amplify Hosting Next.js Compute, server env vars in
- * .env.production.local don't reach the SSR runtime — only branch-
- * level Amplify env vars do, plus NEXT_PUBLIC_* via webpack inline.
- * Reading from SM at request time:
- *   1. Single source of truth (rotate once in SM, all consumers
- *      pick up the new value on next Lambda init)
- *   2. Cached per-Lambda-instance forever (it's non-expiring)
- *   3. IAM perm `yong2-spark-secret-read` on AmplifySSRServiceRole
- *      grants exactly this read.
- *
- * SPARK_ACCESS_TOKEN env var still wins if present (escape hatch +
- * local dev where Lambda IAM isn't available).
+ * Why not read SM at request time? Amplify Hosting Next.js Compute
+ * runtime has no AWS SDK credentials available, so any SDK call
+ * fails with CredentialsProviderError. Branch env is the only
+ * mechanism that actually reaches the SSR Lambda.
  */
-const smClient = new SecretsManagerClient({ region: 'us-east-1' });
-let cachedToken: string | null = null;
-
-async function getSparkToken(): Promise<string | null> {
-  if (cachedToken) return cachedToken;
-  const fromEnv = process.env.SPARK_ACCESS_TOKEN;
-  if (fromEnv && fromEnv.length > 0) {
-    cachedToken = fromEnv;
-    return cachedToken;
-  }
-  try {
-    const res = await smClient.send(
-      new GetSecretValueCommand({ SecretId: 'rlsir/armls/tokens' }),
-    );
-    if (!res.SecretString) return null;
-    const secret = JSON.parse(res.SecretString) as { access_token?: string };
-    if (secret.access_token) {
-      cachedToken = secret.access_token;
-      return cachedToken;
-    }
-    return null;
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[spark/client] SM read failed:', err);
-    return null;
-  }
+function getSparkToken(): string | undefined {
+  return process.env.SPARK_ACCESS_TOKEN;
 }
 
 export class SparkConfigError extends Error {
@@ -102,11 +68,12 @@ async function fetchPage(pageUrl: string): Promise<{
   records: SparkProperty[];
   nextPageUrl: string | null;
 }> {
-  const token = await getSparkToken();
+  const token = getSparkToken();
   if (!token) {
     throw new SparkConfigError(
-      'Spark token unavailable — Secrets Manager read failed and ' +
-        'SPARK_ACCESS_TOKEN env not set. See [spark/client] log above.',
+      'SPARK_ACCESS_TOKEN is not set on Amplify branch env. The build ' +
+        'phase syncs it from Secrets Manager — check the build log for ' +
+        '"[spark-token] branch env synced".',
     );
   }
 

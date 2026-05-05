@@ -24,14 +24,33 @@ applications:
             - npm ci
         build:
           commands:
-            # Amplify Hosting Next.js Compute does NOT pass app/branch
-            # env vars to the SSR runtime — they're build-time only
-            # (verified via /api/diag/env: 0 of our custom vars visible).
-            # Workaround: bake them into .env.production.local before
-            # `next build`. Next.js inlines server-side env vars into
-            # the server bundle (NEXT_PUBLIC_ ones go to the client
-            # bundle). Vars without NEXT_PUBLIC_ stay server-only.
+            # ── Step 1 — resolve Spark token (Amplify branch env wins,
+            # else read from SM rlsir/armls/tokens). Write to /tmp so
+            # subsequent commands can re-read it. Single source of
+            # truth = Secrets Manager. ──────────────────────────────
             - |
+              if [ -n "${SPARK_ACCESS_TOKEN:-}" ]; then
+                echo "[spark-token] using branch env (${#SPARK_ACCESS_TOKEN} bytes)" >&2
+                printf '%s' "$SPARK_ACCESS_TOKEN" > /tmp/spark_token
+              else
+                echo "[spark-token] reading from SM rlsir/armls/tokens..." >&2
+                SM_JSON=$(aws secretsmanager get-secret-value \
+                  --secret-id rlsir/armls/tokens \
+                  --region us-east-1 \
+                  --query SecretString --output text 2>&1)
+                if [ $? -eq 0 ]; then
+                  printf '%s' "$SM_JSON" | python3 -c "import sys, json; sys.stdout.write(json.load(sys.stdin).get('access_token', ''))" > /tmp/spark_token
+                  echo "[spark-token] SM read OK ($(wc -c < /tmp/spark_token) bytes)" >&2
+                else
+                  echo "[spark-token] SM read FAILED: ${SM_JSON:0:200}" >&2
+                  : > /tmp/spark_token
+                fi
+              fi
+            # ── Step 2 — bake build-time env file (NEXT_PUBLIC_* +
+            # build-time-only vars). Server runtime reads from Amplify
+            # branch env, populated in step 3 below. ───────────────
+            - |
+              SPARK_ACCESS_TOKEN=$(cat /tmp/spark_token 2>/dev/null || echo "")
               {
                 printf 'RDS_DATABASE_URL=%s\n' "${RDS_DATABASE_URL:-}"
                 printf 'NEXT_PUBLIC_SITE_URL=%s\n' "${NEXT_PUBLIC_SITE_URL:-https://feature-yong2-amplify.d2tuygdje4mmy3.amplifyapp.com}"
@@ -42,50 +61,47 @@ applications:
                 printf 'RESEND_API_KEY=%s\n' "${RESEND_API_KEY:-}"
                 printf 'CONTACT_TO_EMAIL=%s\n' "${CONTACT_TO_EMAIL:-}"
                 printf 'CONTACT_FROM_EMAIL=%s\n' "${CONTACT_FROM_EMAIL:-}"
-                # Spark API — listings come live from Spark per-request.
-                # Token comes from AWS Secrets Manager (`rlsir/armls/tokens`)
-                # via the Amplify build runner's IAM role — same source
-                # the rlsir-armls-sync + rlsir-active-snapshot Lambdas use.
-                # Branch-level SPARK_ACCESS_TOKEN env wins if set (escape
-                # hatch); otherwise we resolve from SM at build time.
-                # SPARK_LIST_AGENT_KEY = Yong's ARMLS member ID (preferred
-                # exact-match filter); SPARK_LIST_AGENT_NAME = name
-                # substring fallback (default 'Yong Choi').
-                if [ -z "${SPARK_ACCESS_TOKEN:-}" ]; then
-                  # Show what role/identity the build runner has —
-                  # tells us whether AmplifySSRServiceRole's inline
-                  # policy is actually in effect here.
-                  echo "[spark-token] caller-identity:" >&2
-                  aws sts get-caller-identity --output text >&2 2>&1 || echo "[spark-token] caller-identity failed" >&2
-                  echo "[spark-token] attempting SM read from rlsir/armls/tokens..." >&2
-                  SM_JSON=$(aws secretsmanager get-secret-value \
-                    --secret-id rlsir/armls/tokens \
-                    --region us-east-1 \
-                    --query SecretString --output text 2>&1)
-                  SM_RC=$?
-                  if [ $SM_RC -ne 0 ]; then
-                    echo "[spark-token] SM read failed (rc=$SM_RC): ${SM_JSON:0:200}" >&2
-                    SPARK_ACCESS_TOKEN=""
-                  else
-                    SPARK_ACCESS_TOKEN=$(printf '%s' "$SM_JSON" | python3 -c "import sys, json; print(json.load(sys.stdin).get('access_token', ''))" 2>&1) || SPARK_ACCESS_TOKEN=""
-                    echo "[spark-token] SM read OK, token bytes: ${#SPARK_ACCESS_TOKEN}" >&2
-                  fi
-                fi
-                # Single-quote the value so Next.js's dotenv-expand
-                # treats it literally — opaque tokens often contain `$`
-                # which gets interpreted as variable expansion (silently
-                # returning empty) without quoting. Confirmed via build
-                # #54: file write was fine (45 bytes of SPARK_ACCESS_TOKEN=
-                # line, all 10 env keys present) but runtime saw empty.
                 printf "SPARK_ACCESS_TOKEN='%s'\n" "${SPARK_ACCESS_TOKEN:-}"
               } > .env.production.local
-            # Sanity check: confirm the DSN made it into the file (no
-            # value leak — just checks length).
+            # ── Step 3 — sync the resolved token into Amplify branch
+            # env so the SSR runtime can read it. (Runtime can't read
+            # .env.production.local server vars on Amplify Compute, and
+            # can't call SM at request time because the runtime has no
+            # AWS SDK credentials.) Merges with existing branch env to
+            # avoid wiping anything else. ──────────────────────────
+            - |
+              SPARK_ACCESS_TOKEN=$(cat /tmp/spark_token 2>/dev/null || echo "")
+              export SPARK_ACCESS_TOKEN
+              if [ -n "$SPARK_ACCESS_TOKEN" ]; then
+                python3 - "$AWS_APP_ID" "$AWS_BRANCH" <<'PY' > /tmp/branch_env.json
+              import sys, os, json, subprocess
+              app_id, branch = sys.argv[1], sys.argv[2]
+              token = os.environ.get('SPARK_ACCESS_TOKEN', '')
+              res = subprocess.run(
+                  ['aws', 'amplify', 'get-branch',
+                   '--app-id', app_id, '--branch-name', branch,
+                   '--region', 'us-east-1',
+                   '--query', 'branch.environmentVariables',
+                   '--output', 'json'],
+                  capture_output=True, text=True, check=True)
+              env = json.loads(res.stdout) or {}
+              env['SPARK_ACCESS_TOKEN'] = token
+              print(json.dumps(env))
+              PY
+                if aws amplify update-branch \
+                  --app-id "$AWS_APP_ID" --branch-name "$AWS_BRANCH" \
+                  --region us-east-1 \
+                  --environment-variables "file:///tmp/branch_env.json" >/tmp/ub.out 2>&1; then
+                  echo "[spark-token] branch env synced" >&2
+                else
+                  echo "[spark-token] update-branch FAILED:" >&2
+                  cat /tmp/ub.out >&2
+                fi
+              else
+                echo "[spark-token] empty token, skipping branch env sync" >&2
+              fi
+            # ── Sanity diagnostics ────────────────────────────────
             - 'echo "DSN bytes baked: $(grep ^RDS_DATABASE_URL= .env.production.local | wc -c)"'
-            # Same for the Spark token. If this prints 0, the token line
-            # never reached the .env file. If it prints >0 but runtime
-            # still sees empty, the value contains a newline / special
-            # char that breaks .env parsing.
             - 'echo "Spark token line bytes: $(grep ^SPARK_ACCESS_TOKEN= .env.production.local | wc -c)"'
             - 'echo "Total .env lines: $(wc -l < .env.production.local)"'
             - 'echo "Env var keys: $(grep -oE "^[A-Z_]+=" .env.production.local | tr "\n" " ")"'
