@@ -955,6 +955,58 @@ export async function getReport(slug: string): Promise<MarketReport | null> {
   return promise;
 }
 
+/**
+ * Lite version of getReport — fetches only what the /market-reports
+ * INDEX page actually consumes: headlineStats (2x2), trend (chart +
+ * qoqBlock), and medians (bigMover/tierAverage/spread snapshots).
+ *
+ * Skips volume/supplyDemand/inventoryAge — only the detail page reads
+ * those. Cuts ~6 fetchers to 3, fits inside Lambda's ~30s timeout on
+ * a cold start where the full getReport() would 504.
+ */
+export async function getReportForIndex(slug: string): Promise<MarketReport | null> {
+  const copy = MARKET_REPORT_COPY.find((c) => c.slug === slug);
+  if (!copy) return null;
+  const parsed = parseQuarterSlug(slug);
+  if (!parsed) return null;
+
+  const [trendResult, mediansResult, headlineStats] = await Promise.all([
+    buildTrend(parsed.year, parsed.quarter),
+    buildMedians(),
+    buildHeadlineStats(parsed.year, parsed.quarter),
+  ]);
+
+  const allStats = [...headlineStats, ...(copy.editorialStats ?? [])].slice(0, 6);
+
+  return {
+    slug: copy.slug,
+    quarter: copy.quarter,
+    title: copy.title,
+    subtitle: copy.subtitle,
+    datePublished: copy.datePublished,
+    summary: copy.summary,
+    headlineStats: allStats,
+    observations: copy.observations,
+    neighborhoodNotes: copy.neighborhoodNotes,
+    outlook: copy.outlook,
+    charts: {
+      trend: trendResult.points,
+      // Stub volume — only the snapshot's first 3 blocks (medians/trend
+      // sourced) are shown on the index, so volume can be empty here.
+      volume: [],
+      medians: mediansResult.bars,
+      // Same — supplyDemand only renders on the detail page.
+      supplyDemand: [],
+    },
+    coverage: {
+      trend: trendResult.coverage,
+      medians: mediansResult.coverage,
+    },
+    pdfUrl: copy.pdfUrl,
+    coverImage: copy.coverImage,
+  };
+}
+
 export async function getReports(): Promise<MarketReport[]> {
   const slugs = MARKET_REPORT_COPY.map((c) => c.slug);
   // Run sequentially to avoid pool exhaustion. Pool is max=5 and each

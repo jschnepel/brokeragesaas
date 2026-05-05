@@ -7,7 +7,7 @@ import { Footer } from '@/components/chrome/Footer';
 import { PageHero } from '@/components/shared/PageHero';
 import { TrendChartBlock } from '@/components/charts/ReportCharts';
 import { buildReportNarrative } from '@/lib/narrative';
-import { getReport } from '@/lib/market-reports';
+import { getReportForIndex } from '@/lib/market-reports';
 import { MARKET_REPORT_COPY } from '@/content/market-reports';
 import { siteUrl } from '@/lib/seo';
 
@@ -32,7 +32,7 @@ export default async function MarketReportsPage() {
   // timeout. Earlier `getReports()` design timed out the page (504).
   const [latestCopy, ...restCopy] = MARKET_REPORT_COPY;
   const latest = latestCopy
-    ? await getReport(latestCopy.slug).catch(() => null)
+    ? await getReportForIndex(latestCopy.slug).catch(() => null)
     : null;
   const rest = restCopy;
   const latestNarrative = latest ? buildReportNarrative(latest) : null;
