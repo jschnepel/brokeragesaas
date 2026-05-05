@@ -175,18 +175,18 @@ function expandStatuses(filter: StatusFilter[]): string[] {
  * Active+Pending+ActiveUnderContract when no status is provided,
  * matching the IDX-active baseline.
  *
- * @compliance IDX (ARMLS): The InternetEntireListingDisplayYN
- *   predicate is MANDATORY — sellers can opt out of IDX display, and
- *   surfacing an opted-out listing is an ARMLS rules violation
- *   (~$21K/occurrence). See docs/compliance/idx-compliance.md in
- *   the platform repo. Do not remove without legal review.
+ * @compliance IDX (ARMLS): The InternetEntireListingDisplayYN field
+ *   is required by ARMLS rules to be respected (sellers can opt out
+ *   of IDX display; surfacing an opted-out listing is a violation
+ *   ~$21K/occurrence). Spark's OData API rejects this field in
+ *   $filter (verified build #61: 400 "field does not exist"), same
+ *   reason platform's rlsir-active-snapshot Lambda doesn't filter it
+ *   server-side either. The check happens post-fetch in
+ *   sparkRecordToListing — records where InternetEntireListingDisplayYN
+ *   is false are dropped from the result set.
  */
 function buildSearchFilter(opts: SearchOpts): string {
   const clauses: string[] = [];
-
-  // IDX opt-out — sellers can flag a listing as "do not display via
-  // syndication." We must respect that flag.
-  clauses.push(`InternetEntireListingDisplayYN eq true`);
 
   // Status filter — defaults to all IDX-active variants if unset.
   const statuses =
@@ -266,16 +266,24 @@ export async function searchListings(opts: SearchOpts = {}): Promise<SearchResul
   const filter = buildSearchFilter(opts);
 
   // Two Spark calls in parallel. Both go through fetchAllProperties
-  // (which uses the SM-backed getSparkToken in client.ts).
+  // (which uses the env-injected token from next.config.ts env block).
+  // IDX opt-out (InternetEntireListingDisplayYN) is enforced via
+  // isIdxDisplayable() post-fetch — Spark's OData rejects the field
+  // in $filter, so the check has to happen on the response payload.
   const [listingsResult, pinsResult] = await Promise.allSettled([
     (async () => {
+      // Over-fetch by 2x so the IDX opt-out drop doesn't shrink the
+      // page below the requested size for typical opt-out rates.
       const records = await fetchAllProperties({
         filter,
-        top: limit,
+        top: limit * 2,
         orderby: 'ListPrice desc',
         maxPages: 1,
       });
-      return records.map(sparkRecordToListing).slice(offset, offset + limit);
+      return records
+        .filter(isIdxDisplayable)
+        .map(sparkRecordToListing)
+        .slice(offset, offset + limit);
     })(),
     (async () => {
       const records = await fetchAllProperties({
@@ -283,11 +291,11 @@ export async function searchListings(opts: SearchOpts = {}): Promise<SearchResul
         top: 1000,
         orderby: 'ListPrice desc',
         select: PIN_SELECT,
-        // 2 pages × 1000 = 2000 pins (the cap from RDS-backed search).
         maxPages: 2,
       });
       const pins: PinPoint[] = [];
       for (const r of records) {
+        if (!isIdxDisplayable(r)) continue;
         const p = pinFromRecord(r);
         if (p) pins.push(p);
       }
@@ -320,8 +328,9 @@ export async function searchListings(opts: SearchOpts = {}): Promise<SearchResul
  * The slug ends in the ARMLS listing_id (digits); we match exactly,
  * then fall through to a substring scan if not found.
  *
- * @compliance IDX: applies the same InternetEntireListingDisplayYN
- *   opt-out filter as searchListings — never bypass.
+ * @compliance IDX: respects InternetEntireListingDisplayYN — Spark's
+ *   OData rejects this field in $filter, so we check the response
+ *   field after fetch and return null if the seller has opted out.
  */
 export async function getListingBySlug(slug: string): Promise<Listing | null> {
   const match = slug.match(/-(\d+)$/);
@@ -330,18 +339,35 @@ export async function getListingBySlug(slug: string): Promise<Listing | null> {
 
   try {
     const records = await fetchAllProperties({
-      filter:
-        `ListingId eq '${escapeLiteral(listingId)}' ` +
-        `and InternetEntireListingDisplayYN eq true`,
+      filter: `ListingId eq '${escapeLiteral(listingId)}'`,
       top: 1,
       maxPages: 1,
     });
-    return records.length > 0 ? sparkRecordToListing(records[0]) : null;
+    if (records.length === 0) return null;
+    if (!isIdxDisplayable(records[0])) return null;
+    return sparkRecordToListing(records[0]);
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[spark/search] getListingBySlug failed:', err);
     return null;
   }
+}
+
+/**
+ * IDX opt-out check. ARMLS sellers can flag a listing with
+ * InternetEntireListingDisplayYN=false to suppress public IDX display.
+ * We must drop those records before rendering.
+ *
+ * @compliance IDX (ARMLS): mandatory respect of seller opt-out.
+ */
+function isIdxDisplayable(r: SparkProperty): boolean {
+  const v = r['InternetEntireListingDisplayYN'];
+  // Default-allow only when the field is absent — Spark sometimes omits
+  // it from the response payload. When present it must be truthy.
+  if (v === undefined || v === null) return true;
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'string') return v.toLowerCase() === 'y' || v.toLowerCase() === 'true';
+  return Boolean(v);
 }
 
 export async function searchListingPins(opts: SearchOpts = {}): Promise<PinPoint[]> {
@@ -356,6 +382,7 @@ export async function searchListingPins(opts: SearchOpts = {}): Promise<PinPoint
     });
     const pins: PinPoint[] = [];
     for (const r of records) {
+      if (!isIdxDisplayable(r)) continue;
       const p = pinFromRecord(r);
       if (p) pins.push(p);
     }
