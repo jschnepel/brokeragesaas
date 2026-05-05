@@ -5,9 +5,6 @@ import { siteContent } from '@/content/site';
 import { Navigation } from '@/components/chrome/Navigation';
 import { Footer } from '@/components/chrome/Footer';
 import { PageHero } from '@/components/shared/PageHero';
-import { TrendChartBlock } from '@/components/charts/ReportCharts';
-import { buildReportNarrative } from '@/lib/narrative';
-import { getReportForIndex } from '@/lib/market-reports';
 import { MARKET_REPORT_COPY } from '@/content/market-reports';
 import { siteUrl } from '@/lib/seo';
 
@@ -17,25 +14,15 @@ export const metadata: Metadata = {
   alternates: { canonical: siteUrl('/market-reports') },
 };
 
-// Per-request render — Amplify build timeout (60s) trips when this
-// page is prerendered against RDS. Data is already hot from MVs, so
-// rendering on demand is fine. Match /communities/[slug] + /market-
-// reports/[slug] which are both force-dynamic for the same reason.
-export const dynamic = 'force-dynamic';
+// Index page is intentionally DB-free — see reference_yong2_amplify.md.
+// Even one report's worth of fetchers (3+ parallel queries) trips the
+// Lambda timeout on cold start. Index renders entirely from the
+// editorial copy layer; the live charts + headline stats + automated
+// snapshot all live on the per-report detail pages where they belong.
+// Static-rendered for instant TTFB.
 
-export default async function MarketReportsPage() {
-  // Only the latest report needs full DB-backed data (charts, headline
-  // stats, narrative). The archive cards below render copy-only fields
-  // (slug/quarter/coverImage/title/summary) which all live in the
-  // editorial layer — no DB needed. Cuts page-render queries from ~36
-  // (4 reports × 9 each, serial) to ~9, comfortably inside Lambda
-  // timeout. Earlier `getReports()` design timed out the page (504).
-  const [latestCopy, ...restCopy] = MARKET_REPORT_COPY;
-  const latest = latestCopy
-    ? await getReportForIndex(latestCopy.slug).catch(() => null)
-    : null;
-  const rest = restCopy;
-  const latestNarrative = latest ? buildReportNarrative(latest) : null;
+export default function MarketReportsPage() {
+  const [latest, ...rest] = MARKET_REPORT_COPY;
 
   return (
     <>
@@ -70,7 +57,8 @@ export default async function MarketReportsPage() {
           </div>
         </section>
 
-        {/* Featured latest report */}
+        {/* Featured latest report — copy-only feature panel.
+         *  Live charts + computed headline stats live on the detail page. */}
         {latest && (
           <section className="py-20 md:py-28 px-6 md:px-12 lg:px-20">
             <div className="max-w-[1400px] mx-auto">
@@ -125,26 +113,27 @@ export default async function MarketReportsPage() {
                     {latest.summary}
                   </p>
 
-                  {/* Headline stats — moved inside the right panel,
-                   * 2x2 grid sitting above the CTA where the eye lands. */}
-                  <div className="mt-10 pt-8 border-t border-[color:var(--hairline)] max-w-md">
-                    <p className="caps text-[10px] text-stone/55 mb-6">Headline stats</p>
-                    <dl className="grid grid-cols-2 gap-x-8 gap-y-7">
-                      {latest.headlineStats.slice(0, 4).map((s) => (
-                        <div key={s.label}>
-                          <dt className="caps text-[10px]" style={{ color: 'var(--mute)' }}>
-                            {s.label}
-                          </dt>
-                          <dd
-                            className="mt-2.5 font-serif text-stone tabular-nums leading-none tracking-[-0.015em]"
-                            style={{ fontSize: 'clamp(28px, 3vw, 38px)' }}
-                          >
-                            {s.value}
-                          </dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </div>
+                  {/* What's inside — observation preview pulled from copy.
+                   *  Lives in place of the live stats grid (which moved
+                   *  entirely to the detail page). Three short bullets give
+                   *  a meaningful taste of the report without a DB call. */}
+                  {latest.observations.length > 0 && (
+                    <div className="mt-10 pt-8 border-t border-[color:var(--hairline)] max-w-md">
+                      <p className="caps text-[10px] text-stone/55 mb-6">What&rsquo;s inside</p>
+                      <ul className="space-y-4">
+                        {latest.observations.slice(0, 3).map((obs, i) => (
+                          <li key={i} className="flex gap-4">
+                            <span className="caps text-[10px] tracking-[0.32em] text-gold/70 tabular-nums shrink-0 mt-1">
+                              {String(i + 1).padStart(2, '0')}
+                            </span>
+                            <span className="text-sm md:text-[15px] text-stone/85 leading-relaxed">
+                              {obs}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   <div className="mt-10 inline-flex items-center gap-3 caps text-stone group-hover:text-gold transition-colors">
                     Read the full report
@@ -152,46 +141,6 @@ export default async function MarketReportsPage() {
                   </div>
                 </div>
               </Link>
-
-              {/* Auto-generated snapshot preview + trend chart */}
-              {latest.charts && (
-                <div className="mt-16 md:mt-24 pt-12 md:pt-16 border-t border-[color:var(--hairline)]">
-                  {latestNarrative && latestNarrative.snapshot.length > 0 && (
-                    <div className="mb-14 md:mb-20">
-                      <p className="caps">Automated read · three key findings</p>
-                      <ul className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-x-10 gap-y-10">
-                        {latestNarrative.snapshot.slice(0, 3).map((b, i) => (
-                          <li key={i} className="border-t border-[color:var(--hairline)] pt-6">
-                            <p className="caps text-[10px] tracking-[0.32em] text-stone/70">
-                              {String(i + 1).padStart(2, '0')} — {b.label.toUpperCase()}
-                            </p>
-                            <p className="mt-5 text-base text-stone leading-relaxed">
-                              {b.headline}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  <p className="caps">At a glance</p>
-                  <p className="font-serif italic text-stone/85 text-lg md:text-xl mt-4 leading-snug max-w-xl">
-                    Median price per square foot, last eight quarters.
-                  </p>
-                  <div className="mt-10">
-                    <TrendChartBlock report={latest} />
-                  </div>
-                  <div className="mt-8">
-                    <Link
-                      href={`/market-reports/${latest.slug}`}
-                      className="inline-flex items-center gap-3 caps text-stone hover:text-gold transition-colors"
-                    >
-                      See the full breakdown
-                      <span className="block h-px w-10 bg-current transition-all hover:w-16" />
-                    </Link>
-                  </div>
-                </div>
-              )}
             </div>
           </section>
         )}
@@ -244,9 +193,6 @@ export default async function MarketReportsPage() {
                           <p className="caps text-[9px]">{r.quarter}</p>
                         </div>
                       </div>
-                      {/* Quarter eyebrow under image — gives the title its
-                       * focal weight and adds a hover-gold hairline that ties
-                       * the card to the rest of the gold accent system. */}
                       <div className="border-t border-transparent group-hover:border-gold/40 transition-colors duration-300 pt-5 mt-5">
                         <p className="caps text-[10px] tracking-[0.32em] text-stone/55 mb-3">
                           {r.quarter}
