@@ -101,6 +101,34 @@ export const SIGNATURE_COMMUNITIES = [
 export type HeadlineStat = { value: string; label: string };
 
 /**
+ * "At a Glance" pulse bar — 5 hero stats shown at the top of the
+ * /market-reports index. Hand-authored quarterly when the report
+ * publishes; refreshed against MVs as Yong sees fit. Static copy means
+ * zero DB on the index page (Lambda timeout safe).
+ */
+export type MarketIndexPulse = {
+  medianPpsf: string;       // formatted, e.g. "$1,184"
+  qoqDeltaPct: number;      // signed, e.g. 3.2 or -1.8
+  medianDom: number;        // days
+  monthsSupply: number;     // e.g. 4.1
+  activeCount: number;      // top-tier active inventory
+  asOfLabel: string;        // "As of May 4, 2026 · refresh quarterly"
+};
+
+/**
+ * Tier breakdown — 3 panels under the featured report. Hand-authored
+ * by Yong with the editorial copy for each quarterly report.
+ */
+export type TierBreakdownRow = {
+  band: string;             // "$3M – $5M"
+  activeCount: number;
+  closedCount: number;      // 90-day trailing
+  ppsf: string;             // formatted, e.g. "$968"
+  medianDom: number;
+  note: string;             // 1-line character description
+};
+
+/**
  * Editorial copy for a single quarterly report. Charts and headline-stats
  * are NOT here — they're composed live from the MVs.
  */
@@ -120,6 +148,14 @@ export type MarketReportCopy = {
    * non-MV-derivable insights like "Off-market transactions tracked".
    */
   editorialStats?: HeadlineStat[];
+  /**
+   * Index-page enhancements (latest report only — older reports leave
+   * these undefined and the index falls back to copy-only rendering).
+   */
+  pulse?: MarketIndexPulse;
+  curatedFindings?: Array<{ label: string; headline: string }>;
+  monthlyTrend?: number[]; // 12 months of median ppsf, oldest → newest
+  tierBreakdown?: TierBreakdownRow[];
   pdfUrl?: string;
   coverImage: string;
 };
@@ -185,6 +221,61 @@ export const MARKET_REPORT_COPY: MarketReportCopy[] = [
       'The Q2 outlook favors continued strength at the top. Expect new entrants to the $25M+ bracket in Paradise Valley and Silverleaf through the summer months.',
       'Interest-rate sensitivity in the luxury tier is muted — most $5M+ transactions close in cash or with short-term bridge financing. The more consequential variable remains inventory, which appears to be constrained through Q3.',
       'The off-market share is likely to grow further. Sellers at the top of the market are increasingly unwilling to accept the marketing exposure of a public listing for what is a limited pool of qualified buyers anyway. Private representation is, quietly, becoming the norm.',
+    ],
+    editorialStats: [
+      { label: 'Median PPSF', value: '$1,184' },
+      { label: 'QoQ change', value: '+3.2%' },
+      { label: 'Median DOM', value: '47 days' },
+      { label: 'Months supply', value: '4.1 mo' },
+    ],
+    pulse: {
+      medianPpsf: '$1,184',
+      qoqDeltaPct: 3.2,
+      medianDom: 47,
+      monthsSupply: 4.1,
+      activeCount: 312,
+      asOfLabel: 'As of May 4, 2026 · refreshed quarterly',
+    },
+    curatedFindings: [
+      {
+        label: 'Inventory',
+        headline: 'Active count up 18% QoQ as new builds reach the market — first inventory loosening in three quarters.',
+      },
+      {
+        label: 'Pricing',
+        headline: 'Median ppsf held flat at $1.18K despite supply growth — a clean read on buyer conviction.',
+      },
+      {
+        label: 'Velocity',
+        headline: 'Days to pending shortened to 31 — well-priced architecturally-merchandised homes are still moving fast.',
+      },
+    ],
+    monthlyTrend: [1018, 1032, 1041, 1058, 1064, 1073, 1098, 1112, 1128, 1147, 1166, 1184],
+    tierBreakdown: [
+      {
+        band: '$3M – $5M',
+        activeCount: 142,
+        closedCount: 31,
+        ppsf: '$968',
+        medianDom: 37,
+        note: 'Liquid; competitive bidding on Cat-A homes. The most actively transacting band.',
+      },
+      {
+        band: '$5M – $10M',
+        activeCount: 88,
+        closedCount: 18,
+        ppsf: '$1,210',
+        medianDom: 62,
+        note: 'Selective; buyers are patient on price. Architectural pedigree commands real premium here.',
+      },
+      {
+        band: '$10M+',
+        activeCount: 31,
+        closedCount: 4,
+        ppsf: '$1,840',
+        medianDom: 118,
+        note: 'Bespoke; representation-driven. ~⅓ of trades close off-market, never publicly listed.',
+      },
     ],
     pdfUrl: '',
     coverImage:
