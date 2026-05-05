@@ -8,7 +8,10 @@ import { getCuratedCommunities, getAllCommunityScorecards } from '@/lib/communit
 import { communitiesContent, communitySlugs } from '@/content/communities';
 import { siteUrl } from '@/lib/seo';
 
-export const revalidate = 3600;
+// Per-request render — Amplify build budget (60s) trips when this
+// page is prerendered against RDS. Match /communities/[slug] +
+// /market-reports/* which are all force-dynamic for the same reason.
+export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'The Communities',
   description: "The enclaves Yong Choi represents across the Phoenix Metro.",
