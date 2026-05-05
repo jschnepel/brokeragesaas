@@ -61,7 +61,13 @@ applications:
                 printf 'RESEND_API_KEY=%s\n' "${RESEND_API_KEY:-}"
                 printf 'CONTACT_TO_EMAIL=%s\n' "${CONTACT_TO_EMAIL:-}"
                 printf 'CONTACT_FROM_EMAIL=%s\n' "${CONTACT_FROM_EMAIL:-}"
-                printf "SPARK_ACCESS_TOKEN='%s'\n" "${SPARK_ACCESS_TOKEN:-}"
+                # Write unquoted — Next.js's @next/env dotenv parser
+                # was silently dropping the line when wrapped in single
+                # quotes (build #59 confirmed via /api/diag/env that RDS
+                # was inlined but SPARK_ACCESS_TOKEN was not). Token is
+                # opaque alphanumeric per byte inspection (no $ or #),
+                # so unquoted is safe.
+                printf 'SPARK_ACCESS_TOKEN=%s\n' "${SPARK_ACCESS_TOKEN:-}"
               } > .env.production.local
             # ── Step 3 — sync the resolved token into Amplify branch
             # env so the SSR runtime can read it. (Runtime can't read
