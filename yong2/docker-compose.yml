@@ -12,6 +12,10 @@ services:
       - ./:/app
       - /app/node_modules
       - /app/.next
+      # Read-only host AWS credentials so the SDK auto-discovers them in
+      # dev (mart S3 reads). Production runs on Amplify SSR with an IAM
+      # role — no creds file needed there.
+      - ${USERPROFILE:-${HOME}}/.aws:/root/.aws:ro
     env_file:
       - path: .env.local
         required: false
@@ -20,4 +24,6 @@ services:
       - NEXT_TELEMETRY_DISABLED=1
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=true
+      - AWS_REGION=us-east-1
+      - AWS_SDK_LOAD_CONFIG=1
     restart: unless-stopped
