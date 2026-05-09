@@ -1,4 +1,6 @@
-{{ config(materialized=('external' if target.name == 'prod' else 'table')) }}
+{# In prod, materialize as table — the 5 derived `fct_negotiation_<scope>`
+   models split this on scope_type for sub-100ms cold fetches. #}
+{{ config(materialized='table') }}
 
 -- Monthly negotiation metrics × scope_type × property_segment.
 -- close_to_list ratio (legacy) + close_to_original ratio (true negotiation strength).

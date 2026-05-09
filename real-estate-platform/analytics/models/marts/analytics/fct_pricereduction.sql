@@ -1,4 +1,6 @@
-{{ config(materialized=('external' if target.name == 'prod' else 'table')) }}
+{# In prod, materialize as table — the 5 derived `fct_pricereduction_<scope>`
+   models split this on scope_type for sub-100ms cold fetches. #}
+{{ config(materialized='table') }}
 
 -- Monthly price-reduction metrics × scope_type × property_segment × price_band.
 
