@@ -68,7 +68,13 @@ export async function GET(req: NextRequest) {
             ? filtered.map((r) => isoMonth(r.month)).sort().slice(-1)[0]
             : null,
         },
-        { status: 404 },
+        {
+          status: 404,
+          // 404 also cacheable — same input, same answer until next dbt run.
+          headers: {
+            'Cache-Control': 'public, max-age=60, s-maxage=3600, stale-while-revalidate=86400',
+          },
+        },
       );
     }
     // Serialize Date columns to ISO strings; hyparquet returns Decimals as BigInt.
@@ -78,15 +84,27 @@ export async function GET(req: NextRequest) {
       else if (typeof v === 'bigint') serializable[k] = Number(v);
       else serializable[k] = v;
     }
-    return NextResponse.json({
-      query: { scope_type, scope_key, segment, month },
-      data: serializable,
-      meta: { rows_in_mart: rows.length, rows_in_scope: filtered.length },
-    });
+    // Explicit Cache-Control so Amplify's CDN edge-caches the JSON response.
+    // s-maxage=3600 → CDN stores 1h. stale-while-revalidate=86400 → CDN can
+    // serve stale for up to 24h while it re-fetches in the background, so
+    // even the dbt refresh window stays sub-100ms TTFB for users.
+    return NextResponse.json(
+      {
+        query: { scope_type, scope_key, segment, month },
+        data: serializable,
+        meta: { rows_in_mart: rows.length, rows_in_scope: filtered.length },
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, max-age=60, s-maxage=3600, stale-while-revalidate=86400',
+          'CDN-Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+        },
+      },
+    );
   } catch (err) {
     return NextResponse.json(
       { error: 'server error', message: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } },
     );
   }
 }
