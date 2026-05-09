@@ -27,11 +27,18 @@ const CDN_BASE =
   process.env.NEXT_PUBLIC_MARTS_CDN_BASE
   ?? 'https://d12v6de1xwcjhk.cloudfront.net';
 
+const TTL_MS = 60 * 60 * 1000; // 1h — matches dbt schedule
+
+// In-process row cache. Next.js fetch cache handles BYTES; this caches
+// the DECODED rows so we don't re-parse the parquet on every request.
+// On Amplify SSR, ISR `revalidate` doesn't reliably persist across
+// invocations, so we keep our own per-Lambda-instance map.
+const rowCache = new Map<string, { rows: unknown[]; fetchedAt: number }>();
+
 async function fetchParquetBuffer(martName: string): Promise<ArrayBuffer> {
   const url = `${CDN_BASE}/${martName}.parquet`;
-  // `next: { revalidate }` lets Next.js's data cache layer dedupe + edge-cache
-  // the bytes for 1h. Combined with CloudFront, we get effectively two cache
-  // tiers: edge bytes (CloudFront) + decoded rows (Next data cache).
+  // `next: { revalidate }` lets Next.js's data cache layer dedupe the bytes
+  // for 1h within a single Lambda lifecycle.
   const res = await fetch(url, { next: { revalidate: 3600 } });
   if (!res.ok) {
     throw new Error(`mart fetch failed: ${url} → HTTP ${res.status}`);
@@ -42,8 +49,13 @@ async function fetchParquetBuffer(martName: string): Promise<ArrayBuffer> {
 export async function readMart<T = Record<string, unknown>>(
   martName: string,
 ): Promise<T[]> {
+  const hit = rowCache.get(martName);
+  if (hit && Date.now() - hit.fetchedAt < TTL_MS) {
+    return hit.rows as T[];
+  }
   const buf = await fetchParquetBuffer(martName);
   const rows = (await parquetReadObjects({ file: buf, compressors })) as T[];
+  rowCache.set(martName, { rows, fetchedAt: Date.now() });
   return rows;
 }
 
