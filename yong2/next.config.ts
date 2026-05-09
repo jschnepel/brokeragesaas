@@ -42,7 +42,12 @@ const nextConfig: NextConfig = {
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
-  serverExternalPackages: ['pg'],
+  // pg: native binary deps; aws-sdk + hyparquet: large module trees that
+  // Turbopack tries to inline-hash, then fails to ship the resolved file
+  // into the Amplify SSR Lambda (build #68 verified the failure: "Cannot
+  // find module '@aws-sdk/client-s3-57f25c9af355c604'"). Marking external
+  // lets node resolve them from node_modules at runtime instead.
+  serverExternalPackages: ['pg', '@aws-sdk/client-s3', 'hyparquet', 'hyparquet-compressors'],
   // PostHog reverse proxy — first-party path `/ingest/*` proxies to PostHog
   // Cloud (us region). Ad blockers that strip `posthog.com` requests don't
   // touch first-party paths, so we recover the ~10–30% of visitors who'd
