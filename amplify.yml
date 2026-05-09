@@ -117,13 +117,20 @@ applications:
             # first real user pays edge-cache latency, not S3 latency.
             # Non-fatal — runtime still works if any of these miss. ───
             - |
+              # Prewarm small/medium files first (fast); then community
+              # (~85MB) + subdivision (~121MB) so CloudFront caches them
+              # and SSR Lambda gets edge-fetched bytes instead of S3-cold.
               for f in fct_market_pulse_metro fct_market_pulse_region fct_market_pulse_zipcode \
+                       fct_market_pulse_community fct_market_pulse_subdivision \
                        fct_negotiation_metro fct_negotiation_region fct_negotiation_zipcode \
+                       fct_negotiation_community fct_negotiation_subdivision \
                        fct_pricereduction_metro fct_pricereduction_region fct_pricereduction_zipcode \
+                       fct_pricereduction_community fct_pricereduction_subdivision \
                        fct_active_inventory fct_active_dom_distribution fct_active_by_pricetier \
                        fct_listing_pace fct_status_velocity fct_months_of_supply; do
-                code=$(curl -s -o /dev/null -w "%{http_code}" "https://d12v6de1xwcjhk.cloudfront.net/${f}.parquet" || echo "ERR")
-                echo "[prewarm] ${f}: ${code}" >&2
+                start=$(date +%s)
+                code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "https://d12v6de1xwcjhk.cloudfront.net/${f}.parquet" || echo "ERR")
+                echo "[prewarm] ${f}: ${code} ($(( $(date +%s) - start ))s)" >&2
               done
       artifacts:
         baseDirectory: .next
