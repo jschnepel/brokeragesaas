@@ -11,7 +11,10 @@
 
 import { filterScope, readMartByScope, type MarketPulseRow, type ScopeType } from '@/lib/marts';
 
-export const dynamic = 'force-dynamic';
+// 1h ISR — Next.js builds this page once per dbt cycle, serves the
+// HTML from edge cache for the next hour. Cold-start cost paid once
+// per hour, every other hit hits the CDN.
+export const revalidate = 3600;
 
 interface KPIRow {
   label: string;

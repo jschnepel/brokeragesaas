@@ -20,10 +20,10 @@ import {
 const VALID_SCOPES: ScopeType[] = ['metro', 'region', 'community', 'subdivision', 'zipcode'];
 const VALID_SEGMENTS: PropertySegment[] = ['all', 'residential', 'land'];
 
-// In dev, never cache route responses; module-level Parquet cache (TTL 1h)
-// in lib/marts.ts is the actual cache layer. Production should set
-// revalidate = 3600 here.
-export const dynamic = 'force-dynamic';
+// 1h ISR aligned with dbt schedule. CloudFront edge-caches the upstream
+// Parquet bytes; Next.js edge-caches this JSON response. Two-tier cache
+// → sub-100ms warm even on cold Lambda hits.
+export const revalidate = 3600;
 
 function currentMonthFirst(): string {
   const d = new Date();

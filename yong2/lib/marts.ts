@@ -1,18 +1,17 @@
 /**
- * Lakehouse mart reader. Fetches Parquet files from S3 (the dbt-built
- * analytics marts) and returns rows as typed objects.
+ * Lakehouse mart reader. Fetches Parquet files via CloudFront (edge-cached)
+ * and returns rows as typed objects.
  *
- * S3 prefix `s3://rlsir-platform-assets-us-east-1/analytics/*` is publicly
- * readable (bucket policy 'PublicReadAnalyticsMartsOnly') so we GET via
- * plain HTTPS — no AWS SDK, no IAM role, works identically in Node + browser.
- * Other prefixes (bronze/, etc.) remain private.
+ * Fetch path: yong2 → CloudFront edge → S3 analytics/* (public).
+ * - CloudFront caches each parquet for 1h (matches dbt schedule).
+ * - S3 prefix `analytics/*` is publicly readable (bucket policy
+ *   'PublicReadAnalyticsMartsOnly'); other prefixes (bronze/, etc.) stay
+ *   private.
+ * - The marts are aggregate market stats (counts, medians, $/sqft), not
+ *   raw listings — publishable per IDX rules.
  *
- * Trade-off: the marts are aggregate market stats (counts, medians, $/sqft),
- * not raw listings. Already publishable per IDX rules. Public access lets
- * us drop the AWS SDK entirely and ship a smaller Lambda bundle.
- *
- * Cache: each mart Parquet is fetched once per process and held in
- * module-level memory. Next.js route caching + ISR layer on top.
+ * No in-process cache: CloudFront + Next.js fetch cache + Next ISR own all
+ * caching. Keeps Lambda memory low and a single source of truth.
  *
  * Usage:
  *   const rows = await readMart<MarketPulseRow>('fct_market_pulse_metro');
@@ -22,14 +21,18 @@
 import { parquetReadObjects } from 'hyparquet';
 import { compressors } from 'hyparquet-compressors';
 
-const PUBLIC_BASE = 'https://rlsir-platform-assets-us-east-1.s3.us-east-1.amazonaws.com/analytics';
-
-const cache = new Map<string, { rows: unknown[]; fetchedAt: number }>();
-const TTL_MS = 60 * 60 * 1000; // 1h — matches dbt schedule
+// CloudFront distribution E3JUA9RU5MGWQV → S3 analytics/* (1h TTL).
+// Override via env if migrating to a custom domain (e.g. marts.yongchoi.com).
+const CDN_BASE =
+  process.env.NEXT_PUBLIC_MARTS_CDN_BASE
+  ?? 'https://d12v6de1xwcjhk.cloudfront.net';
 
 async function fetchParquetBuffer(martName: string): Promise<ArrayBuffer> {
-  const url = `${PUBLIC_BASE}/${martName}.parquet`;
-  const res = await fetch(url, { cache: 'no-store' });
+  const url = `${CDN_BASE}/${martName}.parquet`;
+  // `next: { revalidate }` lets Next.js's data cache layer dedupe + edge-cache
+  // the bytes for 1h. Combined with CloudFront, we get effectively two cache
+  // tiers: edge bytes (CloudFront) + decoded rows (Next data cache).
+  const res = await fetch(url, { next: { revalidate: 3600 } });
   if (!res.ok) {
     throw new Error(`mart fetch failed: ${url} → HTTP ${res.status}`);
   }
@@ -39,13 +42,8 @@ async function fetchParquetBuffer(martName: string): Promise<ArrayBuffer> {
 export async function readMart<T = Record<string, unknown>>(
   martName: string,
 ): Promise<T[]> {
-  const hit = cache.get(martName);
-  if (hit && Date.now() - hit.fetchedAt < TTL_MS) {
-    return hit.rows as T[];
-  }
   const buf = await fetchParquetBuffer(martName);
   const rows = (await parquetReadObjects({ file: buf, compressors })) as T[];
-  cache.set(martName, { rows, fetchedAt: Date.now() });
   return rows;
 }
 
