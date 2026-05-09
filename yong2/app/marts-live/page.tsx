@@ -9,7 +9,7 @@
  * Visit at http://localhost:3200/marts-live
  */
 
-import { filterScope, readMart, type MarketPulseRow } from '@/lib/marts';
+import { filterScope, readMartByScope, type MarketPulseRow, type ScopeType } from '@/lib/marts';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,11 +71,19 @@ function confColor(c: string | null): string {
 
 export default async function MartsLivePage() {
   const startedAt = Date.now();
-  const allRows = await readMart<MarketPulseRow>('fct_market_pulse');
+  // Per-scope mart split: load only the scope_types we need (deduplicated).
+  const scopeTypes = Array.from(new Set(KPI_TARGETS.map((t) => t.scope_type as ScopeType)));
+  const rowsByScope: Record<string, MarketPulseRow[]> = {};
+  await Promise.all(
+    scopeTypes.map(async (st) => {
+      rowsByScope[st] = await readMartByScope<MarketPulseRow>('fct_market_pulse', st);
+    }),
+  );
   const fetchMs = Date.now() - startedAt;
+  const totalRows = Object.values(rowsByScope).reduce((s, r) => s + r.length, 0);
 
   const cards = KPI_TARGETS.map((t) => {
-    const filtered = filterScope(allRows, {
+    const filtered = filterScope(rowsByScope[t.scope_type] ?? [], {
       scope_type: t.scope_type as MarketPulseRow['scope_type'],
       scope_key: t.scope_key,
       property_segment: t.segment as MarketPulseRow['property_segment'],
@@ -94,8 +102,8 @@ export default async function MartsLivePage() {
           <strong>April 2026 closed listings</strong>, all property segments unless noted.
         </p>
         <p style={{ fontSize: 12, color: '#9ca3af' }}>
-          Mart fetched in <strong>{fetchMs}ms</strong> · {allRows.length.toLocaleString()} rows total ·
-          rendered at {new Date().toISOString()}
+          Marts fetched in <strong>{fetchMs}ms</strong> · {totalRows.toLocaleString()} rows across{' '}
+          {scopeTypes.length} scope file{scopeTypes.length === 1 ? '' : 's'} · rendered at {new Date().toISOString()}
         </p>
       </header>
 

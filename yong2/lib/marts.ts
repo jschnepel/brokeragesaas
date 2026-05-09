@@ -50,6 +50,29 @@ export async function readMart<T = Record<string, unknown>>(
   return rows;
 }
 
+/**
+ * Read a per-scope split of a mart: `{martBase}_{scope_type}.parquet`.
+ *
+ * Each scope_type lives in its own Parquet file so cold-fetches stay small.
+ * Falls back to the unified `{martBase}.parquet` if the per-scope file
+ * doesn't exist (e.g. mart hasn't been split yet).
+ */
+export async function readMartByScope<T = Record<string, unknown>>(
+  martBase: string,
+  scopeType: ScopeType,
+): Promise<T[]> {
+  try {
+    return await readMart<T>(`${martBase}_${scopeType}`);
+  } catch (err) {
+    // Fallback to unified mart if per-scope file doesn't exist (older marts).
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('NoSuchKey') || msg.includes('does not exist')) {
+      return readMart<T>(martBase);
+    }
+    throw err;
+  }
+}
+
 export type ScopeType = 'metro' | 'region' | 'community' | 'subdivision' | 'zipcode';
 export type PropertySegment = 'all' | 'residential' | 'land';
 

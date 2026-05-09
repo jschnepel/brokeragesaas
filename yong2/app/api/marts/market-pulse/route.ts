@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   filterScope,
-  readMart,
+  readMartByScope,
   type MarketPulseRow,
   type PropertySegment,
   type ScopeType,
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
   const monthPrefix = month.slice(0, 7); // YYYY-MM
 
   try {
-    const rows = await readMart<MarketPulseRow>('fct_market_pulse');
+    const rows = await readMartByScope<MarketPulseRow>('fct_market_pulse', scope_type);
     const filtered = filterScope(rows, { scope_type, scope_key, property_segment: segment });
     const match = filtered.find((r) => isoMonth(r.month).startsWith(monthPrefix));
     if (!match) {
