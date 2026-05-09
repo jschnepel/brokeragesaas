@@ -12,7 +12,6 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1045.0",
     "@vercel/analytics": "^2.0.1",
     "hyparquet": "^1.25.6",
     "hyparquet-compressors": "^1.1.1",

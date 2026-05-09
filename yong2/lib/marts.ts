@@ -2,51 +2,50 @@
  * Lakehouse mart reader. Fetches Parquet files from S3 (the dbt-built
  * analytics marts) and returns rows as typed objects.
  *
- * Runs server-side (Node.js). For local dev the AWS SDK auto-discovers
- * credentials from ~/.aws/credentials. For Amplify SSR Lambda, the
- * function's IAM role needs `s3:GetObject` on
- * `arn:aws:s3:::rlsir-platform-assets-us-east-1/analytics/*`.
+ * S3 prefix `s3://rlsir-platform-assets-us-east-1/analytics/*` is publicly
+ * readable (bucket policy 'PublicReadAnalyticsMartsOnly') so we GET via
+ * plain HTTPS — no AWS SDK, no IAM role, works identically in Node + browser.
+ * Other prefixes (bronze/, etc.) remain private.
+ *
+ * Trade-off: the marts are aggregate market stats (counts, medians, $/sqft),
+ * not raw listings. Already publishable per IDX rules. Public access lets
+ * us drop the AWS SDK entirely and ship a smaller Lambda bundle.
  *
  * Cache: each mart Parquet is fetched once per process and held in
  * module-level memory. Next.js route caching + ISR layer on top.
  *
  * Usage:
- *   const rows = await readMart<MarketPulseRow>('fct_market_pulse');
- *   const metro = rows.filter(r => r.scope_type === 'metro' && r.scope_key === 'phoenix_metro');
+ *   const rows = await readMart<MarketPulseRow>('fct_market_pulse_metro');
+ *   const metro = rows.filter(r => r.scope_key === 'phoenix_metro');
  */
 
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { parquetReadObjects } from 'hyparquet';
 import { compressors } from 'hyparquet-compressors';
 
-const BUCKET = 'rlsir-platform-assets-us-east-1';
-const REGION = 'us-east-1';
-
-const s3 = new S3Client({ region: REGION });
+const PUBLIC_BASE = 'https://rlsir-platform-assets-us-east-1.s3.us-east-1.amazonaws.com/analytics';
 
 const cache = new Map<string, { rows: unknown[]; fetchedAt: number }>();
 const TTL_MS = 60 * 60 * 1000; // 1h — matches dbt schedule
 
-async function fetchParquetBuffer(key: string): Promise<ArrayBuffer> {
-  const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
-  if (!res.Body) throw new Error(`empty body for s3://${BUCKET}/${key}`);
-  const bytes = await res.Body.transformToByteArray();
-  // transformToByteArray returns Uint8Array; slice to get an ArrayBuffer
-  // hyparquet needs a real ArrayBuffer, not a Buffer/SharedArrayBuffer.
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+async function fetchParquetBuffer(martName: string): Promise<ArrayBuffer> {
+  const url = `${PUBLIC_BASE}/${martName}.parquet`;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) {
+    throw new Error(`mart fetch failed: ${url} → HTTP ${res.status}`);
+  }
+  return res.arrayBuffer();
 }
 
 export async function readMart<T = Record<string, unknown>>(
   martName: string,
 ): Promise<T[]> {
-  const key = `analytics/${martName}.parquet`;
-  const hit = cache.get(key);
+  const hit = cache.get(martName);
   if (hit && Date.now() - hit.fetchedAt < TTL_MS) {
     return hit.rows as T[];
   }
-  const buf = await fetchParquetBuffer(key);
+  const buf = await fetchParquetBuffer(martName);
   const rows = (await parquetReadObjects({ file: buf, compressors })) as T[];
-  cache.set(key, { rows, fetchedAt: Date.now() });
+  cache.set(martName, { rows, fetchedAt: Date.now() });
   return rows;
 }
 
@@ -66,7 +65,7 @@ export async function readMartByScope<T = Record<string, unknown>>(
   } catch (err) {
     // Fallback to unified mart if per-scope file doesn't exist (older marts).
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes('NoSuchKey') || msg.includes('does not exist')) {
+    if (msg.includes('HTTP 403') || msg.includes('HTTP 404') || msg.includes('NoSuchKey')) {
       return readMart<T>(martBase);
     }
     throw err;
