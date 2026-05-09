@@ -1,4 +1,8 @@
-{{ config(materialized=('external' if target.name == 'prod' else 'table')) }}
+{# In prod, materialize as table (in-DB only, no S3 write) — the 5 derived
+   `fct_market_pulse_<scope_type>` models split this on scope_type and write
+   per-scope Parquet files. Splitting cuts the cold-fetch from 49s on the
+   ~225MB combined file to <1s on metro/region/zipcode flavors. #}
+{{ config(materialized='table') }}
 
 -- Monthly time series: closings, medians, ppsf, DOM, volume.
 -- Calendar-spined (zero-gap) × scope_type × property_segment.
