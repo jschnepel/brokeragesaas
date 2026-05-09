@@ -20,16 +20,21 @@ interface KPIRow {
   segment: string;
 }
 
+// Community + subdivision splits are >40MB each — fetching them inline on
+// SSR cold start exceeds Amplify's 30s timeout. They work fine when queried
+// directly via /api/marts/market-pulse?scope_type=community (slower TTFB,
+// but doesn't block the dashboard render). For sub-second SSR we limit to
+// metro/region/zipcode here.
 const KPI_TARGETS: KPIRow[] = [
   { label: 'Phoenix Metro · all',          scope_type: 'metro',     scope_key: 'phoenix_metro',    segment: 'all' },
   { label: 'Phoenix Metro · residential',  scope_type: 'metro',     scope_key: 'phoenix_metro',    segment: 'residential' },
   { label: 'North Scottsdale region',      scope_type: 'region',    scope_key: 'north-scottsdale', segment: 'all' },
   { label: 'Peoria region',                scope_type: 'region',    scope_key: 'peoria',           segment: 'all' },
-  { label: 'Desert Mountain (polygon)',    scope_type: 'community', scope_key: 'desert-mountain',  segment: 'all' },
-  { label: 'Encanterra (canonical-map)',   scope_type: 'community', scope_key: 'encanterra',       segment: 'all' },
-  { label: 'Sun City (canonical-map)',     scope_type: 'community', scope_key: 'sun-city',         segment: 'all' },
+  { label: 'Central Scottsdale region',    scope_type: 'region',    scope_key: 'central-scottsdale', segment: 'all' },
+  { label: 'Fountain Hills region',        scope_type: 'region',    scope_key: 'fountain-hills',   segment: 'all' },
   { label: '85254 zipcode (Scottsdale)',   scope_type: 'zipcode',   scope_key: '85254',            segment: 'all' },
   { label: '85262 zipcode (N Scott)',      scope_type: 'zipcode',   scope_key: '85262',            segment: 'all' },
+  { label: '85260 zipcode (Scottsdale)',   scope_type: 'zipcode',   scope_key: '85260',            segment: 'all' },
 ];
 
 const TARGET_MONTH = '2026-04';
