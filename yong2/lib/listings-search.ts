@@ -96,6 +96,15 @@ export interface SearchResult {
   listings: Listing[];
   pins: PinPoint[];
   total: number;
+  /**
+   * ISO timestamp of when this result was fetched from the upstream
+   * data source. Drives the IDX freshness label — needs to reflect
+   * data-source recency, not the newest modificationTimestamp in the
+   * result set (which can be hours/days old for slow-churn luxury
+   * inventory). Fields below e.g. 'fetchedAt' should be set on every
+   * successful fetch; cached re-reads should keep their original value.
+   */
+  fetchedAt: string;
 }
 
 // ── Internal: shared WHERE builder ──────────────────
@@ -212,7 +221,7 @@ export async function searchListings(opts: SearchOpts = {}): Promise<SearchResul
   // the shape returned is one consistent SearchResult.
   const pins = await searchListingPins(opts);
 
-  return { listings, pins, total };
+  return { listings, pins, total, fetchedAt: new Date().toISOString() };
 }
 
 /**

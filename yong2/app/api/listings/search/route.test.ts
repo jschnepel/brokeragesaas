@@ -26,18 +26,18 @@ describe('POST /api/listings/search', () => {
   it('returns 200 + { listings, pins, total } on a valid empty body', async () => {
     const { POST } = await import('./route');
     const { searchListings } = await import('@/lib/listings-search');
-    vi.mocked(searchListings).mockResolvedValue({ listings: [], pins: [], total: 0 });
+    vi.mocked(searchListings).mockResolvedValue({ listings: [], pins: [], total: 0, fetchedAt: '2026-05-09T00:00:00.000Z' });
     const res = await POST(makeReq({}));
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json).toEqual({ listings: [], pins: [], total: 0 });
+    expect(json).toEqual({ listings: [], pins: [], total: 0, fetchedAt: '2026-05-09T00:00:00.000Z' });
     expect(searchListings).toHaveBeenCalledOnce();
   });
 
   it('passes through bbox + q + filters to searchListings', async () => {
     const { POST } = await import('./route');
     const { searchListings } = await import('@/lib/listings-search');
-    vi.mocked(searchListings).mockResolvedValue({ listings: [], pins: [], total: 0 });
+    vi.mocked(searchListings).mockResolvedValue({ listings: [], pins: [], total: 0, fetchedAt: '2026-05-09T00:00:00.000Z' });
     const body = {
       q: 'silverleaf',
       bbox: { minLng: -112, minLat: 33, maxLng: -111, maxLat: 34 },
@@ -76,7 +76,7 @@ describe('POST /api/listings/search', () => {
   it('returns 429 once the per-IP rate limit is exhausted', async () => {
     const { POST } = await import('./route');
     const { searchListings } = await import('@/lib/listings-search');
-    vi.mocked(searchListings).mockResolvedValue({ listings: [], pins: [], total: 0 });
+    vi.mocked(searchListings).mockResolvedValue({ listings: [], pins: [], total: 0, fetchedAt: '2026-05-09T00:00:00.000Z' });
 
     const ip = '5.5.5.5';
     // 60 reqs allowed; the 61st should 429.
@@ -91,7 +91,7 @@ describe('POST /api/listings/search', () => {
   it('sets a short Cache-Control header on success', async () => {
     const { POST } = await import('./route');
     const { searchListings } = await import('@/lib/listings-search');
-    vi.mocked(searchListings).mockResolvedValue({ listings: [], pins: [], total: 0 });
+    vi.mocked(searchListings).mockResolvedValue({ listings: [], pins: [], total: 0, fetchedAt: '2026-05-09T00:00:00.000Z' });
     const res = await POST(makeReq({}));
     expect(res.headers.get('cache-control')).toMatch(/s-maxage=30/);
   });

@@ -27,6 +27,7 @@ type ListingsClientProps = {
   initialListings: Listing[];
   initialPins: PinPoint[];
   initialTotal: number;
+  initialFetchedAt: string;
 };
 
 /**
@@ -35,10 +36,16 @@ type ListingsClientProps = {
  * data and re-fetches when the user pans, types, draws a polygon, or
  * twiddles a filter chip.
  */
-export function ListingsClient({ initialListings, initialPins, initialTotal }: ListingsClientProps) {
+export function ListingsClient({
+  initialListings,
+  initialPins,
+  initialTotal,
+  initialFetchedAt,
+}: ListingsClientProps) {
   const [listings, setListings] = useState<Listing[]>(initialListings);
   const [pins, setPins] = useState<PinPoint[]>(initialPins);
   const [total, setTotal] = useState<number>(initialTotal);
+  const [fetchedAt, setFetchedAt] = useState<string>(initialFetchedAt);
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState('');
   const [bbox, setBbox] = useState<BBox | null>(null);
@@ -153,11 +160,17 @@ export function ListingsClient({ initialListings, initialPins, initialTotal }: L
           signal: ctrl.signal,
         });
         if (!res.ok) throw new Error(`Search failed: ${res.status}`);
-        const json = (await res.json()) as { listings: Listing[]; pins: PinPoint[]; total: number };
+        const json = (await res.json()) as {
+          listings: Listing[];
+          pins: PinPoint[];
+          total: number;
+          fetchedAt?: string;
+        };
         if (cancelled) return;
         setListings(json.listings);
         setPins(json.pins);
         setTotal(json.total);
+        if (json.fetchedAt) setFetchedAt(json.fetchedAt);
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
         // eslint-disable-next-line no-console
@@ -247,17 +260,12 @@ export function ListingsClient({ initialListings, initialPins, initialTotal }: L
     setViewMode((v) => (v === 'list' ? 'split' : v));
   }, [listings]);
 
-  // Newest modificationTimestamp across the visible result set —
-  // drives the IDX freshness indicator + the >12h staleness warning.
-  const lastSyncISO = useMemo(() => {
-    let newest = 0;
-    for (const l of listings) {
-      if (!l.modificationTimestamp) continue;
-      const t = new Date(l.modificationTimestamp).getTime();
-      if (Number.isFinite(t) && t > newest) newest = t;
-    }
-    return newest > 0 ? new Date(newest).toISOString() : null;
-  }, [listings]);
+  // IDX freshness reflects when WE last fetched from the upstream
+  // data source, not the newest modificationTimestamp in the visible
+  // result set. Slow-churn luxury inventory routinely has
+  // modificationTimestamps days/weeks old even when the feed is live.
+  // Using fetchedAt keeps the >12h staleness warning meaningful (it
+  // only trips when the feed is genuinely down or cached for too long).
 
   // ── Layout ─────────────────────────────────────────
 
@@ -328,7 +336,7 @@ export function ListingsClient({ initialListings, initialPins, initialTotal }: L
              *  without breaking the full-height map+list layout. Lastsync
              *  uses the newest modificationTimestamp in the result set. */}
             <IDXSearchFooter
-              lastSyncISO={lastSyncISO}
+              lastSyncISO={fetchedAt}
               brokerage="Russ Lyon Sotheby's International Realty"
             />
           </div>

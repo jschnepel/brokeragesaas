@@ -12,15 +12,23 @@ type ResultCardProps = {
   onCardClick: (key: string) => void;
 };
 
+// UTC-locked formatter so server (UTC) and client (local TZ) agree on
+// the rendered string. Using toLocaleDateString without timeZone:'UTC'
+// produced React #418 hydration text mismatches when a timestamp
+// straddled midnight UTC (e.g. 2026-05-08T23:30Z renders as May 8 on the
+// server and May 9 on the client in any TZ east of UTC).
+const UPDATED_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
 function formatUpdated(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (!Number.isFinite(d.getTime())) return null;
-  return d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return UPDATED_FORMATTER.format(d);
 }
 
 /**

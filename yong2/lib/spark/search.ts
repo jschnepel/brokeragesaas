@@ -398,16 +398,20 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
   const [listingsResult, pinsResult] = await Promise.allSettled([
     (async () => {
       // Over-fetch (top: 250) so post-fetch IDX/spatial/text filters
-      // don't shrink the page below the requested size. NO \$expand
-      // on the search call — \$expand=Media inflated the response
-      // ~30x and triggered Spark's per-token rate limit (429
-      // "exceeds performance threshold"). Cards display without
-      // cover photos for now; detail page (getListingBySlug) does
-      // expand Media for its full gallery.
+      // don't shrink the page below the requested size.
+      //
+      // \$expand=Media inflates ~30x when unbounded — past attempts
+      // tripped Spark's per-token rate limit (429 "exceeds performance
+      // threshold"). The nested OData option `Media(\$top=1;\$orderby=Order)`
+      // limits the expansion to just the primary cover photo, bringing
+      // payload back to ~1.05x while still giving the cards an image.
+      // The detail page (getListingBySlug) keeps the unbounded expand
+      // since it needs the full gallery for one record.
       const records = await fetchAllProperties({
         filter,
         top: 250,
         orderby: 'ListPrice desc',
+        expand: ['Media($top=1;$orderby=Order)'],
         maxPages: 1,
       });
       return applyClientFilters(records, opts)
@@ -441,6 +445,7 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
   // Total — best estimate: pin count if it didn't hit the 2000 cap,
   // otherwise we report "2000+" (treated as 2000).
   const total = pins.length;
+  const fetchedAt = new Date().toISOString();
 
   if (listingsResult.status === 'rejected') {
     // eslint-disable-next-line no-console
@@ -451,7 +456,7 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
     console.error('[spark/search] pins call failed:', pinsResult.reason);
   }
 
-  return { listings, pins, total };
+  return { listings, pins, total, fetchedAt };
 }
 
 /**
