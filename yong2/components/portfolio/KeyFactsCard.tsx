@@ -51,8 +51,11 @@ export function KeyFactsCard({
         {financialRows.map((r, i) => (
           <Row key={r.label} row={r} isLast={i === financialRows.length - 1 && schoolRows.length === 0} />
         ))}
+        {/* Spacer between financial and school rows — was previously
+         *  a <li> which was invalid inside a <dl> and surfaced as an
+         *  orphan bullet in accessibility snapshots. */}
         {schoolRows.length > 0 && financialRows.length > 0 ? (
-          <li aria-hidden="true" className="block h-3" />
+          <div aria-hidden="true" className="h-3" />
         ) : null}
         {schoolRows.map((r, i) => (
           <Row key={r.label} row={r} isLast={i === schoolRows.length - 1} />

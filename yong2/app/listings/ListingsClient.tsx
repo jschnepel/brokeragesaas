@@ -195,6 +195,7 @@ export function ListingsClient({
     if (adv.hasWaterfront) opts.hasWaterfront = true;
     if (adv.hasHorse) opts.hasHorse = true;
     if (adv.singleStory) opts.singleStory = true;
+    if (adv.newConstruction) opts.newConstruction = true;
     if (adv.priceReduced) opts.priceReduced = true;
 
     opts.limit = PAGE_LIMIT;

@@ -82,11 +82,14 @@ export function CookieBanner() {
   if (!mobileExpanded && !showPrefs) {
     return (
       <>
-        {/* Mobile pill (< md) */}
+        {/* Mobile pill — anchored bottom-LEFT so it doesn't stack on
+         *  top of StickyContact (which lives bottom-right). z-30 keeps
+         *  the pill below any modal/dialog without hiding it from
+         *  normal page chrome. */}
         <button
           type="button"
           onClick={() => setMobileExpanded(true)}
-          className="md:hidden fixed bottom-4 right-4 z-50 bg-ink/90 backdrop-blur-sm border border-gold/30 text-gold caps text-[10px] px-4 py-2.5 rounded-full shadow-lg hover:border-gold transition-colors"
+          className="md:hidden fixed bottom-4 left-4 z-30 bg-ink/90 backdrop-blur-sm border border-gold/30 text-gold caps text-[10px] px-4 py-2.5 rounded-full shadow-lg hover:border-gold transition-colors"
           aria-label="Cookie preferences"
           data-testid="cookie-banner-pill"
         >
@@ -106,7 +109,7 @@ export function CookieBanner() {
     <div
       role="dialog"
       aria-label="Cookie preferences"
-      className="fixed bottom-0 inset-x-0 z-50 bg-ink/95 backdrop-blur-sm border-t border-white/10 text-stone"
+      className="fixed bottom-0 inset-x-0 z-30 bg-ink/95 backdrop-blur-sm border-t border-white/10 text-stone"
       data-testid="cookie-banner"
     >
       <div className="max-w-[1400px] mx-auto px-6 md:px-12 lg:px-16 py-5 md:py-6">
@@ -192,7 +195,7 @@ function DesktopBar({
     <div
       role="dialog"
       aria-label="Cookie preferences"
-      className="hidden md:block fixed bottom-0 inset-x-0 z-40 bg-ink/95 backdrop-blur-sm border-t border-white/10 text-stone"
+      className="hidden md:block fixed bottom-0 inset-x-0 z-30 bg-ink/95 backdrop-blur-sm border-t border-white/10 text-stone"
     >
       <div className="max-w-[1400px] mx-auto px-6 md:px-12 lg:px-16 py-4">
         <div className="flex items-center justify-between gap-5">

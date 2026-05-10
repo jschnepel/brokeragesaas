@@ -33,6 +33,7 @@ export type AdvancedFilters = {
   hasWaterfront: boolean;
   hasHorse: boolean;
   singleStory: boolean;
+  newConstruction: boolean;
   priceReduced: boolean;
 };
 
@@ -49,6 +50,7 @@ export const DEFAULT_ADVANCED_FILTERS: AdvancedFilters = {
   hasWaterfront: false,
   hasHorse: false,
   singleStory: false,
+  newConstruction: false,
   priceReduced: false,
 };
 
@@ -71,6 +73,7 @@ export function countActiveAdvanced(adv: AdvancedFilters): number {
   if (adv.hasWaterfront) n += 1;
   if (adv.hasHorse) n += 1;
   if (adv.singleStory) n += 1;
+  if (adv.newConstruction) n += 1;
   if (adv.priceReduced) n += 1;
   return n;
 }
@@ -353,6 +356,12 @@ export function FilterChips({ value, onChange }: FilterChipsProps) {
                   onClick={() => toggleAdvancedBool('singleStory')}
                 >
                   Single-story
+                </Chip>
+                <Chip
+                  active={value.advanced.newConstruction}
+                  onClick={() => toggleAdvancedBool('newConstruction')}
+                >
+                  New construction
                 </Chip>
                 <Chip
                   active={value.advanced.priceReduced}

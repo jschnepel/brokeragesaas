@@ -114,6 +114,8 @@ export interface SearchOpts {
   hasHorse?: boolean;
   /** Single-story homes only (no upstairs / multi-level). */
   singleStory?: boolean;
+  /** New construction — NewConstructionYN eq true. */
+  newConstruction?: boolean;
   /** "Price reduced" — original list price > current. */
   priceReduced?: boolean;
   /** Hard-capped at 200 internally to keep response payloads bounded. */

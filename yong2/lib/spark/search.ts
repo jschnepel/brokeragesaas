@@ -276,6 +276,7 @@ function buildSearchFilter(opts: SearchOpts): string {
   if (opts.hasSpa) clauses.push(`SpaYN eq true`);
   if (opts.hasWaterfront) clauses.push(`WaterfrontYN eq true`);
   if (opts.singleStory) clauses.push(`StoriesTotal eq 1`);
+  if (opts.newConstruction) clauses.push(`NewConstructionYN eq true`);
 
   // Price reduced — only narrows when explicitly checked. Compares
   // the seller's original list price against the current ListPrice;

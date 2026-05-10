@@ -56,6 +56,7 @@ const bodySchema = z.object({
   hasWaterfront: z.boolean().optional(),
   hasHorse: z.boolean().optional(),
   singleStory: z.boolean().optional(),
+  newConstruction: z.boolean().optional(),
   priceReduced: z.boolean().optional(),
   limit: z.number().int().positive().max(200).optional(),
   offset: z.number().int().nonnegative().optional(),
