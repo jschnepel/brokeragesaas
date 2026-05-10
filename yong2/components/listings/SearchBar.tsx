@@ -2,12 +2,23 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-export type SortKey = 'newest' | 'price-asc' | 'price-desc';
+export type SortKey =
+  | 'newest'
+  | 'price-asc'
+  | 'price-desc'
+  | 'sqft-desc'
+  | 'lot-desc'
+  | 'year-desc'
+  | 'dom-asc';
 
 const SORT_LABELS: Record<SortKey, string> = {
   newest: 'Newest',
   'price-asc': 'Price · Low → High',
   'price-desc': 'Price · High → Low',
+  'sqft-desc': 'Sqft · Largest',
+  'lot-desc': 'Lot · Largest',
+  'year-desc': 'Year built · Newest',
+  'dom-asc': 'Days on market · Fewest',
 };
 
 type SearchBarProps = {

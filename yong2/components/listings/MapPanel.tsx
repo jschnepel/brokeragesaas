@@ -14,6 +14,18 @@ const HIGHLIGHT_PROP = 'highlight';
 
 const DEFAULT_CENTER: [number, number] = [-111.9, 33.55];
 const DEFAULT_ZOOM = 9;
+const PRICE_LABEL_LAYER = 'listing-price-labels';
+
+/** Compact price label for the map pin overlay — "$1.2M" / "$850K". */
+function formatPriceLabel(price: number | null | undefined): string {
+  if (price == null || !Number.isFinite(price) || price <= 0) return '';
+  if (price >= 1_000_000) {
+    const m = price / 1_000_000;
+    return m >= 10 ? `$${Math.round(m)}M` : `$${m.toFixed(1).replace(/\.0$/, '')}M`;
+  }
+  if (price >= 1_000) return `$${Math.round(price / 1_000)}K`;
+  return `$${price}`;
+}
 
 export interface MapPanelHandle {
   /** Re-center on a single pin (after a card click). */
@@ -216,6 +228,36 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
           },
         });
 
+        // Price-pill labels — Zillow signature treatment. Render only
+        // for unclustered pins at zoom >= 12 (anything wider crowds
+        // the labels and trips MapLibre's collision logic into hiding
+        // most of them anyway). Text colored ink-on-stone with an ink
+        // halo so it reads against the dark basemap; the underlying
+        // gold dot still shows through above the label.
+        m.addLayer({
+          id: PRICE_LABEL_LAYER,
+          type: 'symbol',
+          source: SOURCE_ID,
+          filter: ['!', ['has', 'point_count']],
+          minzoom: 12,
+          layout: {
+            'text-field': ['coalesce', ['get', 'priceLabel'], ''],
+            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+            'text-size': 11,
+            'text-offset': [0, -1.4],
+            'text-anchor': 'bottom',
+            'text-allow-overlap': false,
+            'text-padding': 2,
+            'symbol-sort-key': ['*', -1, ['coalesce', ['get', 'price'], 0]],
+          },
+          paint: {
+            'text-color': '#EFE9DF',
+            'text-halo-color': '#0B1620',
+            'text-halo-width': 1.5,
+            'text-halo-blur': 0.5,
+          },
+        });
+
         // Cluster click — zoom into the cluster.
         m.on('click', CLUSTER_LAYER, (e) => {
           const feats = m.queryRenderedFeatures(e.point, { layers: [CLUSTER_LAYER] });
@@ -367,7 +409,15 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
         features: pins.map((p) => ({
           type: 'Feature',
           id: p.listingKey,
-          properties: { key: p.listingKey, id: p.listingId, price: p.listPrice ?? 0, status: p.status },
+          properties: {
+            key: p.listingKey,
+            id: p.listingId,
+            price: p.listPrice ?? 0,
+            // priceLabel is pre-formatted on the client because
+            // MapLibre's expression DSL has no Intl.NumberFormat.
+            priceLabel: formatPriceLabel(p.listPrice),
+            status: p.status,
+          },
           geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
         })),
       });

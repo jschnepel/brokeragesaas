@@ -77,12 +77,35 @@ export function ListingsClient({
   // layer is rewritten, sort can be pushed into the search request.
   const sortedListings = useMemo(() => {
     const arr = [...listings];
+    // Numeric sort helper — null/undefined/missing always lands at the
+    // end regardless of direction so 0/null don't pollute the head of
+    // ascending lists or look like the largest in descending lists.
+    const cmpNum = (a: number | null | undefined, b: number | null | undefined, dir: 1 | -1) => {
+      const av = typeof a === 'number' && Number.isFinite(a) ? a : null;
+      const bv = typeof b === 'number' && Number.isFinite(b) ? b : null;
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      return dir === 1 ? av - bv : bv - av;
+    };
     switch (sort) {
       case 'price-asc':
-        arr.sort((a, b) => (a.listPrice ?? 0) - (b.listPrice ?? 0));
+        arr.sort((a, b) => cmpNum(a.listPrice, b.listPrice, 1));
         break;
       case 'price-desc':
-        arr.sort((a, b) => (b.listPrice ?? 0) - (a.listPrice ?? 0));
+        arr.sort((a, b) => cmpNum(a.listPrice, b.listPrice, -1));
+        break;
+      case 'sqft-desc':
+        arr.sort((a, b) => cmpNum(a.livingArea, b.livingArea, -1));
+        break;
+      case 'lot-desc':
+        arr.sort((a, b) => cmpNum(a.lotAcres, b.lotAcres, -1));
+        break;
+      case 'year-desc':
+        arr.sort((a, b) => cmpNum(a.yearBuilt, b.yearBuilt, -1));
+        break;
+      case 'dom-asc':
+        arr.sort((a, b) => cmpNum(a.daysOnMarket, b.daysOnMarket, 1));
         break;
       case 'newest':
       default:
