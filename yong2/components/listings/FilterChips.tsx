@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import type { StatusFilter } from '@/lib/listings-search';
+import type { HomeType, StatusFilter } from '@/lib/listings-search';
 import { track } from '@/lib/analytics/events';
 import { recordPriceFilter } from '@/lib/analytics/contact-payload';
 import { PriceRangeSlider } from '@/components/listings/PriceRangeSlider';
 
 export type BedsFilter = 0 | 3 | 4 | 5;
+export type BathsFilter = 0 | 2 | 3 | 4 | 5;
 
 /**
  * Continuous price filter — covers Yong's market comfortably (Scottsdale luxury
@@ -19,8 +20,10 @@ export const DEFAULT_PRICE_RANGE: [number, number] = [PRICE_MIN, PRICE_MAX];
 
 export type FilterState = {
   status: StatusFilter[];
+  homeTypes: HomeType[];
   priceRange: [number, number];
   bedsMin: BedsFilter;
+  bathsMin: BathsFilter;
 };
 
 const STATUS_OPTIONS: StatusFilter[] = ['Active', 'Coming Soon', 'Pending'];
@@ -30,6 +33,29 @@ const BEDS_OPTIONS: { id: BedsFilter; label: string }[] = [
   { id: 4, label: '4+' },
   { id: 5, label: '5+' },
 ];
+const BATHS_OPTIONS: { id: BathsFilter; label: string }[] = [
+  { id: 0, label: 'Any baths' },
+  { id: 2, label: '2+' },
+  { id: 3, label: '3+' },
+  { id: 4, label: '4+' },
+  { id: 5, label: '5+' },
+];
+const HOME_TYPE_OPTIONS: { id: HomeType; label: string }[] = [
+  { id: 'house', label: 'Houses' },
+  { id: 'condo', label: 'Condos / Townhomes' },
+  { id: 'multi', label: 'Multi-Family' },
+  { id: 'land', label: 'Land / Lots' },
+];
+
+/**
+ * Default home-type selection on a fresh /listings load. Mirrors
+ * Zillow's default — Houses checked, plus Condos because the
+ * Scottsdale luxury market has substantial condo inventory in
+ * Silverleaf, Camelback, and Paradise Valley. Land / Multi-Family
+ * are off by default so vacant lots don't merge into residential
+ * results.
+ */
+export const DEFAULT_HOME_TYPES: HomeType[] = ['house', 'condo'];
 
 /**
  * Translate the slider tuple into the `priceMin`/`priceMax` shape the search
@@ -75,6 +101,23 @@ export function FilterChips({ value, onChange }: FilterChipsProps) {
     onChange({ ...value, bedsMin: b });
   }
 
+  function selectBaths(b: BathsFilter) {
+    if (value.bathsMin === b) return;
+    track('filter_chip_toggle', { chip: `baths:${b}`, on: true });
+    onChange({ ...value, bathsMin: b });
+  }
+
+  function toggleHomeType(t: HomeType) {
+    const has = value.homeTypes.includes(t);
+    track('filter_chip_toggle', { chip: `home:${t}`, on: !has });
+    onChange({
+      ...value,
+      homeTypes: has
+        ? value.homeTypes.filter((x) => x !== t)
+        : [...value.homeTypes, t],
+    });
+  }
+
   function handlePriceChange(next: [number, number]) {
     onChange({ ...value, priceRange: next });
     // Lead-score signal: the *minimum* the visitor anchored at is the
@@ -107,6 +150,18 @@ export function FilterChips({ value, onChange }: FilterChipsProps) {
         </ChipGroup>
         <span aria-hidden="true" className="hidden md:inline-block w-px h-4 bg-white/10" />
         <ChipGroup>
+          {HOME_TYPE_OPTIONS.map((t) => (
+            <Chip
+              key={t.id}
+              active={value.homeTypes.includes(t.id)}
+              onClick={() => toggleHomeType(t.id)}
+            >
+              {t.label}
+            </Chip>
+          ))}
+        </ChipGroup>
+        <span aria-hidden="true" className="hidden md:inline-block w-px h-4 bg-white/10" />
+        <ChipGroup>
           {BEDS_OPTIONS.map((b) => (
             <Chip
               key={b.id}
@@ -115,6 +170,18 @@ export function FilterChips({ value, onChange }: FilterChipsProps) {
               // the price chip's "Any price" semantics.
               active={value.bedsMin > 0 && value.bedsMin === b.id}
               onClick={() => selectBeds(b.id)}
+            >
+              {b.label}
+            </Chip>
+          ))}
+        </ChipGroup>
+        <span aria-hidden="true" className="hidden md:inline-block w-px h-4 bg-white/10" />
+        <ChipGroup>
+          {BATHS_OPTIONS.map((b) => (
+            <Chip
+              key={b.id}
+              active={value.bathsMin > 0 && value.bathsMin === b.id}
+              onClick={() => selectBaths(b.id)}
             >
               {b.label}
             </Chip>

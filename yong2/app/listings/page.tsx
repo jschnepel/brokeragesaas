@@ -36,7 +36,15 @@ export const metadata: Metadata = {
  * (just the shell) and the user sees the chrome immediately.
  */
 async function ListingsResults() {
-  const initial = await searchListings({ bbox: DEFAULT_BBOX, limit: 60 }).catch((err) => {
+  // Default home-type filter mirrors the client's INITIAL_FILTER so the
+  // SSR'd shell matches the post-hydration query — vacant land doesn't
+  // merge into the first paint and the SSR cache key matches the
+  // client's first re-query.
+  const initial = await searchListings({
+    bbox: DEFAULT_BBOX,
+    homeTypes: ['house', 'condo'],
+    limit: 60,
+  }).catch((err) => {
     // eslint-disable-next-line no-console
     console.warn('listings.page.initial_fetch_failed', err);
     return {

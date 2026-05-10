@@ -39,9 +39,11 @@ const bodySchema = z.object({
   bbox: bboxSchema.optional(),
   polygonGeoJSON: polygonSchema.optional(),
   status: z.array(z.enum(['Active', 'Coming Soon', 'Pending'])).optional(),
+  homeTypes: z.array(z.enum(['house', 'condo', 'multi', 'land'])).optional(),
   priceMin: z.number().nonnegative().optional(),
   priceMax: z.number().nonnegative().optional(),
   bedsMin: z.number().int().nonnegative().optional(),
+  bathsMin: z.number().int().nonnegative().optional(),
   limit: z.number().int().positive().max(200).optional(),
   offset: z.number().int().nonnegative().optional(),
 });

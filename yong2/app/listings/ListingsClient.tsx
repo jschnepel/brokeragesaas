@@ -5,6 +5,7 @@ import type { Listing } from '@/lib/types';
 import type { BBox, PinPoint, PolygonGeoJSON, StatusFilter } from '@/lib/listings-search';
 import { SearchBar, type SortKey } from '@/components/listings/SearchBar';
 import {
+  DEFAULT_HOME_TYPES,
   DEFAULT_PRICE_RANGE,
   FilterChips,
   type FilterState,
@@ -17,8 +18,10 @@ import { track } from '@/lib/analytics/events';
 
 const INITIAL_FILTER: FilterState = {
   status: [],
+  homeTypes: DEFAULT_HOME_TYPES,
   priceRange: DEFAULT_PRICE_RANGE,
   bedsMin: 0,
+  bathsMin: 0,
 };
 
 type ViewMode = 'split' | 'map' | 'list';
@@ -141,9 +144,11 @@ export function ListingsClient({
       opts.bbox = bbox;
     }
     if (filters.status.length > 0) opts.status = filters.status as StatusFilter[];
+    if (filters.homeTypes.length > 0) opts.homeTypes = filters.homeTypes;
     if (priceMin != null) opts.priceMin = priceMin;
     if (priceMax != null) opts.priceMax = priceMax;
     if (filters.bedsMin > 0) opts.bedsMin = filters.bedsMin;
+    if (filters.bathsMin > 0) opts.bathsMin = filters.bathsMin;
     opts.limit = PAGE_LIMIT;
     return opts;
   }, [q, polygon, bbox, filters]);

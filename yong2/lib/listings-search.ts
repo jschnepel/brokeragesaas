@@ -69,14 +69,32 @@ export interface PolygonGeoJSON {
 
 export type StatusFilter = 'Active' | 'Coming Soon' | 'Pending';
 
+/**
+ * Home Type — the visitor-facing "kind of property" filter.
+ *
+ * Zillow's home-type taxonomy collapsed to four buckets that map
+ * cleanly to ARMLS's RESO PropertyType + PropertySubType. Land is
+ * intentionally a peer to Houses/Condos so vacant lots don't merge
+ * into residential search results.
+ */
+export type HomeType = 'house' | 'condo' | 'multi' | 'land';
+
 export interface SearchOpts {
   q?: string;
   bbox?: BBox;
   polygonGeoJSON?: PolygonGeoJSON;
   status?: StatusFilter[];
+  /**
+   * Selected home types. Empty/undefined = no home-type filter applied
+   * (returns the full pool). The /listings UI defaults to
+   * ['house', 'condo'] so the canonical search page no longer mixes
+   * vacant land into residential results.
+   */
+  homeTypes?: HomeType[];
   priceMin?: number;
   priceMax?: number;
   bedsMin?: number;
+  bathsMin?: number;
   /** Hard-capped at 200 internally to keep response payloads bounded. */
   limit?: number;
   offset?: number;

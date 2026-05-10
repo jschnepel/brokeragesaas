@@ -252,6 +252,53 @@ function buildSearchFilter(opts: SearchOpts): string {
     clauses.push(`BedroomsTotal ge ${opts.bedsMin}`);
   }
 
+  if (typeof opts.bathsMin === 'number') {
+    clauses.push(`BathroomsTotalInteger ge ${opts.bathsMin}`);
+  }
+
+  // Home Type — translates the visitor's Zillow-style buckets to
+  // ARMLS PropertyType + PropertySubType clauses.
+  //
+  // The IMPORTANT subtle bit: ARMLS uses PropertyType='Residential'
+  // for FOR-SALE residential and PropertyType='Residential Lease' for
+  // rentals. Filtering on PropertySubType alone returns both, so we
+  // anchor 'house'/'condo' to PropertyType='Residential' to exclude
+  // rentals from a for-sale search.
+  //
+  // Spark's OData parser caps parenthesis nesting at 2 levels deep, so
+  // we distribute the PropertyType anchor through each PropertySubType
+  // branch rather than nesting one level deeper. Builds:
+  //   (PropertyType eq 'Residential' and PropertySubType eq 'X')
+  //     or (PropertyType eq 'Residential' and PropertySubType eq 'Y')
+  //     or PropertyType eq 'Land'
+  if (opts.homeTypes && opts.homeTypes.length > 0) {
+    const residentialSubTypes: string[] = [];
+    const standalonePropTypes: string[] = [];
+    for (const t of opts.homeTypes) {
+      if (t === 'house') {
+        residentialSubTypes.push('Single Family Residence');
+      } else if (t === 'condo') {
+        residentialSubTypes.push('Condominium', 'Townhouse', 'Apartment');
+      } else if (t === 'multi') {
+        standalonePropTypes.push('Residential Income');
+      } else if (t === 'land') {
+        standalonePropTypes.push('Land');
+      }
+    }
+    const branches: string[] = [];
+    for (const s of residentialSubTypes) {
+      branches.push(
+        `(PropertyType eq 'Residential' and PropertySubType eq '${escapeLiteral(s)}')`,
+      );
+    }
+    for (const p of standalonePropTypes) {
+      branches.push(`PropertyType eq '${escapeLiteral(p)}'`);
+    }
+    if (branches.length > 0) {
+      clauses.push(`(${branches.join(' or ')})`);
+    }
+  }
+
   // Spatial filtering (bbox/polygon) and text search (substringof) are
   // applied post-fetch in applyClientFilters() — Spark's OData rejects
   // `geo.intersects` and `substringof` (verified build #62 → 400 'field
