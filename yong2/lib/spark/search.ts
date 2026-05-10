@@ -256,6 +256,31 @@ function buildSearchFilter(opts: SearchOpts): string {
     clauses.push(`BathroomsTotalInteger ge ${opts.bathsMin}`);
   }
 
+  if (typeof opts.sqftMin === 'number') clauses.push(`LivingArea ge ${opts.sqftMin}`);
+  if (typeof opts.sqftMax === 'number') clauses.push(`LivingArea le ${opts.sqftMax}`);
+  if (typeof opts.lotAcresMin === 'number') clauses.push(`LotSizeAcres ge ${opts.lotAcresMin}`);
+  if (typeof opts.lotAcresMax === 'number') clauses.push(`LotSizeAcres le ${opts.lotAcresMax}`);
+  if (typeof opts.yearBuiltMin === 'number') clauses.push(`YearBuilt ge ${opts.yearBuiltMin}`);
+  if (typeof opts.yearBuiltMax === 'number') clauses.push(`YearBuilt le ${opts.yearBuiltMax}`);
+  if (typeof opts.garageMin === 'number') clauses.push(`GarageSpaces ge ${opts.garageMin}`);
+
+  // Boolean amenities — RESO YN fields. eq true narrows to the
+  // listings where the seller explicitly confirmed the amenity;
+  // null/false records drop out (matches Zillow's behavior — a
+  // pool checkbox excludes "unknown").
+  if (opts.hasPool) clauses.push(`PoolPrivateYN eq true`);
+  if (opts.hasSpa) clauses.push(`SpaYN eq true`);
+  if (opts.hasWaterfront) clauses.push(`WaterfrontYN eq true`);
+  if (opts.singleStory) clauses.push(`StoriesTotal eq 1`);
+
+  // Price reduced — only narrows when explicitly checked. Compares
+  // the seller's original list price against the current ListPrice;
+  // skips records where OriginalListPrice is missing so we don't
+  // accidentally exclude every listing whose feed entry omits it.
+  if (opts.priceReduced) {
+    clauses.push(`OriginalListPrice gt ListPrice`);
+  }
+
   // Home Type — translates the visitor's Zillow-style buckets to
   // ARMLS PropertyType + PropertySubType clauses.
   //

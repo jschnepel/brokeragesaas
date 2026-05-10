@@ -95,6 +95,25 @@ export interface SearchOpts {
   priceMax?: number;
   bedsMin?: number;
   bathsMin?: number;
+  /** Living area (interior heated sqft) min/max. */
+  sqftMin?: number;
+  sqftMax?: number;
+  /** Lot size in acres. */
+  lotAcresMin?: number;
+  lotAcresMax?: number;
+  /** Year built range. */
+  yearBuiltMin?: number;
+  yearBuiltMax?: number;
+  /** Minimum garage spaces (covered or attached). */
+  garageMin?: number;
+  /** Boolean amenity filters. True = require, undefined = don't filter. */
+  hasPool?: boolean;
+  hasSpa?: boolean;
+  hasWaterfront?: boolean;
+  /** Single-story homes only (no upstairs / multi-level). */
+  singleStory?: boolean;
+  /** "Price reduced" — original list price > current. */
+  priceReduced?: boolean;
   /** Hard-capped at 200 internally to keep response payloads bounded. */
   limit?: number;
   offset?: number;

@@ -5,6 +5,7 @@ import type { Listing } from '@/lib/types';
 import type { BBox, PinPoint, PolygonGeoJSON, StatusFilter } from '@/lib/listings-search';
 import { SearchBar, type SortKey } from '@/components/listings/SearchBar';
 import {
+  DEFAULT_ADVANCED_FILTERS,
   DEFAULT_HOME_TYPES,
   DEFAULT_PRICE_RANGE,
   FilterChips,
@@ -22,6 +23,7 @@ const INITIAL_FILTER: FilterState = {
   priceRange: DEFAULT_PRICE_RANGE,
   bedsMin: 0,
   bathsMin: 0,
+  advanced: DEFAULT_ADVANCED_FILTERS,
 };
 
 type ViewMode = 'split' | 'map' | 'list';
@@ -149,6 +151,28 @@ export function ListingsClient({
     if (priceMax != null) opts.priceMax = priceMax;
     if (filters.bedsMin > 0) opts.bedsMin = filters.bedsMin;
     if (filters.bathsMin > 0) opts.bathsMin = filters.bathsMin;
+
+    // Advanced filters — translate string-form input to numbers, drop
+    // empties so the API doesn't see NaN. Booleans pass through only
+    // when true.
+    const adv = filters.advanced;
+    const num = (v: string) => {
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
+    if (num(adv.sqftMin) != null) opts.sqftMin = num(adv.sqftMin);
+    if (num(adv.sqftMax) != null) opts.sqftMax = num(adv.sqftMax);
+    if (num(adv.lotAcresMin) != null) opts.lotAcresMin = num(adv.lotAcresMin);
+    if (num(adv.lotAcresMax) != null) opts.lotAcresMax = num(adv.lotAcresMax);
+    if (num(adv.yearBuiltMin) != null) opts.yearBuiltMin = Math.round(num(adv.yearBuiltMin)!);
+    if (num(adv.yearBuiltMax) != null) opts.yearBuiltMax = Math.round(num(adv.yearBuiltMax)!);
+    if (num(adv.garageMin) != null) opts.garageMin = Math.round(num(adv.garageMin)!);
+    if (adv.hasPool) opts.hasPool = true;
+    if (adv.hasSpa) opts.hasSpa = true;
+    if (adv.hasWaterfront) opts.hasWaterfront = true;
+    if (adv.singleStory) opts.singleStory = true;
+    if (adv.priceReduced) opts.priceReduced = true;
+
     opts.limit = PAGE_LIMIT;
     return opts;
   }, [q, polygon, bbox, filters]);
