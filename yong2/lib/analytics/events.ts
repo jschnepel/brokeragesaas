@@ -115,6 +115,9 @@ export type EventCatalog = {
   scroll_depth_100: { pathname: string };
   time_on_page_30s: { pathname: string };
   time_on_page_120s: { pathname: string };
+
+  // Listings search interactions
+  results_load_more: { results_count: number };
 };
 
 type PostHogClient = {
