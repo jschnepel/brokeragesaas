@@ -27,6 +27,18 @@ type IDXComplianceFooterProps = {
  * existing premium-site has the equivalent footer — we cannot ship
  * the new site without parity.
  */
+// UTC-locked formatter so the SSR pass (UTC) and the hydration
+// pass (visitor's local TZ) agree on the rendered date string.
+// Without timeZone: 'UTC' a timestamp near midnight UTC renders
+// as the next/previous day in any TZ east/west of UTC, which
+// trips React #418 hydration text mismatch.
+const LAST_UPDATED_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
 export function IDXComplianceFooter({
   lastUpdatedISO,
   listAgentName,
@@ -36,11 +48,10 @@ export function IDXComplianceFooter({
   brokerage,
 }: IDXComplianceFooterProps) {
   const lastUpdatedLabel = lastUpdatedISO
-    ? new Date(lastUpdatedISO).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      })
+    ? (() => {
+        const d = new Date(lastUpdatedISO);
+        return Number.isFinite(d.getTime()) ? LAST_UPDATED_FORMATTER.format(d) : null;
+      })()
     : null;
   const year = new Date().getFullYear();
   return (
