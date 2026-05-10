@@ -54,6 +54,7 @@ const bodySchema = z.object({
   hasPool: z.boolean().optional(),
   hasSpa: z.boolean().optional(),
   hasWaterfront: z.boolean().optional(),
+  hasHorse: z.boolean().optional(),
   singleStory: z.boolean().optional(),
   priceReduced: z.boolean().optional(),
   limit: z.number().int().positive().max(200).optional(),

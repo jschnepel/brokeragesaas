@@ -110,6 +110,8 @@ export interface SearchOpts {
   hasPool?: boolean;
   hasSpa?: boolean;
   hasWaterfront?: boolean;
+  /** Horse property — narrows to listings with HorseAmenities recorded. */
+  hasHorse?: boolean;
   /** Single-story homes only (no upstairs / multi-level). */
   singleStory?: boolean;
   /** "Price reduced" — original list price > current. */

@@ -170,6 +170,7 @@ export function ListingsClient({
     if (adv.hasPool) opts.hasPool = true;
     if (adv.hasSpa) opts.hasSpa = true;
     if (adv.hasWaterfront) opts.hasWaterfront = true;
+    if (adv.hasHorse) opts.hasHorse = true;
     if (adv.singleStory) opts.singleStory = true;
     if (adv.priceReduced) opts.priceReduced = true;
 

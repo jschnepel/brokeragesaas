@@ -369,19 +369,66 @@ function applyClientFilters(records: SparkProperty[], opts: SearchOpts): SparkPr
 
   if (opts.q && opts.q.trim()) {
     const q = opts.q.trim().toLowerCase();
+    out = out.filter((r) => searchHaystack(r).includes(q));
+  }
+
+  // Horse property — Spark won't filter by HorseAmenities array
+  // server-side (no any() lambda support) so we narrow post-fetch.
+  // HorseYN is unreliable in the ARMLS feed (sellers leave it null
+  // even when HorseAmenities is populated), so we treat any non-empty
+  // HorseAmenities array as horse property regardless of HorseYN.
+  if (opts.hasHorse) {
     out = out.filter((r) => {
-      const ua = asString(r['UnparsedAddress']) ?? '';
-      const city = asString(r['City']) ?? '';
-      const sub = asString(r['SubdivisionName']) ?? '';
-      return (
-        ua.toLowerCase().includes(q) ||
-        city.toLowerCase().includes(q) ||
-        sub.toLowerCase().includes(q)
-      );
+      const ha = r['HorseAmenities'];
+      if (Array.isArray(ha) && ha.length > 0) return true;
+      const yn = r['HorseYN'];
+      return yn === true || yn === 'Y' || yn === 'true';
     });
   }
 
   return out;
+}
+
+/**
+ * Build a single lowercase text blob covering everything a visitor
+ * might search by: address, city, neighborhood, public remarks, and
+ * the feature arrays Yong's typical buyer hunts in ("wine cellar",
+ * "casita", "mountain view", "tennis court", etc.). Spark's OData
+ * doesn't allow substring matching, so this is post-fetch — limited
+ * to whatever set of records was returned, but still useful narrow.
+ */
+function searchHaystack(r: SparkProperty): string {
+  const parts: string[] = [];
+  const pushString = (v: unknown) => {
+    if (typeof v === 'string' && v.length > 0) parts.push(v);
+  };
+  const pushArray = (v: unknown) => {
+    if (Array.isArray(v)) {
+      for (const item of v) {
+        if (typeof item === 'string') parts.push(item);
+      }
+    }
+  };
+  pushString(r['UnparsedAddress']);
+  pushString(r['City']);
+  pushString(r['SubdivisionName']);
+  pushString(r['CommunityFeatures']);
+  pushString(r['PublicRemarks']);
+  pushArray(r['InteriorFeatures']);
+  pushArray(r['ExteriorFeatures']);
+  pushArray(r['Appliances']);
+  pushArray(r['View']);
+  pushArray(r['ArchitecturalStyle']);
+  pushArray(r['ConstructionMaterials']);
+  pushArray(r['PoolFeatures']);
+  pushArray(r['SpaFeatures']);
+  pushArray(r['FireplaceFeatures']);
+  pushArray(r['ParkingFeatures']);
+  pushArray(r['Flooring']);
+  pushArray(r['HorseAmenities']);
+  pushArray(r['AssociationAmenities']);
+  pushArray(r['LotFeatures']);
+  return parts.join(' ').toLowerCase();
 }
 
 function pointInPolygon(x: number, y: number, ring: number[][]): boolean {
