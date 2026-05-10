@@ -652,6 +652,78 @@ export async function getListingBySlug(slug: string): Promise<Listing | null> {
 }
 
 /**
+ * Nearby listings — surfaces a small set of comparable Active
+ * residentials within a fixed lat/lng radius around the subject. Used
+ * by the listing-detail "You may also consider" strip so the visitor's
+ * session continues if the current listing isn't the right fit.
+ *
+ * Filter strategy: target ±0.05° lat/lng (~3.5 mi N/S, ~3 mi E/W in
+ * Phoenix latitude) + ±25% price band. ARMLS Active residential only
+ * — pending and land are excluded so the strip reads as live for-sale
+ * inventory in the same ballpark. We over-fetch to 60 records (plenty
+ * for a 4-tile strip after IDX/spatial filtering and excluding the
+ * subject itself) and trim client-side.
+ */
+export async function getNearbyListings(opts: {
+  excludeListingId: string;
+  latitude: number;
+  longitude: number;
+  listPrice: number | null;
+  limit?: number;
+}): Promise<Listing[]> {
+  const limit = opts.limit ?? 4;
+  const RADIUS_DEG = 0.05;
+  const PRICE_BAND = 0.25;
+  const minLat = opts.latitude - RADIUS_DEG;
+  const maxLat = opts.latitude + RADIUS_DEG;
+  const minLng = opts.longitude - RADIUS_DEG;
+  const maxLng = opts.longitude + RADIUS_DEG;
+
+  const clauses: string[] = [
+    `StandardStatus eq 'Active'`,
+    `(PropertyType eq 'Residential' and PropertySubType eq 'Single Family Residence') or (PropertyType eq 'Residential' and PropertySubType eq 'Condominium') or (PropertyType eq 'Residential' and PropertySubType eq 'Townhouse')`,
+  ];
+  if (opts.listPrice && opts.listPrice > 0) {
+    const lo = Math.round(opts.listPrice * (1 - PRICE_BAND));
+    const hi = Math.round(opts.listPrice * (1 + PRICE_BAND));
+    clauses.push(`ListPrice ge ${lo}`);
+    clauses.push(`ListPrice le ${hi}`);
+  }
+  // Wrap the home-type OR group in parens so it's treated as one term
+  // when AND'd with status/price; the bbox filter is applied client-side
+  // (Spark OData doesn't support geo predicates).
+  const filter = `${clauses[0]} and (${clauses[1]})${clauses
+    .slice(2)
+    .map((c) => ` and ${c}`)
+    .join('')}`;
+
+  try {
+    const records = await fetchAllProperties({
+      filter,
+      top: 60,
+      orderby: 'ListPrice desc',
+      expand: ['Media($top=1;$orderby=Order)'],
+      maxPages: 1,
+    });
+    return records
+      .filter((r) => {
+        if (!isIdxDisplayable(r)) return false;
+        if (asString(r['ListingId']) === opts.excludeListingId) return false;
+        const lat = asNumber(r['Latitude']);
+        const lng = asNumber(r['Longitude']);
+        if (lat == null || lng == null) return false;
+        return lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng;
+      })
+      .slice(0, limit)
+      .map(sparkRecordToListing);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[spark/search] getNearbyListings failed:', err);
+    return [];
+  }
+}
+
+/**
  * IDX opt-out check. ARMLS sellers can flag a listing with
  * InternetEntireListingDisplayYN=false to suppress public IDX display.
  * We must drop those records before rendering.

@@ -18,9 +18,10 @@
  */
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getListingBySlug } from '@/lib/spark/search';
+import { getListingBySlug, getNearbyListings } from '@/lib/spark/search';
 import { buildFeatureGroups } from '@/lib/spark/listing-features';
 import { matchCuratedCommunity } from '@/lib/community-match';
+import { computeDistances } from '@/lib/distances';
 import { siteUrl } from '@/lib/seo';
 import { ListingDetailClient } from './ListingDetailClient';
 
@@ -58,13 +59,30 @@ export default async function ListingDetailPage({ params }: PageProps) {
     subdivisionDisplay: listing.subdivisionDisplay,
     city: listing.city,
   });
+  const distances = computeDistances(listing.latitude, listing.longitude);
   const listingUrl = `${SITE_URL}/listings/${listing.slug}`;
+
+  // Nearby listings — only fetched when the subject has lat/lng so the
+  // bbox query is meaningful. Failures swallowed because the strip is
+  // a recommendation, not load-bearing for the page.
+  const nearby =
+    listing.latitude != null && listing.longitude != null
+      ? await getNearbyListings({
+          excludeListingId: listing.listingId,
+          latitude: listing.latitude,
+          longitude: listing.longitude,
+          listPrice: listing.listPrice,
+          limit: 4,
+        }).catch(() => [])
+      : [];
 
   return (
     <ListingDetailClient
       listing={listing}
       featureGroups={featureGroups}
       curatedCommunity={curatedCommunity}
+      distances={distances}
+      nearby={nearby}
       listingUrl={listingUrl}
     />
   );

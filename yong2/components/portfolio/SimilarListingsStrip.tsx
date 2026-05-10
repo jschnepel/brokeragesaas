@@ -40,7 +40,7 @@ export function SimilarListingsStrip({ listings }: SimilarListingsStripProps) {
           <h2 className="display-lg italic mt-3">You may also consider.</h2>
         </div>
         <Link
-          href="/portfolio"
+          href="/listings"
           className="caps hover:text-gold transition-colors"
         >
           View all listings →
@@ -50,7 +50,7 @@ export function SimilarListingsStrip({ listings }: SimilarListingsStripProps) {
         {listings.map((l) => (
           <Link
             key={l.slug}
-            href={`/portfolio/${l.slug}`}
+            href={`/listings/${l.slug}`}
             className="relative aspect-[4/5] overflow-hidden bg-ink-elevated group"
           >
             <Image

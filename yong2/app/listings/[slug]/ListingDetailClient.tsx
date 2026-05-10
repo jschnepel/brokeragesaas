@@ -37,17 +37,23 @@ import { MountOnView } from '@/components/shared/MountOnView';
 import { ShareButton } from '@/components/portfolio/ShareButton';
 import { RequestTourCta } from '@/components/portfolio/RequestTourCta';
 import { StickyContact } from '@/components/portfolio/StickyContact';
+import { SimilarListingsStrip } from '@/components/portfolio/SimilarListingsStrip';
 import { IDXComplianceFooter } from '@/components/portfolio/IDXComplianceFooter';
 import { yongBio } from '@/content/yong';
 import { siteContent } from '@/content/site';
 import type { Listing } from '@/lib/types';
 import type { FeatureGroup } from '@/lib/listing-narrative';
 import type { CuratedCommunity } from '@/content/communities';
+import type { DistanceRow } from '@/lib/distances';
 
 type ListingDetailClientProps = {
   listing: Listing;
   featureGroups: ReadonlyArray<FeatureGroup>;
   curatedCommunity: CuratedCommunity | null;
+  /** Pre-computed straight-line miles to curated Phoenix-metro POIs. */
+  distances: ReadonlyArray<DistanceRow>;
+  /** Up to 4 nearby Active residentials in a similar price band. */
+  nearby: Listing[];
   listingUrl: string;
 };
 
@@ -62,6 +68,8 @@ export function ListingDetailClient({
   listing,
   featureGroups,
   curatedCommunity,
+  distances,
+  nearby,
   listingUrl,
 }: ListingDetailClientProps) {
   const tourMessage = `${listing.unparsedAddress}${listing.community ? ` (${listing.community})` : ''}`;
@@ -212,7 +220,7 @@ export function ListingDetailClient({
                 address={listing.unparsedAddress}
                 community={curatedCommunity.name}
                 communityNarrative={curatedCommunity.narrative[0] ?? ''}
-                distances={[]}
+                distances={distances}
               />
             ) : (
               <>
@@ -225,13 +233,49 @@ export function ListingDetailClient({
                   longitude={listing.longitude as number}
                   address={listing.unparsedAddress}
                 />
+                {distances.length > 0 ? (
+                  <dl className="mt-8 max-w-md">
+                    <p className="caps text-[10px] tracking-widest text-stone/55 mb-3">
+                      Distance to
+                    </p>
+                    {distances.map((d, i) => (
+                      <div
+                        key={d.label}
+                        className={`flex justify-between items-baseline py-2.5 text-sm ${
+                          i === distances.length - 1 ? '' : 'border-b border-white/5'
+                        }`}
+                      >
+                        <dt className="text-stone/75">{d.label}</dt>
+                        <dd className="text-stone tabular-nums">{d.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
               </>
             )}
           </MountOnView>
         </SectionFrame>
       ) : null}
 
-      {/* ── 5. ACTION ROW ───────────────────────────── */}
+      {/* ── 5. NEARBY LISTINGS ───────────────────────── */}
+      {nearby.length > 0 ? (
+        <SectionFrame className="py-16 md:py-20">
+          <SimilarListingsStrip
+            listings={nearby.map((l) => ({
+              slug: l.slug,
+              address: l.unparsedAddress,
+              community: l.community,
+              price: l.listPrice,
+              imageUrl: l.coverPhotoUrl ?? '/hero/silverleaf.jpg',
+              beds: l.bedrooms ?? 0,
+              baths: typeof l.bathroomsTotal === 'number' ? l.bathroomsTotal : 0,
+              livingArea: l.livingArea ?? 0,
+            }))}
+          />
+        </SectionFrame>
+      ) : null}
+
+      {/* ── 6. ACTION ROW ───────────────────────────── */}
       <SectionFrame className="py-12 md:py-16 border-t border-white/10">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <Link
