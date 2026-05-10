@@ -5,6 +5,7 @@ import { SectionFrame } from '@/components/shared/SectionFrame';
 import { PageHero } from '@/components/shared/PageHero';
 import { CapsLabel } from '@/components/shared/CapsLabel';
 import { siteUrl } from '@/lib/seo';
+import { PhoenixSubnav } from './components/PhoenixSubnav';
 import {
   getMetroSnapshot,
   getTopRegions,
@@ -192,6 +193,7 @@ export default async function PhoenixPage() {
         headlineItalic="a glance."
         sub="Real-time inventory, pricing, and pace, refreshed hourly from ARMLS."
       />
+      <PhoenixSubnav current="/phoenix" />
       <main>
         <SectionFrame className="py-16 md:py-20">
           <div className="mb-10">
