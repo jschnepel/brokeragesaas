@@ -33,6 +33,7 @@ import { KeyFactsCard } from '@/components/portfolio/KeyFactsCard';
 import { KeyFeaturesGrid } from '@/components/portfolio/KeyFeaturesGrid';
 import { LocationIntelligence } from '@/components/portfolio/LocationIntelligence';
 import { ListingMap } from '@/components/portfolio/ListingMap';
+import { MountOnView } from '@/components/shared/MountOnView';
 import { ShareButton } from '@/components/portfolio/ShareButton';
 import { RequestTourCta } from '@/components/portfolio/RequestTourCta';
 import { StickyContact } from '@/components/portfolio/StickyContact';
@@ -195,30 +196,38 @@ export function ListingDetailClient({
       ) : null}
 
       {/* ── 4. LOCATION ─────────────────────────────── */}
+      {/*
+       * Below-the-fold MapLibre mount is deferred until the section is
+       * roughly one viewport away from visible. Keeps the hero/story
+       * critical path cheap and progressively loads the map as the
+       * visitor scrolls.
+       */}
       {hasGeo ? (
         <SectionFrame className="py-16 md:py-20">
-          {curatedCommunity ? (
-            <LocationIntelligence
-              latitude={listing.latitude as number}
-              longitude={listing.longitude as number}
-              address={listing.unparsedAddress}
-              community={curatedCommunity.name}
-              communityNarrative={curatedCommunity.narrative[0] ?? ''}
-              distances={[]}
-            />
-          ) : (
-            <>
-              <span aria-hidden="true" className="block w-12 h-px bg-gold/60 mb-6" />
-              <p className="caps text-[10px] tracking-[0.32em] text-stone/70 mb-8">
-                Location
-              </p>
-              <ListingMap
+          <MountOnView className="min-h-[400px]">
+            {curatedCommunity ? (
+              <LocationIntelligence
                 latitude={listing.latitude as number}
                 longitude={listing.longitude as number}
                 address={listing.unparsedAddress}
+                community={curatedCommunity.name}
+                communityNarrative={curatedCommunity.narrative[0] ?? ''}
+                distances={[]}
               />
-            </>
-          )}
+            ) : (
+              <>
+                <span aria-hidden="true" className="block w-12 h-px bg-gold/60 mb-6" />
+                <p className="caps text-[10px] tracking-[0.32em] text-stone/70 mb-8">
+                  Location
+                </p>
+                <ListingMap
+                  latitude={listing.latitude as number}
+                  longitude={listing.longitude as number}
+                  address={listing.unparsedAddress}
+                />
+              </>
+            )}
+          </MountOnView>
         </SectionFrame>
       ) : null}
 

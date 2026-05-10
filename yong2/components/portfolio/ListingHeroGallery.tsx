@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import type { Listing } from '@/lib/types';
 import { CapsLabel } from '@/components/shared/CapsLabel';
+import { FadeImage } from '@/components/shared/FadeImage';
 import { ListingLightbox } from './ListingLightbox';
 import { track } from '@/lib/analytics/events';
 import {
@@ -138,7 +139,11 @@ export function ListingHeroGallery({ listing, photos: rawPhotos, topOverlay }: L
           className="hidden md:block absolute inset-0 w-full h-full cursor-pointer group"
           aria-label="Open photo gallery"
         >
-          <Image
+          {/* Hero — priority + high fetchPriority so the LCP photo
+           *  starts decoding before any other image on the page.
+           *  FadeImage adds an 800ms opacity transition once decoded
+           *  for a cinematic reveal against the dark hero surface. */}
+          <FadeImage
             src={heroPhoto}
             alt={headline}
             fill
@@ -146,7 +151,7 @@ export function ListingHeroGallery({ listing, photos: rawPhotos, topOverlay }: L
             fetchPriority="high"
             quality={70}
             sizes="100vw"
-            className="object-cover transition-transform duration-700 group-hover:scale-[1.02]"
+            className="object-cover"
           />
         </button>
 
@@ -219,12 +224,15 @@ export function ListingHeroGallery({ listing, photos: rawPhotos, topOverlay }: L
               className="relative aspect-[16/9] overflow-hidden group/thumb cursor-pointer"
               aria-label={`Open photo ${i + 2}`}
             >
-              <Image
+              {/* Thumbs are below-the-fold for most viewports; default
+               *  next/image lazy loading kicks in. They fade in once
+               *  decoded, naturally cascading after the hero. */}
+              <FadeImage
                 src={url}
                 alt={`${headline} photo ${i + 2}`}
                 fill
                 sizes="(min-width: 768px) 25vw, 100vw"
-                className="object-cover group-hover/thumb:scale-[1.04] transition-transform duration-500"
+                className="object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-ink/40 to-transparent pointer-events-none" />
             </button>
@@ -237,7 +245,7 @@ export function ListingHeroGallery({ listing, photos: rawPhotos, topOverlay }: L
               className="relative aspect-[16/9] overflow-hidden cursor-pointer group/more"
               aria-label={`View all ${photos.length} photos`}
             >
-              <Image
+              <FadeImage
                 src={moreTilePhoto}
                 alt=""
                 fill

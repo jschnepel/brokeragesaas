@@ -1,8 +1,8 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import type { Listing } from '@/lib/types';
+import { FadeImage } from '@/components/shared/FadeImage';
 import { formatPrice, formatSqft } from '@/components/shared/formatters';
 
 type ResultCardProps = {
@@ -72,12 +72,17 @@ export function ResultCard({ listing, highlighted, onHover, onCardClick }: Resul
         onClick={(e) => e.stopPropagation()}
       >
         {listing.coverPhotoUrl ? (
-          <Image
+          // Cards lazy-load by default (next/image) — only the cards
+          // currently in the viewport request bytes. FadeImage fades
+          // each card photo in once it decodes so as the visitor scrolls
+          // and Load More fires, new cards reveal cinematically rather
+          // than popping in.
+          <FadeImage
             src={listing.coverPhotoUrl}
             alt={headline}
             fill
             sizes="(min-width: 1280px) 25vw, (min-width: 768px) 35vw, 50vw"
-            className="object-cover transition-transform duration-700 group-hover:scale-105"
+            className="object-cover"
           />
         ) : null}
         <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent" />
