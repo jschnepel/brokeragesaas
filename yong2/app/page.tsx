@@ -10,7 +10,7 @@ import { HomeCommunities } from '@/components/home/HomeCommunities';
 import { AboutSnippet } from '@/components/home/AboutSnippet';
 import { MarketBlurb } from '@/components/home/MarketBlurb';
 import { ContactCTA } from '@/components/home/ContactCTA';
-import { getFeaturedListings } from '@/lib/listings';
+import { searchListings } from '@/lib/spark/search';
 import { getCuratedCommunities } from '@/lib/communities';
 import { siteUrl } from '@/lib/seo';
 
@@ -20,21 +20,38 @@ export const metadata: Metadata = {
   alternates: { canonical: siteUrl('/') },
 };
 
+/**
+ * Yong's home-page feature pool — top of the active luxury market.
+ * Pulls 3 highest-priced ARMLS Active residential listings within
+ * Yong's bbox via Spark (the curated / agent-owned portfolio query
+ * stays in /portfolio; this section is the public-facing top-of-
+ * market teaser). RDS getFeaturedListings was retired with
+ * mv_active_listings; Spark is the unified source now.
+ */
+const HOME_BBOX = { minLng: -112.5, minLat: 33.0, maxLng: -111.3, maxLat: 34.1 };
+
 export default async function Home() {
-  const [listings, communities] = await Promise.all([
-    getFeaturedListings(3).catch(() => []),
+  const [searchResult, communities] = await Promise.all([
+    searchListings({
+      bbox: HOME_BBOX,
+      homeTypes: ['house', 'condo'],
+      priceMin: 3_000_000,
+      limit: 3,
+    }).catch(() => ({ listings: [], pins: [], total: 0, hasMore: false, fetchedAt: '' })),
     Promise.resolve(getCuratedCommunities()),
   ]);
 
-  const featured = listings.map((l) => ({
-    slug: l.slug,
-    listingKey: l.listingKey,
-    address: l.unparsedAddress || `${l.streetNumber ?? ''} ${l.streetName ?? ''}`.trim(),
-    community: l.community,
-    price: l.listPrice,
-    imageUrl: l.coverPhotoUrl,
-    tag: l.status === 'Coming Soon' ? 'Coming Soon' : undefined,
-  }));
+  const featured = searchResult.listings
+    .slice(0, 3)
+    .map((l) => ({
+      slug: l.slug,
+      listingKey: l.listingKey,
+      address: l.unparsedAddress || `${l.streetNumber ?? ''} ${l.streetName ?? ''}`.trim(),
+      community: l.community,
+      price: l.listPrice,
+      imageUrl: l.coverPhotoUrl,
+      tag: l.status === 'Coming Soon' ? 'Coming Soon' : undefined,
+    }));
 
   return (
     <>

@@ -58,7 +58,7 @@ export function FeaturedPortfolio({ listings }: FeaturedPortfolioProps) {
         {listings.map((l, index) => (
           <Link
             key={l.slug}
-            href={`/portfolio/${l.slug}`}
+            href={`/listings/${l.slug}`}
             onClick={() =>
               track('result_card_click', {
                 // Fall back to slug for analytics-only ID continuity if the
