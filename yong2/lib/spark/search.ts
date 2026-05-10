@@ -20,7 +20,11 @@
  * lite-index over UnparsedAddress + SubdivisionName + City.
  */
 
-import { fetchAllProperties, type SparkProperty } from './client';
+import {
+  fetchAllProperties,
+  fetchPropertiesWithMeta,
+  type SparkProperty,
+} from './client';
 import type { Listing } from '@/lib/types';
 import { listingSlug } from '@/lib/listings';
 import type {
@@ -482,7 +486,11 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
   // in $filter, so the check has to happen on the response payload.
   const [listingsResult, pinsResult] = await Promise.allSettled([
     (async () => {
-      // Fetch enough Spark pages to cover offset+limit+1 records.
+      // Fetch enough Spark pages to cover offset+limit+1 records, and
+      // ask for $count=true on the same call so we surface the true
+      // total record count for the "Showing N of M" caption — the pin
+      // universe (1000-cap) underestimates whenever the bbox matches
+      // more than 1000 listings.
       //
       // \$expand=Media inflates ~30x when unbounded — past attempts
       // tripped Spark's per-token rate limit (429 "exceeds performance
@@ -491,12 +499,13 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
       // payload back to ~1.05x while still giving the cards an image.
       // The detail page (getListingBySlug) keeps the unbounded expand
       // since it needs the full gallery for one record.
-      const records = await fetchAllProperties({
+      const { records, totalCount } = await fetchPropertiesWithMeta({
         filter,
         top: PAGE_SIZE,
         orderby: 'ListPrice desc',
         expand: ['Media($top=1;$orderby=Order)'],
         maxPages: pagesNeeded,
+        count: offset === 0, // only on the first page — count doesn't change between pages
       });
       const pool = applyClientFilters(records, opts)
         .filter(isIdxDisplayable);
@@ -507,7 +516,7 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
       // with whatever Spark's nextLink chain returns.
       const sliceHasMore = pool.length > offset + limit;
       const sliced = pool.slice(offset, offset + limit).map(sparkRecordToListing);
-      return { listings: sliced, sliceHasMore };
+      return { listings: sliced, sliceHasMore, totalCount };
     })(),
     (async () => {
       const records = await fetchAllProperties({
@@ -531,16 +540,18 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
   const listingsPayload =
     listingsResult.status === 'fulfilled'
       ? listingsResult.value
-      : { listings: [] as Listing[], sliceHasMore: false };
+      : {
+          listings: [] as Listing[],
+          sliceHasMore: false,
+          totalCount: null as number | null,
+        };
   const listings = listingsPayload.listings;
   const pins = pinsResult.status === 'fulfilled' ? pinsResult.value : [];
 
-  // Total reflects the pin universe (capped at the pins call's
-  // `top: 1000`). When the auditor walks past 1000 listings via Load
-  // More, total may underestimate but the Load More affordance keeps
-  // working because hasMore is derived from the listings pool, not
-  // total.
-  const total = pins.length;
+  // True total comes from Spark's @odata.count when available; falls
+  // back to pins.length (capped at 1000) when the count call is
+  // skipped — e.g. on Load More requests beyond the first page.
+  const total = listingsPayload.totalCount ?? pins.length;
   const fetchedAt = new Date().toISOString();
 
   if (listingsResult.status === 'rejected') {

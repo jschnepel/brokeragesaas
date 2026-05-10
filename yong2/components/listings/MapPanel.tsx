@@ -145,13 +145,13 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
           filter: ['has', 'point_count'],
           paint: {
             'circle-color': '#D4B88A',
-            'circle-stroke-color': 'rgba(239,233,223,0.6)',
-            'circle-stroke-width': 2,
+            'circle-stroke-color': 'rgba(239,233,223,0.7)',
+            'circle-stroke-width': 2.5,
             'circle-radius': [
               'step', ['get', 'point_count'],
-              16, 10, 20, 50, 26, 200, 32,
+              20, 10, 26, 50, 32, 200, 40,
             ],
-            'circle-opacity': 0.92,
+            'circle-opacity': 0.95,
           },
         });
 
@@ -163,11 +163,15 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
           layout: {
             'text-field': ['get', 'point_count_abbreviated'],
             'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-            'text-size': 12,
+            'text-size': 13,
+            'text-allow-overlap': true,
           },
           paint: { 'text-color': '#0B1620' },
         });
 
+        // Soft halo behind every individual pin so it pops against
+        // the dark MapLibre style — was invisible at default zooms
+        // (5px gold dot on dark navy was easy to scan past).
         m.addLayer({
           id: PIN_HOVER_LAYER,
           type: 'circle',
@@ -176,10 +180,14 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
           paint: {
             'circle-radius': [
               'case',
-              ['boolean', ['feature-state', HIGHLIGHT_PROP], false], 14,
-              0,
+              ['boolean', ['feature-state', HIGHLIGHT_PROP], false], 18,
+              12,
             ],
-            'circle-color': 'rgba(212,184,138,0.25)',
+            'circle-color': [
+              'case',
+              ['boolean', ['feature-state', HIGHLIGHT_PROP], false], 'rgba(212,184,138,0.40)',
+              'rgba(212,184,138,0.18)',
+            ],
           },
         });
 
@@ -191,12 +199,20 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
           paint: {
             'circle-radius': [
               'case',
-              ['boolean', ['feature-state', HIGHLIGHT_PROP], false], 8,
-              5,
+              ['boolean', ['feature-state', HIGHLIGHT_PROP], false], 10,
+              7,
             ],
-            'circle-color': '#D4B88A',
+            // Active = gold, Pending / Active Under Contract = amber
+            // tone so the visitor can tell at a glance which pins are
+            // already under contract without clicking through.
+            'circle-color': [
+              'case',
+              ['==', ['get', 'status'], 'Pending'], '#E0A06A',
+              ['==', ['get', 'status'], 'Active Under Contract'], '#E0A06A',
+              '#D4B88A',
+            ],
             'circle-stroke-color': '#EFE9DF',
-            'circle-stroke-width': 1.5,
+            'circle-stroke-width': 1.75,
           },
         });
 

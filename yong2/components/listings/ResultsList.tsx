@@ -130,12 +130,14 @@ export function ResultsList({
           </button>
           <p className="caps text-[10px] tracking-widest text-stone/40 tabular-nums">
             Showing {listings.length.toLocaleString('en-US')}
-            {total > listings.length ? ` of ${total.toLocaleString('en-US')}+` : ''}
+            {total > listings.length
+              ? ` of ${total.toLocaleString('en-US')} listings`
+              : ' listings'}
           </p>
         </div>
       ) : (
         <p className="text-center caps text-[10px] tracking-widest text-stone/35 mt-6 mb-4 tabular-nums">
-          Showing all {listings.length.toLocaleString('en-US')} listings
+          Showing all {listings.length.toLocaleString('en-US')} of {total.toLocaleString('en-US')} listings
         </p>
       )}
     </div>

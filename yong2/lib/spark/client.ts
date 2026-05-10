@@ -58,15 +58,18 @@ export type SparkProperty = Record<string, unknown>;
 interface SparkPageResponse {
   value: SparkProperty[];
   '@odata.nextLink'?: string;
+  '@odata.count'?: number;
 }
 
 /**
  * Fetch one page from Spark with retry on 429/503. Returns the page's
- * records and the next-page URL (null when exhausted).
+ * records, the next-page URL (null when exhausted), and the total
+ * record count if the request asked for it via `$count=true`.
  */
 async function fetchPage(pageUrl: string): Promise<{
   records: SparkProperty[];
   nextPageUrl: string | null;
+  totalCount: number | null;
 }> {
   const token = getSparkToken();
   if (!token) {
@@ -110,6 +113,7 @@ async function fetchPage(pageUrl: string): Promise<{
   return {
     records: data.value ?? [],
     nextPageUrl: data['@odata.nextLink'] ?? null,
+    totalCount: typeof data['@odata.count'] === 'number' ? data['@odata.count'] : null,
   };
 }
 
@@ -125,6 +129,9 @@ export function buildPropertyUrl(opts: {
   orderby?: string;
   select?: string[];
   expand?: string[];
+  /** Set true to ask Spark for the total record count via @odata.count.
+   *  Returned alongside the records on the first page only. */
+  count?: boolean;
 }): string {
   const params = new URLSearchParams();
   params.set('$filter', opts.filter);
@@ -135,6 +142,9 @@ export function buildPropertyUrl(opts: {
   }
   if (opts.expand && opts.expand.length > 0) {
     params.set('$expand', opts.expand.join(','));
+  }
+  if (opts.count) {
+    params.set('$count', 'true');
   }
   return `${getSparkBase()}/Property?${params.toString()}`;
 }
@@ -152,16 +162,41 @@ export async function fetchAllProperties(opts: {
   select?: string[];
   expand?: string[];
   maxPages?: number;
+  count?: boolean;
 }): Promise<SparkProperty[]> {
+  const result = await fetchPropertiesWithMeta(opts);
+  return result.records;
+}
+
+/**
+ * Same fetch as fetchAllProperties but also returns Spark's
+ * `@odata.count` (when requested via `count: true`). Lets callers
+ * report the true total record count without fetching every record —
+ * critical for the /listings "Showing N of M" display where the pin
+ * universe is capped well below the full pool size.
+ */
+export async function fetchPropertiesWithMeta(opts: {
+  filter: string;
+  top?: number;
+  orderby?: string;
+  select?: string[];
+  expand?: string[];
+  maxPages?: number;
+  count?: boolean;
+}): Promise<{ records: SparkProperty[]; totalCount: number | null }> {
   const maxPages = opts.maxPages ?? 5;
   let url: string | null = buildPropertyUrl(opts);
   const all: SparkProperty[] = [];
+  let totalCount: number | null = null;
   let page = 0;
   while (url && page < maxPages) {
-    const { records, nextPageUrl } = await fetchPage(url);
+    const { records, nextPageUrl, totalCount: pageCount } = await fetchPage(url);
     all.push(...records);
+    if (page === 0 && pageCount != null) {
+      totalCount = pageCount;
+    }
     url = nextPageUrl;
     page += 1;
   }
-  return all;
+  return { records: all, totalCount };
 }
