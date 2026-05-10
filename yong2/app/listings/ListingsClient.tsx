@@ -27,8 +27,15 @@ type ListingsClientProps = {
   initialListings: Listing[];
   initialPins: PinPoint[];
   initialTotal: number;
+  initialHasMore: boolean;
   initialFetchedAt: string;
 };
+
+// Page size for both initial fetch and each Load More click. Kept
+// modest (60) so cold-fetch payloads stay small and the visitor sees
+// results fast; Load More appends in 60-listing increments until the
+// match pool is exhausted.
+const PAGE_LIMIT = 60;
 
 /**
  * Owns search/map state, interaction, and the fetch lifecycle. Server
@@ -40,13 +47,16 @@ export function ListingsClient({
   initialListings,
   initialPins,
   initialTotal,
+  initialHasMore,
   initialFetchedAt,
 }: ListingsClientProps) {
   const [listings, setListings] = useState<Listing[]>(initialListings);
   const [pins, setPins] = useState<PinPoint[]>(initialPins);
   const [total, setTotal] = useState<number>(initialTotal);
+  const [hasMore, setHasMore] = useState<boolean>(initialHasMore);
   const [fetchedAt, setFetchedAt] = useState<string>(initialFetchedAt);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [q, setQ] = useState('');
   const [bbox, setBbox] = useState<BBox | null>(null);
   const [polygon, setPolygon] = useState<PolygonGeoJSON | null>(null);
@@ -134,7 +144,7 @@ export function ListingsClient({
     if (priceMin != null) opts.priceMin = priceMin;
     if (priceMax != null) opts.priceMax = priceMax;
     if (filters.bedsMin > 0) opts.bedsMin = filters.bedsMin;
-    opts.limit = 60;
+    opts.limit = PAGE_LIMIT;
     return opts;
   }, [q, polygon, bbox, filters]);
 
@@ -164,12 +174,14 @@ export function ListingsClient({
           listings: Listing[];
           pins: PinPoint[];
           total: number;
+          hasMore?: boolean;
           fetchedAt?: string;
         };
         if (cancelled) return;
         setListings(json.listings);
         setPins(json.pins);
         setTotal(json.total);
+        setHasMore(Boolean(json.hasMore));
         if (json.fetchedAt) setFetchedAt(json.fetchedAt);
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
@@ -248,6 +260,37 @@ export function ListingsClient({
       }, 300);
     }
   }, []);
+
+  // Load More — append the next PAGE_LIMIT listings to the visible set.
+  // Uses the same searchOpts as the active query, only changes the
+  // offset. Pins/total are not refetched (they cover the full match pool
+  // already from the initial query).
+  const handleLoadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch('/api/listings/search', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ...searchOpts, offset: listings.length }),
+      });
+      if (!res.ok) throw new Error(`Load more failed: ${res.status}`);
+      const json = (await res.json()) as {
+        listings: Listing[];
+        hasMore?: boolean;
+      };
+      track('results_load_more', {
+        results_count: listings.length + json.listings.length,
+      });
+      setListings((prev) => [...prev, ...json.listings]);
+      setHasMore(Boolean(json.hasMore));
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('Load more failed', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, searchOpts, listings.length]);
 
   const handleCardClick = useCallback((key: string) => {
     // Position is the listing's index in the current results array — useful
@@ -329,6 +372,9 @@ export function ListingsClient({
               onCardClick={handleCardClick}
               onResetFilters={handleResetFilters}
               scrollToKey={scrollToKey}
+              hasMore={hasMore}
+              loadingMore={loadingMore}
+              onLoadMore={handleLoadMore}
             />
             {/* IDX compliance footer — required on every IDX search
              *  surface (ARMLS rules + docs/compliance/idx-compliance.md).

@@ -10,7 +10,13 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { searchListings } from '@/lib/listings-search';
+// Use the Spark-backed searchListings — matches the SSR /listings page
+// (app/listings/page.tsx imports from lib/spark/search). The RDS-backed
+// path in lib/listings-search points at mv_active_listings, which has
+// been dropped from the analytics MV set; keeping the API on the same
+// data source as the SSR initial fetch avoids divergent behavior on map
+// pans / Load More.
+import { searchListings } from '@/lib/spark/search';
 import { checkRateLimit } from '@/lib/rate-limit';
 
 const bboxSchema = z.object({

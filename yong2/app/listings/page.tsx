@@ -39,13 +39,20 @@ async function ListingsResults() {
   const initial = await searchListings({ bbox: DEFAULT_BBOX, limit: 60 }).catch((err) => {
     // eslint-disable-next-line no-console
     console.warn('listings.page.initial_fetch_failed', err);
-    return { listings: [], pins: [], total: 0, fetchedAt: new Date().toISOString() };
+    return {
+      listings: [],
+      pins: [],
+      total: 0,
+      hasMore: false,
+      fetchedAt: new Date().toISOString(),
+    };
   });
   return (
     <ListingsClient
       initialListings={initial.listings}
       initialPins={initial.pins}
       initialTotal={initial.total}
+      initialHasMore={initial.hasMore}
       initialFetchedAt={initial.fetchedAt}
     />
   );

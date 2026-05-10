@@ -390,6 +390,19 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
   const offset = Math.max(opts.offset ?? 0, 0);
   const filter = buildSearchFilter(opts);
 
+  // Pagination strategy: fetch exactly enough Spark pages to cover the
+  // requested offset+limit window, plus one extra record so we can tell
+  // whether more results exist beyond the slice (drives hasMore). No
+  // upper cap — the auditor scrolling /listings should be able to walk
+  // the entire active inventory via Load More. Spark's nextLink chain
+  // is followed by fetchAllProperties; cost scales linearly with the
+  // depth a visitor actually scrolls.
+  const PAGE_SIZE = 250;
+  const pagesNeeded = Math.max(
+    Math.ceil((offset + limit + 1) / PAGE_SIZE),
+    1,
+  );
+
   // Two Spark calls in parallel. Both go through fetchAllProperties
   // (which uses the env-injected token from next.config.ts env block).
   // IDX opt-out (InternetEntireListingDisplayYN) is enforced via
@@ -397,8 +410,7 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
   // in $filter, so the check has to happen on the response payload.
   const [listingsResult, pinsResult] = await Promise.allSettled([
     (async () => {
-      // Over-fetch (top: 250) so post-fetch IDX/spatial/text filters
-      // don't shrink the page below the requested size.
+      // Fetch enough Spark pages to cover offset+limit+1 records.
       //
       // \$expand=Media inflates ~30x when unbounded — past attempts
       // tripped Spark's per-token rate limit (429 "exceeds performance
@@ -409,15 +421,21 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
       // since it needs the full gallery for one record.
       const records = await fetchAllProperties({
         filter,
-        top: 250,
+        top: PAGE_SIZE,
         orderby: 'ListPrice desc',
         expand: ['Media($top=1;$orderby=Order)'],
-        maxPages: 1,
+        maxPages: pagesNeeded,
       });
-      return applyClientFilters(records, opts)
-        .filter(isIdxDisplayable)
-        .map(sparkRecordToListing)
-        .slice(offset, offset + limit);
+      const pool = applyClientFilters(records, opts)
+        .filter(isIdxDisplayable);
+      // hasMore is true when the filtered pool extends beyond the
+      // requested slice — i.e., another Load More click would return
+      // additional listings. Derived here (not from `pins.length`) so
+      // pagination is decoupled from the pin-universe cap and scales
+      // with whatever Spark's nextLink chain returns.
+      const sliceHasMore = pool.length > offset + limit;
+      const sliced = pool.slice(offset, offset + limit).map(sparkRecordToListing);
+      return { listings: sliced, sliceHasMore };
     })(),
     (async () => {
       const records = await fetchAllProperties({
@@ -438,12 +456,18 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
     })(),
   ]);
 
-  const listings =
-    listingsResult.status === 'fulfilled' ? listingsResult.value : [];
+  const listingsPayload =
+    listingsResult.status === 'fulfilled'
+      ? listingsResult.value
+      : { listings: [] as Listing[], sliceHasMore: false };
+  const listings = listingsPayload.listings;
   const pins = pinsResult.status === 'fulfilled' ? pinsResult.value : [];
 
-  // Total — best estimate: pin count if it didn't hit the 2000 cap,
-  // otherwise we report "2000+" (treated as 2000).
+  // Total reflects the pin universe (capped at the pins call's
+  // `top: 1000`). When the auditor walks past 1000 listings via Load
+  // More, total may underestimate but the Load More affordance keeps
+  // working because hasMore is derived from the listings pool, not
+  // total.
   const total = pins.length;
   const fetchedAt = new Date().toISOString();
 
@@ -456,7 +480,13 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
     console.error('[spark/search] pins call failed:', pinsResult.reason);
   }
 
-  return { listings, pins, total, fetchedAt };
+  return {
+    listings,
+    pins,
+    total,
+    hasMore: listingsPayload.sliceHasMore,
+    fetchedAt,
+  };
 }
 
 /**

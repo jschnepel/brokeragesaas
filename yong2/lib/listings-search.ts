@@ -97,6 +97,12 @@ export interface SearchResult {
   pins: PinPoint[];
   total: number;
   /**
+   * True when there are more listings beyond `listings.length + offset`
+   * in the matching pool. Drives the Load More affordance on the
+   * results panel.
+   */
+  hasMore: boolean;
+  /**
    * ISO timestamp of when this result was fetched from the upstream
    * data source. Drives the IDX freshness label — needs to reflect
    * data-source recency, not the newest modificationTimestamp in the
@@ -221,7 +227,14 @@ export async function searchListings(opts: SearchOpts = {}): Promise<SearchResul
   // the shape returned is one consistent SearchResult.
   const pins = await searchListingPins(opts);
 
-  return { listings, pins, total, fetchedAt: new Date().toISOString() };
+  const hasMore = offset + listings.length < total;
+  return {
+    listings,
+    pins,
+    total,
+    hasMore,
+    fetchedAt: new Date().toISOString(),
+  };
 }
 
 /**

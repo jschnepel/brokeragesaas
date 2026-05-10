@@ -13,6 +13,9 @@ type ResultsListProps = {
   onCardClick: (key: string) => void;
   onResetFilters: () => void;
   scrollToKey: string | null;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
 };
 
 /**
@@ -29,8 +32,35 @@ export function ResultsList({
   onCardClick,
   onResetFilters,
   scrollToKey,
+  hasMore,
+  loadingMore,
+  onLoadMore,
 }: ResultsListProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // Lazy-load on scroll: when the sentinel below the last card enters
+  // the scroll container's viewport, fire onLoadMore. Falls back to
+  // the explicit Load More button rendered below the sentinel for
+  // accessibility and for visitors who prefer click-driven pagination.
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    if (!hasMore || loadingMore) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            onLoadMore();
+            break;
+          }
+        }
+      },
+      { rootMargin: '600px 0px' }, // trigger ~600px before reach
+    );
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [hasMore, loadingMore, onLoadMore]);
 
   // When the map asks us to scroll a card into view, find it by
   // data-listing-key and ease it center-ward.
@@ -82,12 +112,32 @@ export function ResultsList({
           />
         ))}
       </div>
-      {total > listings.length ? (
-        <p className="text-center text-xs text-mute mt-6">
-          Showing {listings.length.toLocaleString('en-US')} of {total.toLocaleString('en-US')} listings.
-          Pan or zoom the map to refine.
+      {/* Load More — sentinel for IntersectionObserver-driven lazy
+       *  loading + an explicit button. The button is the keyboard
+       *  affordance and a fallback for browsers/devices that don't
+       *  fire the observer reliably (older Safari, some embedded
+       *  webviews). */}
+      <div ref={sentinelRef} aria-hidden="true" className="h-4 mt-6" />
+      {hasMore ? (
+        <div className="flex flex-col items-center gap-2 mt-2 mb-6">
+          <button
+            type="button"
+            onClick={onLoadMore}
+            disabled={loadingMore}
+            className="caps text-[10px] tracking-[0.32em] px-5 py-3 bg-ink-elevated border border-stone/20 text-stone hover:border-gold hover:text-gold disabled:opacity-50 disabled:cursor-wait transition-colors"
+          >
+            {loadingMore ? 'Loading…' : 'Load more'}
+          </button>
+          <p className="caps text-[10px] tracking-widest text-stone/40 tabular-nums">
+            Showing {listings.length.toLocaleString('en-US')}
+            {total > listings.length ? ` of ${total.toLocaleString('en-US')}+` : ''}
+          </p>
+        </div>
+      ) : (
+        <p className="text-center caps text-[10px] tracking-widest text-stone/35 mt-6 mb-4 tabular-nums">
+          Showing all {listings.length.toLocaleString('en-US')} listings
         </p>
-      ) : null}
+      )}
     </div>
   );
 }
