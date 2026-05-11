@@ -145,6 +145,11 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
       });
       m.addControl(new maplibre.NavigationControl({ showCompass: false }), 'top-right');
       mapRef.current = m;
+      // DEBUG: expose map instance on window so we can verify pin source
+      // state from a remote diagnostic. Remove once the missing-pin
+      // investigation closes.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__yong2_debug_map = m;
 
       // Apply initial bbox from server-side default if present.
       if (initialBbox) {
