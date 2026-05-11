@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { Listing } from '@/lib/types';
 import { FadeImage } from '@/components/shared/FadeImage';
 import { formatPrice, formatSqft } from '@/components/shared/formatters';
+import { useSavedListing } from '@/components/portfolio/HeroTopBar';
 
 type ResultCardProps = {
   listing: Listing;
@@ -54,6 +55,18 @@ export function ResultCard({ listing, highlighted, onHover, onCardClick }: Resul
       ? `Listed by ${listing.listAgentName ?? 'Agent'}`
       : null;
 
+  const { isSaved, toggle: toggleSaved } = useSavedListing(listing.listingKey, {
+    slug: listing.slug,
+    address: headline,
+    community: listing.community,
+    price: listing.listPrice,
+    imageUrl: listing.coverPhotoUrl,
+    beds: listing.bedrooms,
+    baths:
+      typeof listing.bathroomsTotal === 'number' ? listing.bathroomsTotal : null,
+    livingArea: listing.livingArea,
+  });
+
   return (
     <article
       data-listing-key={listing.listingKey}
@@ -91,6 +104,38 @@ export function ResultCard({ listing, highlighted, onHover, onCardClick }: Resul
             {listing.status === 'Active Under Contract' ? 'Under Contract' : listing.status}
           </span>
         ) : null}
+        {/* Save heart — absolute-positioned on the photo so it
+         *  doesn't compete with the address row. Stops navigation
+         *  propagation so clicking the heart doesn't open the
+         *  detail page. */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleSaved();
+          }}
+          aria-pressed={isSaved}
+          aria-label={isSaved ? 'Remove from saved' : 'Save this listing'}
+          className={`absolute top-2 right-2 w-9 h-9 rounded-full backdrop-blur-sm border flex items-center justify-center transition-colors ${
+            isSaved
+              ? 'bg-gold/90 text-ink border-gold'
+              : 'bg-ink/55 text-stone border-white/20 hover:bg-ink/80 hover:border-gold hover:text-gold'
+          }`}
+        >
+          <svg
+            aria-hidden="true"
+            className="w-4 h-4"
+            viewBox="0 0 24 24"
+            fill={isSaved ? 'currentColor' : 'none'}
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </svg>
+        </button>
       </Link>
       <div className="p-3 flex flex-col gap-1">
         <div className="caps text-[0.65rem] truncate">{listing.community}</div>
