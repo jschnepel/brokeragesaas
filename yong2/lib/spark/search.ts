@@ -269,6 +269,21 @@ function buildSearchFilter(opts: SearchOpts): string {
   const statusClause = statuses.map((s) => `StandardStatus eq '${escapeLiteral(s)}'`).join(' or ');
   clauses.push(`(${statusClause})`);
 
+  // Text query — pushed server-side via OData contains() against the
+  // address, city, neighborhood and public-remarks fields. Earlier
+  // assumption (substringof rejected → post-fetch only) was wrong:
+  // Spark's OData supports contains(). Server-side filtering means the
+  // search hits ANY matching listing in the active feed, not just the
+  // top 250 by ListPrice — fixes the bug where a search for a street
+  // with $1.5M homes returned 0 because those listings weren't in the
+  // top-250-by-price window.
+  if (opts.q && opts.q.trim().length > 0) {
+    const escaped = escapeLiteral(opts.q.trim());
+    clauses.push(
+      `(contains(UnparsedAddress,'${escaped}') or contains(City,'${escaped}') or contains(SubdivisionName,'${escaped}') or contains(PublicRemarks,'${escaped}'))`,
+    );
+  }
+
   if (typeof opts.priceMin === 'number') {
     clauses.push(`ListPrice ge ${opts.priceMin}`);
   }
@@ -415,10 +430,11 @@ function applyClientFilters(records: SparkProperty[], opts: SearchOpts): SparkPr
     });
   }
 
-  if (opts.q && opts.q.trim()) {
-    const q = opts.q.trim().toLowerCase();
-    out = out.filter((r) => searchHaystack(r).includes(q));
-  }
+  // Text-query filtering moved server-side via OData contains() in
+  // buildSearchFilter — no post-fetch step needed. Keeping
+  // searchHaystack() in the file in case a future feature-array search
+  // ever needs to fall back to client-side scanning, but it's no
+  // longer called in this path.
 
   // Horse property — Spark won't filter by HorseAmenities array
   // server-side (no any() lambda support) so we narrow post-fetch.
@@ -573,11 +589,11 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
 
   // Pagination strategy: fetch exactly enough Spark pages to cover the
   // requested offset+limit window, plus one extra record so we can tell
-  // whether more results exist beyond the slice (drives hasMore). No
-  // upper cap — the auditor scrolling /listings should be able to walk
-  // the entire active inventory via Load More. Spark's nextLink chain
-  // is followed by fetchAllProperties; cost scales linearly with the
-  // depth a visitor actually scrolls.
+  // whether more results exist beyond the slice (drives hasMore).
+  //
+  // Text query is now applied server-side via OData contains() in
+  // buildSearchFilter, so we no longer have to over-fetch to compensate
+  // for post-fetch text narrowing.
   const PAGE_SIZE = 250;
   const pagesNeeded = Math.max(
     Math.ceil((offset + limit + 1) / PAGE_SIZE),
@@ -630,8 +646,10 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
       // light $select so the bytes stay small per record. The bbox /
       // IDX filtering then narrows whatever fell inside the viewport.
       // Single page × 1000 keeps the fetch under Spark's per-token
-      // rate-limit threshold (2 parallel pages were occasionally
-      // tripping 429s, leaving the map blank).
+      // rate-limit threshold. Text query is now applied server-side
+      // (contains() in buildSearchFilter), so the 1000-record window
+      // is already narrowed by both Spark's filter and the visitor's
+      // text query before we get here.
       const records = await fetchAllProperties({
         filter,
         top: 1000,
