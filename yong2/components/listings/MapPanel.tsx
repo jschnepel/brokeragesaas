@@ -87,6 +87,17 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
   useEffect(() => {
     listingsByKeyRef.current = listingsByKey;
   }, [listingsByKey]);
+
+  // Hold the latest pins array in a ref so the map-init effect's
+  // 'load' handler can pull current data when the source first
+  // mounts. Without this, the pins-update useEffect would have
+  // already fired (when pins prop first arrived) and bailed out
+  // because mapRef.current was still null mid-init — leaving the
+  // source permanently empty until the user interacts.
+  const pinsRef = useRef<PinPoint[]>(pins);
+  useEffect(() => {
+    pinsRef.current = pins;
+  }, [pins]);
   const containerRef = useRef<HTMLDivElement | null>(null);
   // Stash mutable refs to avoid re-creating the map on every prop change.
   // `unknown` is downgraded to typed locals where used; the maplibre types
@@ -163,9 +174,30 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
       }
 
       m.on('load', () => {
+        // Hydrate source with the latest pins available at load time.
+        // The pins-update useEffect already fired (when pins prop first
+        // arrived) but bailed because mapRef.current was still null
+        // mid-init; without seeding here the source would stay empty
+        // forever until the user panned/typed and triggered another
+        // pins prop change.
+        const initialPinsForSource = pinsRef.current ?? [];
         m.addSource(SOURCE_ID, {
           type: 'geojson',
-          data: { type: 'FeatureCollection', features: [] },
+          data: {
+            type: 'FeatureCollection',
+            features: initialPinsForSource.map((p) => ({
+              type: 'Feature',
+              id: p.listingKey,
+              properties: {
+                key: p.listingKey,
+                id: p.listingId,
+                price: p.listPrice ?? 0,
+                priceLabel: formatPriceLabel(p.listPrice),
+                status: p.status,
+              },
+              geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
+            })),
+          },
           // Individual pins everywhere — visitors get a one-to-one
           // pin-to-listing affordance with a hover popup. The cluster
           // layer config below is kept as a no-op (filter never matches
