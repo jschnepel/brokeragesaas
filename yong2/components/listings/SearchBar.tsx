@@ -86,7 +86,7 @@ export function SearchBar({
             type="search"
             value={value}
             onChange={(e) => handleChange(e.target.value)}
-            placeholder="Address, community, or feature (wine cellar, casita, mountain view…)"
+            placeholder="Address, city, or community"
             aria-label="Search listings"
             className="w-full bg-transparent border-b border-white/15 focus:border-gold focus:outline-none pl-8 pr-8 py-2 text-stone placeholder:text-mute"
           />

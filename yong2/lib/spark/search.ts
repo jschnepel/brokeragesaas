@@ -269,18 +269,21 @@ function buildSearchFilter(opts: SearchOpts): string {
   const statusClause = statuses.map((s) => `StandardStatus eq '${escapeLiteral(s)}'`).join(' or ');
   clauses.push(`(${statusClause})`);
 
-  // Text query — pushed server-side via OData contains() against the
-  // address, city, neighborhood and public-remarks fields. Earlier
-  // assumption (substringof rejected → post-fetch only) was wrong:
-  // Spark's OData supports contains(). Server-side filtering means the
-  // search hits ANY matching listing in the active feed, not just the
-  // top 250 by ListPrice — fixes the bug where a search for a street
-  // with $1.5M homes returned 0 because those listings weren't in the
-  // top-250-by-price window.
+  // Text query — pushed server-side via OData contains() against
+  // address, city, and subdivision/community name. PublicRemarks is
+  // deliberately excluded: it produces too much noise for short or
+  // common terms (a search for "Indian School" matched any listing
+  // that mentioned the Indian School District in marketing copy,
+  // not just the listings ON Indian School Road).
+  //
+  // Earlier assumption that Spark's OData rejects substring matching
+  // was wrong for contains() — it works fine and lets the filter
+  // narrow the entire active feed rather than the top-N-by-price
+  // window that post-fetch filtering would have to over-fetch from.
   if (opts.q && opts.q.trim().length > 0) {
     const escaped = escapeLiteral(opts.q.trim());
     clauses.push(
-      `(contains(UnparsedAddress,'${escaped}') or contains(City,'${escaped}') or contains(SubdivisionName,'${escaped}') or contains(PublicRemarks,'${escaped}'))`,
+      `(contains(UnparsedAddress,'${escaped}') or contains(City,'${escaped}') or contains(SubdivisionName,'${escaped}'))`,
     );
   }
 
