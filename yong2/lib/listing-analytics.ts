@@ -189,12 +189,26 @@ export async function getListingReadData(
     0;
 
   // Negotiation / velocity — metro scope only (the per-scope splits
-  // for these marts aren't enabled yet). Pulls the latest month with
-  // populated values; null when the row's measure is missing.
-  const negotiationLatest = filterScope(negotiationRows, METRO_FILTER)
-    .sort((a, b) => (a.month < b.month ? 1 : -1))[0];
-  const velocityLatest = filterScope(velocityRows, METRO_FILTER)
-    .sort((a, b) => (a.month < b.month ? 1 : -1))[0];
+  // for these marts aren't enabled yet). Pick the most recent row
+  // whose measure of interest is populated and non-zero. The very
+  // latest month often lands in the mart before the underlying
+  // listings have all settled (e.g. days_to_pending = 0 because no
+  // pending transitions have closed yet), so the latest-row-wins
+  // strategy can surface placeholder zeros.
+  const negotiationRowsScoped = filterScope(negotiationRows, METRO_FILTER)
+    .sort((a, b) => (a.month < b.month ? 1 : -1));
+  const velocityRowsScoped = filterScope(velocityRows, METRO_FILTER)
+    .sort((a, b) => (a.month < b.month ? 1 : -1));
+
+  const saleToListRow = negotiationRowsScoped.find(
+    (r) => typeof r.median_sale_to_list === 'number' && r.median_sale_to_list > 0,
+  );
+  const reductionRow = negotiationRowsScoped.find(
+    (r) => typeof r.pct_with_reduction === 'number' && r.pct_with_reduction > 0,
+  );
+  const daysToPendingRow = velocityRowsScoped.find(
+    (r) => typeof r.median_days_to_pending === 'number' && r.median_days_to_pending > 0,
+  );
 
   return {
     subjectPpsf: listing.pricePerSqft,
@@ -204,9 +218,9 @@ export async function getListingReadData(
     areaMonthsOfSupply: mos,
     areaYoYPriceChangePct: yoy,
     areaLabel: label,
-    saleToListRatio: num(negotiationLatest?.median_sale_to_list),
-    medianDaysToPending: roundOrNull(num(velocityLatest?.median_days_to_pending)),
-    pctWithReduction: num(negotiationLatest?.pct_with_reduction),
+    saleToListRatio: num(saleToListRow?.median_sale_to_list),
+    medianDaysToPending: roundOrNull(num(daysToPendingRow?.median_days_to_pending)),
+    pctWithReduction: num(reductionRow?.pct_with_reduction),
   };
 }
 

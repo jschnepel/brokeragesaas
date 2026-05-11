@@ -148,7 +148,11 @@ export function MockTheRead({
             {pctWithReduction != null && (
               <AdvancedTile
                 label="With price cut"
-                value={`${(pctWithReduction * 100).toFixed(0)}%`}
+                // The fct_negotiation_metro.pct_with_reduction value is
+                // already expressed as a percentage (e.g. 25.77 means
+                // 25.77%). The mart's `pct_*` columns differ from
+                // `median_sale_to_list` which is a decimal ratio.
+                value={`${pctWithReduction.toFixed(0)}%`}
                 caption="Share of recent closes that took at least one price reduction."
               />
             )}
