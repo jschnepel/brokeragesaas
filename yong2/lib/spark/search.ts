@@ -368,6 +368,30 @@ function applyClientFilters(records: SparkProperty[], opts: SearchOpts): SparkPr
     });
   }
 
+  // Drop land-shaped records when the visitor is searching for
+  // residential. ARMLS data quality is uneven: some agents file a
+  // vacant lot under PropertyType='Residential' + PropertySubType=
+  // 'Single Family Residence' (presumably because that's where the
+  // future home would go), which slips through the home-type OData
+  // clause. The reliable signal is "no bedrooms AND no livable
+  // square footage" — that's land regardless of the misfiled type.
+  //
+  // Only triggered when the visitor has any residential type selected
+  // AND has NOT included Land in their selection. When Land IS
+  // selected, the visitor wants vacant lots and we leave them in.
+  const homeTypes = opts.homeTypes ?? [];
+  const residentialSelected = homeTypes.some(
+    (t) => t === 'house' || t === 'condo' || t === 'multi',
+  );
+  const landSelected = homeTypes.includes('land');
+  if (residentialSelected && !landSelected) {
+    out = out.filter((r) => {
+      const beds = asNumber(r['BedroomsTotal']);
+      const sqft = asNumber(r['LivingArea']);
+      return (beds != null && beds > 0) || (sqft != null && sqft > 0);
+    });
+  }
+
   if (opts.q && opts.q.trim()) {
     const q = opts.q.trim().toLowerCase();
     out = out.filter((r) => searchHaystack(r).includes(q));
