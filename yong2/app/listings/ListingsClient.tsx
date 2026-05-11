@@ -213,7 +213,12 @@ export function ListingsClient({
   }, [q, polygon, bbox, filters]);
 
   // Skip the initial render's fetch (server gave us hydration data already).
-  const isFirstRunRef = useRef(true);
+  // EXCEPT: when the SSR'd pins array came back empty — usually a stale ISR
+  // cache from before a recent fix, or a transient Spark rate-limit during
+  // the server render. In that case we eagerly re-fetch on mount so the map
+  // never starts blank. The listings array can still hydrate from SSR; only
+  // the pins array drives the map's visibility.
+  const isFirstRunRef = useRef(initialPins.length > 0);
   useEffect(() => {
     if (isFirstRunRef.current) {
       isFirstRunRef.current = false;
