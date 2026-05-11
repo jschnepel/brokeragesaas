@@ -208,3 +208,23 @@
 @media (prefers-reduced-motion: reduce) {
   .syndication-marquee-track { animation: none; }
 }
+
+/*
+ * MapLibre Popup overrides for the /listings hover popup. The default
+ * MapLibre Popup ships an opaque white background and a white tip;
+ * neither sits inside the Midnight & Stone palette, so we zero them
+ * out and let the popup content (a dark mini-card) speak for itself.
+ */
+.maplibregl-popup.yong2-pin-popup .maplibregl-popup-content {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.maplibregl-popup.yong2-pin-popup .maplibregl-popup-tip {
+  border-top-color: #0B1620;
+  border-bottom-color: #0B1620;
+}
+.maplibregl-popup.yong2-pin-popup .maplibregl-popup-close-button {
+  display: none;
+}

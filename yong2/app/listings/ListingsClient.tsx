@@ -120,6 +120,16 @@ export function ListingsClient({
 
   const mapRef = useRef<MapPanelHandle | null>(null);
 
+  // Index loaded listings by listingKey so the map's hover popup can
+  // look up the cover photo + spec strip without any extra fetch.
+  // Pins outside this map (beyond pagination) fall back to a minimal
+  // popup with just price + status from the pin record itself.
+  const listingsByKey = useMemo(() => {
+    const m = new Map<string, Listing>();
+    for (const l of listings) m.set(l.listingKey, l);
+    return m;
+  }, [listings]);
+
   // Wrap setQ so we can fire `search_query` / `search_query_clear` events
   // as the visitor types. SearchBar already debounces — by the time we get
   // here, the input has stabilized for ~250ms, which is the window we want
@@ -391,6 +401,7 @@ export function ListingsClient({
             onPinClick={handlePinClick}
             onPinHover={handlePinHover}
             onViewportChange={handleViewportChange}
+            listingsByKey={listingsByKey}
           />
         </div>
 

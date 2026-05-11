@@ -2,6 +2,7 @@
 
 import { useEffect, useImperativeHandle, useRef, forwardRef } from 'react';
 import type { PinPoint, PolygonGeoJSON } from '@/lib/listings-search';
+import type { Listing } from '@/lib/types';
 import { track } from '@/lib/analytics/events';
 
 const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY ?? '6DagWlYgkxoFxL5RaX6S';
@@ -43,6 +44,14 @@ interface MapPanelProps {
   onPinHover: (key: string | null) => void;
   onViewportChange: (bbox: { minLng: number; minLat: number; maxLng: number; maxLat: number }) => void;
   initialBbox?: { minLng: number; minLat: number; maxLng: number; maxLat: number } | null;
+  /**
+   * Currently-loaded listing records keyed by listingKey. Drives the
+   * pin hover popup — looks up the cover photo + beds/baths/sqft for
+   * the hovered pin's listing. Pins outside the loaded set (beyond
+   * the paginated window) fall back to a minimal popup with just
+   * price + address from the pin record.
+   */
+  listingsByKey?: Map<string, Listing>;
 }
 
 /**
@@ -67,9 +76,17 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
     onPinHover,
     onViewportChange,
     initialBbox,
+    listingsByKey,
   },
   ref,
 ) {
+  // Keep the latest listingsByKey accessible from the imperative
+  // popup handlers without retriggering the map-init effect (which
+  // would tear down and recreate the map on every results update).
+  const listingsByKeyRef = useRef<Map<string, Listing> | undefined>(listingsByKey);
+  useEffect(() => {
+    listingsByKeyRef.current = listingsByKey;
+  }, [listingsByKey]);
   const containerRef = useRef<HTMLDivElement | null>(null);
   // Stash mutable refs to avoid re-creating the map on every prop change.
   // `unknown` is downgraded to typed locals where used; the maplibre types
@@ -144,9 +161,11 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
         m.addSource(SOURCE_ID, {
           type: 'geojson',
           data: { type: 'FeatureCollection', features: [] },
-          cluster: true,
-          clusterRadius: 50,
-          clusterMaxZoom: 14,
+          // Individual pins everywhere — visitors get a one-to-one
+          // pin-to-listing affordance with a hover popup. The cluster
+          // layer config below is kept as a no-op (filter never matches
+          // when cluster: false) so layer ids stay stable.
+          cluster: false,
           promoteId: 'key',
         });
 
@@ -283,17 +302,54 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
           if (key) callbacksRef.current.onPinClick(key);
         });
 
-        // Hover — change cursor and notify parent.
+        // Hover popup — Zillow-style mini-card anchored above the pin.
+        // Pulls cover photo + beds/baths/sqft from the loaded listings
+        // map when available; falls back to a minimal price + address
+        // popup for pins outside the paginated window.
+        //
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let popup: any = null;
+        let popupKey: string | null = null;
+        const closePopup = () => {
+          if (popup) {
+            popup.remove();
+            popup = null;
+            popupKey = null;
+          }
+        };
         m.on('mousemove', PIN_LAYER, (e) => {
           m.getCanvas().style.cursor = 'pointer';
-          const key = e.features?.[0]?.properties?.key as string | undefined;
+          const feat = e.features?.[0];
+          const key = feat?.properties?.key as string | undefined;
+          if (!key) return;
           if (key && key !== highlightedKeyRef.current) {
             callbacksRef.current.onPinHover(key);
           }
+          if (key === popupKey) return;
+          popupKey = key;
+          if (popup) popup.remove();
+          const geom = feat?.geometry as { type: string; coordinates: [number, number] } | undefined;
+          if (!geom) return;
+          const listing = listingsByKeyRef.current?.get(key);
+          const pinPrice = feat?.properties?.price as number | undefined;
+          const pinStatus = feat?.properties?.status as string | undefined;
+          const html = buildPopupHtml(listing, key, pinPrice, pinStatus);
+          popup = new maplibre.Popup({
+            closeButton: false,
+            closeOnClick: false,
+            offset: 18,
+            anchor: 'bottom',
+            className: 'yong2-pin-popup',
+            maxWidth: '320px',
+          })
+            .setLngLat(geom.coordinates)
+            .setHTML(html)
+            .addTo(m);
         });
         m.on('mouseleave', PIN_LAYER, () => {
           m.getCanvas().style.cursor = '';
           callbacksRef.current.onPinHover(null);
+          closePopup();
         });
         m.on('mouseenter', CLUSTER_LAYER, () => { m.getCanvas().style.cursor = 'pointer'; });
         m.on('mouseleave', CLUSTER_LAYER, () => { m.getCanvas().style.cursor = ''; });
@@ -495,6 +551,74 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
     />
   );
 });
+
+/**
+ * Build the hover-popup HTML for a pin. Renders a Zillow-style
+ * mini-card: cover photo (when available), price in gold serif,
+ * beds/baths/sqft row, address. The MapLibre Popup class accepts
+ * raw HTML strings, so we hand-write a small template rather than
+ * spinning up React-in-MapLibre via createPortal — too heavy for
+ * a hover affordance that mounts and unmounts constantly.
+ */
+function buildPopupHtml(
+  listing: Listing | undefined,
+  _key: string,
+  pinPrice: number | undefined,
+  pinStatus: string | undefined,
+): string {
+  const escape = (s: string) =>
+    s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  const fmtPrice = (n: number | null | undefined) => {
+    if (n == null || !Number.isFinite(n) || n <= 0) return 'Price Upon Request';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0,
+    }).format(n);
+  };
+  const photoUrl = listing?.coverPhotoUrl ?? null;
+  const address =
+    listing?.unparsedAddress ||
+    `${listing?.streetNumber ?? ''} ${listing?.streetName ?? ''}`.trim() ||
+    '';
+  const community = listing?.community ?? '';
+  const price = listing?.listPrice ?? pinPrice ?? null;
+  const status = listing?.status ?? pinStatus ?? null;
+  const beds = listing?.bedrooms != null ? `${listing.bedrooms} bd` : null;
+  const baths =
+    listing?.bathroomsTotal != null ? `${listing.bathroomsTotal} ba` : null;
+  const sqft =
+    listing?.livingArea != null
+      ? `${listing.livingArea.toLocaleString('en-US')} sf`
+      : null;
+  const specs = [beds, baths, sqft].filter(Boolean).join(' · ');
+  const statusBadge =
+    status && status !== 'Active'
+      ? `<span style="position:absolute;top:8px;left:8px;background:rgba(11,22,32,0.85);color:#EFE9DF;font-size:9px;letter-spacing:0.18em;text-transform:uppercase;padding:3px 6px;">${escape(status === 'Active Under Contract' ? 'Under Contract' : status)}</span>`
+      : '';
+  const photo = photoUrl
+    ? `<div style="position:relative;width:100%;aspect-ratio:4/3;overflow:hidden;background:#0B1620;">
+         <img src="${escape(photoUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;" />
+         ${statusBadge}
+       </div>`
+    : '';
+  return `
+    <div style="width:280px;background:#0B1620;color:#EFE9DF;font-family:Inter,system-ui,sans-serif;border:1px solid rgba(212,184,138,0.3);">
+      ${photo}
+      <div style="padding:12px 14px;">
+        ${community ? `<div style="font-size:9.5px;letter-spacing:0.22em;text-transform:uppercase;color:rgba(239,233,223,0.6);margin-bottom:4px;">${escape(community)}</div>` : ''}
+        <div style="font-family:'Playfair Display',Georgia,serif;font-size:18px;color:#D4B88A;line-height:1.2;margin-bottom:6px;">${fmtPrice(price)}</div>
+        ${specs ? `<div style="font-size:11px;color:rgba(239,233,223,0.7);font-variant-numeric:tabular-nums;margin-bottom:6px;">${escape(specs)}</div>` : ''}
+        ${address ? `<div style="font-size:11.5px;color:rgba(239,233,223,0.65);line-height:1.35;">${escape(address)}</div>` : ''}
+      </div>
+    </div>
+  `;
+}
 
 /**
  * Approximate the area (km²) of a GeoJSON polygon ring using the spherical-
