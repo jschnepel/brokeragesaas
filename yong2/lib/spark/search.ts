@@ -528,8 +528,18 @@ export async function searchListings(opts: SearchOpts = {}): Promise<SearchResul
 
   const promise = doSearchListings(opts);
   searchCache.set(cacheKey, { at: now, promise });
-  // Evict the cache entry on rejection so next call can retry fresh.
-  promise.catch(() => searchCache.delete(cacheKey));
+  // Evict the cache entry on rejection or when pins came back empty
+  // (likely a transient Spark rate-limit on the parallel call) so the
+  // next request retries fresh instead of locking in a broken state
+  // for the full 60s TTL.
+  promise.then(
+    (result) => {
+      if (result.pins.length === 0) {
+        searchCache.delete(cacheKey);
+      }
+    },
+    () => searchCache.delete(cacheKey),
+  );
   return promise;
 }
 
@@ -596,15 +606,15 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
       // Pin universe — capped at top × maxPages records pulled with a
       // light $select so the bytes stay small per record. The bbox /
       // IDX filtering then narrows whatever fell inside the viewport.
-      // 2 pages × 1000 = up to 2000 pins per bbox query — enough for
-      // every realistic viewport on this site without saturating
-      // Spark's per-token rate limit.
+      // Single page × 1000 keeps the fetch under Spark's per-token
+      // rate-limit threshold (2 parallel pages were occasionally
+      // tripping 429s, leaving the map blank).
       const records = await fetchAllProperties({
         filter,
         top: 1000,
         orderby: 'ListPrice desc',
         select: PIN_SELECT,
-        maxPages: 2,
+        maxPages: 1,
       });
       const filtered = applyClientFilters(records, opts);
       const pins: PinPoint[] = [];
@@ -622,7 +632,26 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
       ? listingsResult.value
       : { listings: [] as Listing[], sliceHasMore: false };
   const listings = listingsPayload.listings;
-  const pins = pinsResult.status === 'fulfilled' ? pinsResult.value : [];
+  let pins = pinsResult.status === 'fulfilled' ? pinsResult.value : [];
+
+  // Fallback: when the dedicated pins call returns nothing (rate-limit
+  // 429, transient 503, schema drift), derive pins from the loaded
+  // listings so the map never goes empty. Pins-from-listings cover at
+  // least the visible slice; the dedicated pins call gives the broader
+  // pool when it succeeds.
+  if (pins.length === 0 && listings.length > 0) {
+    pins = listings
+      .filter((l) => l.latitude != null && l.longitude != null)
+      .map((l) => ({
+        listingKey: l.listingKey,
+        listingId: l.listingId,
+        slug: l.slug,
+        latitude: l.latitude as number,
+        longitude: l.longitude as number,
+        listPrice: l.listPrice,
+        status: l.status,
+      }));
+  }
 
   // Total reflects the pin universe (capped by the pins call's
   // top + maxPages). Pins are bbox-filtered post-fetch in
