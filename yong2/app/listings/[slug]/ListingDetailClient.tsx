@@ -27,7 +27,11 @@ import { Footer } from '@/components/chrome/Footer';
 import { Navigation } from '@/components/chrome/Navigation';
 import { SectionFrame } from '@/components/shared/SectionFrame';
 import { ListingHeroGallery } from '@/components/portfolio/ListingHeroGallery';
-import { HeroTopBar, useSavedListing } from '@/components/portfolio/HeroTopBar';
+import {
+  HeroTopBar,
+  useRecordRecentView,
+  useSavedListing,
+} from '@/components/portfolio/HeroTopBar';
 import { AgentMiniCard } from '@/components/portfolio/AgentMiniCard';
 import { KeyFactsCard } from '@/components/portfolio/KeyFactsCard';
 import { KeyFeaturesGrid } from '@/components/portfolio/KeyFeaturesGrid';
@@ -81,7 +85,8 @@ export function ListingDetailClient({
   const tourMessage = `${listing.unparsedAddress}${listing.community ? ` (${listing.community})` : ''}`;
   const tourHref = `/contact?listing=${encodeURIComponent(tourMessage)}&interest=Buying`;
 
-  const { isSaved, toggle } = useSavedListing(listing.listingKey, {
+  const listingSnapshot = {
+    key: listing.listingKey,
     slug: listing.slug,
     address: listing.unparsedAddress,
     community: listing.community,
@@ -91,7 +96,12 @@ export function ListingDetailClient({
     baths:
       typeof listing.bathroomsTotal === 'number' ? listing.bathroomsTotal : null,
     livingArea: listing.livingArea,
-  });
+  };
+
+  const { isSaved, toggle } = useSavedListing(listing.listingKey, listingSnapshot);
+  // Record this visit so the /saved page's Recently viewed strip
+  // can render it later. Fires once per detail-page mount.
+  useRecordRecentView(listingSnapshot);
 
   const hoaProp =
     listing.associationFee != null && listing.associationFeeFrequency

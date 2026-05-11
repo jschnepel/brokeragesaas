@@ -151,6 +151,9 @@ export interface SavedListingSnapshot {
 const STORAGE_KEY = 'yong2_saved_listings_v2';
 const STORAGE_KEY_LEGACY = 'yong2_saved_listings';
 const SAVED_LISTINGS_CHANGE_EVENT = 'yong2:saved-listings-change';
+const RECENT_STORAGE_KEY = 'yong2_recently_viewed_v1';
+const RECENT_VIEWED_CHANGE_EVENT = 'yong2:recently-viewed-change';
+const RECENT_CAP = 20;
 
 function readSavedSnapshots(): SavedListingSnapshot[] {
   if (typeof window === 'undefined') return [];
@@ -200,6 +203,91 @@ export function onSavedListingsChange(handler: () => void): () => void {
     window.removeEventListener(SAVED_LISTINGS_CHANGE_EVENT, wrapped);
     window.removeEventListener('storage', wrapped);
   };
+}
+
+/**
+ * Snapshot of a recently-viewed listing, persisted alongside saves
+ * so the /saved page can render a "Recently viewed" strip without
+ * re-fetching from Spark. Shape mirrors SavedListingSnapshot except
+ * the timestamp tracks the visit, not the save.
+ */
+export type RecentlyViewedSnapshot = SavedListingSnapshot;
+
+function readRecentSnapshots(): RecentlyViewedSnapshot[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(RECENT_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is RecentlyViewedSnapshot =>
+      x && typeof x === 'object' && typeof x.key === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeRecentSnapshots(next: RecentlyViewedSnapshot[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(next));
+    window.dispatchEvent(new CustomEvent(RECENT_VIEWED_CHANGE_EVENT));
+  } catch {
+    /* localStorage unavailable */
+  }
+}
+
+/**
+ * Public reader for /saved page. Returns recently-viewed listings
+ * sorted by most-recent visit descending. Capped at RECENT_CAP.
+ */
+export function getRecentlyViewed(): RecentlyViewedSnapshot[] {
+  return [...readRecentSnapshots()].sort((a, b) => {
+    const ta = new Date(a.savedAt).getTime() || 0;
+    const tb = new Date(b.savedAt).getTime() || 0;
+    return tb - ta;
+  });
+}
+
+export function onRecentlyViewedChange(handler: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  const wrapped = () => handler();
+  window.addEventListener(RECENT_VIEWED_CHANGE_EVENT, wrapped);
+  window.addEventListener('storage', wrapped);
+  return () => {
+    window.removeEventListener(RECENT_VIEWED_CHANGE_EVENT, wrapped);
+    window.removeEventListener('storage', wrapped);
+  };
+}
+
+/**
+ * Record a visit to a listing. Called once on listing-detail mount.
+ * Dedupes by key (revisiting bumps to the top, doesn't duplicate).
+ */
+export function recordRecentView(snapshot: Omit<RecentlyViewedSnapshot, 'savedAt'>): void {
+  if (typeof window === 'undefined') return;
+  const current = readRecentSnapshots();
+  const filtered = current.filter((s) => s.key !== snapshot.key);
+  const entry: RecentlyViewedSnapshot = { ...snapshot, savedAt: new Date().toISOString() };
+  const next = [entry, ...filtered].slice(0, RECENT_CAP);
+  writeRecentSnapshots(next);
+}
+
+/**
+ * Effect hook to record a listing-detail visit. Called once per
+ * listing mount; the snapshot becomes the rendered tile on
+ * /saved → Recently viewed.
+ */
+export function useRecordRecentView(
+  snapshot: Omit<RecentlyViewedSnapshot, 'savedAt'>,
+): void {
+  useEffect(() => {
+    recordRecentView(snapshot);
+    // We intentionally only record on mount; useEffect's deps would
+    // re-record on every snapshot identity change which double-counts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot.key]);
 }
 
 /**

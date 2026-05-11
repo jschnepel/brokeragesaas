@@ -6,8 +6,11 @@ import { SectionFrame } from '@/components/shared/SectionFrame';
 import { CapsLabel } from '@/components/shared/CapsLabel';
 import { FadeImage } from '@/components/shared/FadeImage';
 import {
+  getRecentlyViewed,
   getSavedListings,
+  onRecentlyViewedChange,
   onSavedListingsChange,
+  type RecentlyViewedSnapshot,
   type SavedListingSnapshot,
 } from '@/components/portfolio/HeroTopBar';
 
@@ -29,12 +32,23 @@ const DOLLAR = (n: number | null) =>
  */
 export function SavedListingsClient() {
   const [items, setItems] = useState<SavedListingSnapshot[] | null>(null);
+  const [recent, setRecent] = useState<RecentlyViewedSnapshot[]>([]);
 
   useEffect(() => {
     setItems(getSavedListings());
-    const unsub = onSavedListingsChange(() => setItems(getSavedListings()));
-    return unsub;
+    setRecent(getRecentlyViewed());
+    const offSaved = onSavedListingsChange(() => setItems(getSavedListings()));
+    const offRecent = onRecentlyViewedChange(() => setRecent(getRecentlyViewed()));
+    return () => {
+      offSaved();
+      offRecent();
+    };
   }, []);
+
+  // Don't double-show: if a listing is in the Saved set, drop it from
+  // Recently viewed (the visitor already has it saved). Cap to 8.
+  const savedKeys = new Set((items ?? []).map((s) => s.key));
+  const recentFiltered = recent.filter((r) => !savedKeys.has(r.key)).slice(0, 8);
 
   if (items === null) {
     // SSR / pre-hydration — render a minimal placeholder so the
@@ -65,6 +79,9 @@ export function SavedListingsClient() {
             Browse listings →
           </Link>
         </div>
+        {/* Recently viewed surfaces even when the visitor has no saves
+         *  yet — gives them a way back into their browsing history. */}
+        {recentFiltered.length > 0 ? <RecentlyViewedStrip items={recentFiltered} /> : null}
       </SectionFrame>
     );
   }
@@ -74,53 +91,73 @@ export function SavedListingsClient() {
       <Header count={items.length} />
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-12">
         {items.map((l) => (
-          <Link
-            key={l.key}
-            href={l.slug ? `/listings/${l.slug}` : '/listings'}
-            className="relative aspect-[4/5] overflow-hidden bg-ink-elevated group block"
-          >
-            {l.imageUrl ? (
-              <FadeImage
-                src={l.imageUrl}
-                alt={l.address}
-                fill
-                sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                className="object-cover"
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-stone/30 caps text-xs">
-                No photo
-              </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/10 to-transparent pointer-events-none" />
-            <div className="absolute bottom-4 left-4 right-4">
-              {l.community ? (
-                <div className="caps text-[10px] tracking-widest text-stone/75 mb-1">
-                  {l.community}
-                </div>
-              ) : null}
-              <div className="font-serif text-lg leading-tight text-stone">
-                {l.address || 'Saved listing'}
-              </div>
-              <div className="caps text-stone/85 mt-1 tabular-nums">
-                {DOLLAR(l.price)}
-              </div>
-              {(l.beds || l.baths || l.livingArea) && (
-                <div className="text-xs text-stone/60 mt-1 tabular-nums">
-                  {[
-                    l.beds ? `${l.beds} bd` : null,
-                    l.baths ? `${l.baths} ba` : null,
-                    l.livingArea ? `${l.livingArea.toLocaleString('en-US')} sf` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </div>
-              )}
-            </div>
-          </Link>
+          <SnapshotTile key={l.key} snapshot={l} />
         ))}
       </div>
+      {recentFiltered.length > 0 ? <RecentlyViewedStrip items={recentFiltered} /> : null}
     </SectionFrame>
+  );
+}
+
+function SnapshotTile({ snapshot: l }: { snapshot: SavedListingSnapshot | RecentlyViewedSnapshot }) {
+  return (
+    <Link
+      href={l.slug ? `/listings/${l.slug}` : '/listings'}
+      className="relative aspect-[4/5] overflow-hidden bg-ink-elevated group block"
+    >
+      {l.imageUrl ? (
+        <FadeImage
+          src={l.imageUrl}
+          alt={l.address}
+          fill
+          sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+          className="object-cover"
+        />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center text-stone/30 caps text-xs">
+          No photo
+        </div>
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/10 to-transparent pointer-events-none" />
+      <div className="absolute bottom-4 left-4 right-4">
+        {l.community ? (
+          <div className="caps text-[10px] tracking-widest text-stone/75 mb-1">
+            {l.community}
+          </div>
+        ) : null}
+        <div className="font-serif text-lg leading-tight text-stone">
+          {l.address || 'Listing'}
+        </div>
+        <div className="caps text-stone/85 mt-1 tabular-nums">{DOLLAR(l.price)}</div>
+        {(l.beds || l.baths || l.livingArea) && (
+          <div className="text-xs text-stone/60 mt-1 tabular-nums">
+            {[
+              l.beds ? `${l.beds} bd` : null,
+              l.baths ? `${l.baths} ba` : null,
+              l.livingArea ? `${l.livingArea.toLocaleString('en-US')} sf` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </div>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+function RecentlyViewedStrip({ items }: { items: RecentlyViewedSnapshot[] }) {
+  return (
+    <div className="mt-20 pt-12 border-t border-white/5">
+      <CapsLabel as="div">Recently viewed</CapsLabel>
+      <h2 className="font-serif italic text-2xl md:text-3xl mt-2 mb-8 text-stone">
+        Where you've been.
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {items.map((l) => (
+          <SnapshotTile key={l.key} snapshot={l} />
+        ))}
+      </div>
+    </div>
   );
 }
 
