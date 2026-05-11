@@ -117,7 +117,7 @@ export function SearchBar({
       <div className="px-4 md:px-6 pb-3 flex items-center gap-3 text-xs text-mute">
         {loading ? <span className="text-gold">Searching…</span>
           : typeof resultCount === 'number'
-            ? <span>{resultCount.toLocaleString('en-US')} listings</span>
+            ? <span>{resultCount >= 2000 ? '2,000+' : resultCount.toLocaleString('en-US')} listings</span>
             : null}
         {hasShape && onClearShape ? (
           <button

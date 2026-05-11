@@ -131,17 +131,29 @@ export function ResultsList({
           <p className="caps text-[10px] tracking-widest text-stone/40 tabular-nums">
             Showing {listings.length.toLocaleString('en-US')}
             {total > listings.length
-              ? ` of ${total.toLocaleString('en-US')} listings`
+              ? ` of ${formatTotal(total)} listings`
               : ' listings'}
           </p>
         </div>
       ) : (
         <p className="text-center caps text-[10px] tracking-widest text-stone/35 mt-6 mb-4 tabular-nums">
-          Showing all {listings.length.toLocaleString('en-US')} of {total.toLocaleString('en-US')} listings
+          Showing all {listings.length.toLocaleString('en-US')} of {formatTotal(total)} listings
         </p>
       )}
     </div>
   );
+}
+
+/**
+ * Total is sourced from the pin universe (Spark search caps at 2 pages
+ * x 1000 = 2000). When the count reaches that ceiling, suffix a "+"
+ * since the true count may be higher than what we sampled in-viewport.
+ * Below the cap the value is exact.
+ */
+const PIN_UNIVERSE_CAP = 2000;
+function formatTotal(n: number): string {
+  if (n >= PIN_UNIVERSE_CAP) return `${PIN_UNIVERSE_CAP.toLocaleString('en-US')}+`;
+  return n.toLocaleString('en-US');
 }
 
 /**

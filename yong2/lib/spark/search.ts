@@ -534,11 +534,7 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
   // in $filter, so the check has to happen on the response payload.
   const [listingsResult, pinsResult] = await Promise.allSettled([
     (async () => {
-      // Fetch enough Spark pages to cover offset+limit+1 records, and
-      // ask for $count=true on the same call so we surface the true
-      // total record count for the "Showing N of M" caption — the pin
-      // universe (1000-cap) underestimates whenever the bbox matches
-      // more than 1000 listings.
+      // Fetch enough Spark pages to cover offset+limit+1 records.
       //
       // \$expand=Media inflates ~30x when unbounded — past attempts
       // tripped Spark's per-token rate limit (429 "exceeds performance
@@ -547,13 +543,19 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
       // payload back to ~1.05x while still giving the cards an image.
       // The detail page (getListingBySlug) keeps the unbounded expand
       // since it needs the full gallery for one record.
-      const { records, totalCount } = await fetchPropertiesWithMeta({
+      //
+      // NOTE on counts: we deliberately do NOT pass count:true here.
+      // Spark's @odata.count reflects the OData filter only and ignores
+      // post-fetch bbox/IDX filtering. For bbox queries that's wildly
+      // misleading (e.g. 220K when the viewport actually contains 850
+      // listings). The total reported to the UI is derived from the
+      // pins call below, which DOES apply bbox post-fetch.
+      const records = await fetchAllProperties({
         filter,
         top: PAGE_SIZE,
         orderby: 'ListPrice desc',
         expand: ['Media($top=1;$orderby=Order)'],
         maxPages: pagesNeeded,
-        count: offset === 0, // only on the first page — count doesn't change between pages
       });
       const pool = applyClientFilters(records, opts)
         .filter(isIdxDisplayable);
@@ -564,15 +566,21 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
       // with whatever Spark's nextLink chain returns.
       const sliceHasMore = pool.length > offset + limit;
       const sliced = pool.slice(offset, offset + limit).map(sparkRecordToListing);
-      return { listings: sliced, sliceHasMore, totalCount };
+      return { listings: sliced, sliceHasMore };
     })(),
     (async () => {
+      // Pin universe — capped at top × maxPages records pulled with a
+      // light $select so the bytes stay small per record. The bbox /
+      // IDX filtering then narrows whatever fell inside the viewport.
+      // 2 pages × 1000 = up to 2000 pins per bbox query — enough for
+      // every realistic viewport on this site without saturating
+      // Spark's per-token rate limit.
       const records = await fetchAllProperties({
         filter,
         top: 1000,
         orderby: 'ListPrice desc',
         select: PIN_SELECT,
-        maxPages: 1,
+        maxPages: 2,
       });
       const filtered = applyClientFilters(records, opts);
       const pins: PinPoint[] = [];
@@ -588,18 +596,15 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
   const listingsPayload =
     listingsResult.status === 'fulfilled'
       ? listingsResult.value
-      : {
-          listings: [] as Listing[],
-          sliceHasMore: false,
-          totalCount: null as number | null,
-        };
+      : { listings: [] as Listing[], sliceHasMore: false };
   const listings = listingsPayload.listings;
   const pins = pinsResult.status === 'fulfilled' ? pinsResult.value : [];
 
-  // True total comes from Spark's @odata.count when available; falls
-  // back to pins.length (capped at 1000) when the count call is
-  // skipped — e.g. on Load More requests beyond the first page.
-  const total = listingsPayload.totalCount ?? pins.length;
+  // Total reflects the pin universe (capped by the pins call's
+  // top + maxPages). pins are bbox-filtered post-fetch in
+  // applyClientFilters, so this count is honest about the viewport
+  // — it does NOT count listings outside the current map view.
+  const total = pins.length;
   const fetchedAt = new Date().toISOString();
 
   if (listingsResult.status === 'rejected') {
