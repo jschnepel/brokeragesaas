@@ -5,7 +5,9 @@ import { siteUrl } from '@/lib/seo';
 import { SavedListingsClient } from './SavedListingsClient';
 
 export const metadata: Metadata = {
-  title: 'Saved Listings · Yong Choi',
+  // Title gets the "· Yong Choi" suffix from app/layout.tsx's title.template,
+  // so we set just the page-specific label here to avoid the double suffix.
+  title: 'Saved Listings',
   description: 'Listings you have saved while browsing the Phoenix-metro market.',
   alternates: { canonical: siteUrl('/saved') },
   robots: { index: false, follow: false },
