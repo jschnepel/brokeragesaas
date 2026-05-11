@@ -67,14 +67,37 @@ function extractPhotos(record: SparkProperty): { photos: string[]; cover: string
     const bo = (b as { Order?: number })?.Order ?? 0;
     return ao - bo;
   });
+  // Some ARMLS records include PDFs (disclosures, brochures) under the
+  // Media array with no MediaType or MediaCategory set. Passing those
+  // URLs to next/image triggers a 400 on the optimizer endpoint and
+  // surfaces as a broken-image tile on the gallery. Filter by:
+  //   1. MediaType — when present, must start with "image"
+  //   2. MediaCategory — when present, must equal "Photo" (RESO standard)
+  //   3. URL host — accept Spark's photo CDN; reject documents.* host
+  //   4. URL extension — accept common image extensions when explicit
+  // Defaults err on the side of inclusion (data quality is uneven) but
+  // any obvious non-image signal disqualifies.
   const photos: string[] = [];
   for (const item of sorted) {
     if (!item || typeof item !== 'object') continue;
-    const m = item as { MediaURL?: unknown; MediaType?: unknown };
-    const isImage =
-      typeof m.MediaType !== 'string' || m.MediaType.toLowerCase().startsWith('image');
+    const m = item as {
+      MediaURL?: unknown;
+      MediaType?: unknown;
+      MediaCategory?: unknown;
+    };
     const url = asString(m.MediaURL);
-    if (url && isImage) photos.push(url);
+    if (!url) continue;
+    const mediaType = typeof m.MediaType === 'string' ? m.MediaType.toLowerCase() : '';
+    const mediaCategory = typeof m.MediaCategory === 'string' ? m.MediaCategory.toLowerCase() : '';
+    if (mediaType && !mediaType.startsWith('image')) continue;
+    if (mediaCategory && mediaCategory !== 'photo') continue;
+    // URL-level filter: reject documents.* host outright; require an
+    // image extension when the URL has any extension at all.
+    const lower = url.toLowerCase();
+    if (lower.includes('://documents.')) continue;
+    const extMatch = lower.match(/\.([a-z0-9]{2,4})(?:\?|$)/);
+    if (extMatch && !['jpg', 'jpeg', 'png', 'webp', 'avif', 'gif'].includes(extMatch[1])) continue;
+    photos.push(url);
   }
   return { photos, cover: photos[0] ?? null };
 }
