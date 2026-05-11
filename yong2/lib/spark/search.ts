@@ -625,10 +625,15 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
   const pins = pinsResult.status === 'fulfilled' ? pinsResult.value : [];
 
   // Total reflects the pin universe (capped by the pins call's
-  // top + maxPages). pins are bbox-filtered post-fetch in
-  // applyClientFilters, so this count is honest about the viewport
-  // — it does NOT count listings outside the current map view.
-  const total = pins.length;
+  // top + maxPages). Pins are bbox-filtered post-fetch in
+  // applyClientFilters, so this count is honest about the viewport.
+  //
+  // Floor guarantee: when the pins call fails or returns fewer
+  // records than the listings slice (e.g. Spark per-token rate
+  // limit on the parallel call, transient 503), the visitor should
+  // still see at least the listings count — never "0 listings" with
+  // 60 cards rendered. Honest underestimate beats misleading zero.
+  const total = Math.max(pins.length, listings.length);
   const fetchedAt = new Date().toISOString();
 
   if (listingsResult.status === 'rejected') {
@@ -637,7 +642,7 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
   }
   if (pinsResult.status === 'rejected') {
     // eslint-disable-next-line no-console
-    console.error('[spark/search] pins call failed:', pinsResult.reason);
+    console.warn('[spark/search] pins call failed (falling back to listings.length for total):', pinsResult.reason);
   }
 
   return {
