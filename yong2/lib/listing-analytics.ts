@@ -37,6 +37,7 @@ interface NegotiationRow extends ScopeFilter {
 interface StatusVelocityRow extends ScopeFilter {
   month: string;
   median_days_to_pending: number | null;
+  median_days_pending_to_closed: number | null;
 }
 
 export interface ListingReadData {
@@ -49,7 +50,15 @@ export interface ListingReadData {
   areaLabel: string;
   /** Optional advanced signals — null when the relevant mart row is missing. */
   saleToListRatio: number | null;
-  medianDaysToPending: number | null;
+  /**
+   * Median days from Pending → Closed for recent metro closings. The
+   * formerly-targeted Active → Pending metric ships corrupted in
+   * fct_status_velocity (sub-day values for the residential segment),
+   * so we surface the close-side pace instead — it answers the
+   * adjacent buyer question of "once we agree on terms, how fast do
+   * deals close in this market?"
+   */
+  medianDaysPendingToClosed: number | null;
   pctWithReduction: number | null;
 }
 
@@ -206,8 +215,18 @@ export async function getListingReadData(
   const reductionRow = negotiationRowsScoped.find(
     (r) => typeof r.pct_with_reduction === 'number' && r.pct_with_reduction > 0,
   );
-  const daysToPendingRow = velocityRowsScoped.find(
-    (r) => typeof r.median_days_to_pending === 'number' && r.median_days_to_pending > 0,
+  // fct_status_velocity.median_days_to_pending ships corrupted values
+  // (0.01-0.02 days, fractions of a minute) for the residential
+  // segment as of this writing — verified directly against the
+  // parquet. median_days_pending_to_closed is reliably populated
+  // (~17-19 days at metro scope) and answers the adjacent buyer
+  // question. Floor at 1 day / cap at 365 to guard against future
+  // upstream regressions.
+  const daysPendingToClosedRow = velocityRowsScoped.find(
+    (r) =>
+      typeof r.median_days_pending_to_closed === 'number' &&
+      r.median_days_pending_to_closed >= 1 &&
+      r.median_days_pending_to_closed <= 365,
   );
 
   return {
@@ -219,7 +238,9 @@ export async function getListingReadData(
     areaYoYPriceChangePct: yoy,
     areaLabel: label,
     saleToListRatio: num(saleToListRow?.median_sale_to_list),
-    medianDaysToPending: roundOrNull(num(daysToPendingRow?.median_days_to_pending)),
+    medianDaysPendingToClosed: roundOrNull(
+      num(daysPendingToClosedRow?.median_days_pending_to_closed),
+    ),
     pctWithReduction: num(reductionRow?.pct_with_reduction),
   };
 }

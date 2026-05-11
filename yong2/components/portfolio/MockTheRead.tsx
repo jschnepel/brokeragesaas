@@ -20,8 +20,8 @@ type MockReadProps = {
   areaLabel: string;
   /** Optional — median sale-to-list ratio (0.964 = 96.4% of list). */
   saleToListRatio?: number | null;
-  /** Optional — median days from Active → Pending. */
-  medianDaysToPending?: number | null;
+  /** Optional — median days from Pending → Closed in the area. */
+  medianDaysPendingToClosed?: number | null;
   /** Optional — % of closings in the period that had a price reduction (0.31 = 31%). */
   pctWithReduction?: number | null;
   /**
@@ -61,7 +61,7 @@ export function MockTheRead({
   areaYoYPriceChangePct,
   areaLabel,
   saleToListRatio,
-  medianDaysToPending,
+  medianDaysPendingToClosed,
   pctWithReduction,
   compsCommentary,
   areaCommentary,
@@ -124,7 +124,7 @@ export function MockTheRead({
        *  optional metrics has a value. Three compact tiles below the
        *  primary 2-column read so the page rhythm holds. */}
       {(saleToListRatio != null ||
-        medianDaysToPending != null ||
+        medianDaysPendingToClosed != null ||
         pctWithReduction != null) && (
         <div className="mt-12 pt-10 border-t border-white/5">
           <CapsLabel as="h3" className="mb-6 text-stone/70 text-[10px]">
@@ -138,11 +138,11 @@ export function MockTheRead({
                 caption="Median across recent closes — how close buyers are landing to ask."
               />
             )}
-            {medianDaysToPending != null && (
+            {medianDaysPendingToClosed != null && (
               <AdvancedTile
-                label="Days to pending"
-                value={`${medianDaysToPending} d`}
-                caption="Median days from Active → Pending for recent closings."
+                label="Pending → Closed"
+                value={`${medianDaysPendingToClosed} d`}
+                caption="Median days from accepted offer to closing across recent metro deals."
               />
             )}
             {pctWithReduction != null && (
