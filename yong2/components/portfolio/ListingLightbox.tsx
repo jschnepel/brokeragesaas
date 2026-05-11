@@ -32,8 +32,11 @@ const PRELOAD_RANGE = 2;
  * removed since yong2 photos aren't categorized. Keyboard, focus management,
  * mobile swipe, and ±2 neighbor preload are preserved.
  */
+type ViewMode = 'carousel' | 'grid';
+
 export function ListingLightbox({ photos, address, initialIndex = 0, onClose, listingKey }: ListingLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [viewMode, setViewMode] = useState<ViewMode>('carousel');
   const overlayRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const thumbContainerRef = useRef<HTMLDivElement>(null);
@@ -81,13 +84,23 @@ export function ListingLightbox({ photos, address, initialIndex = 0, onClose, li
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowLeft') goTo(currentIndex - 1);
-      if (e.key === 'ArrowRight') goTo(currentIndex + 1);
+      if (e.key === 'Escape') {
+        // Grid view → back to carousel; carousel → close lightbox.
+        if (viewMode === 'grid') {
+          setViewMode('carousel');
+        } else {
+          onClose();
+        }
+      }
+      // Arrow keys only navigate within the carousel view.
+      if (viewMode === 'carousel') {
+        if (e.key === 'ArrowLeft') goTo(currentIndex - 1);
+        if (e.key === 'ArrowRight') goTo(currentIndex + 1);
+      }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, goTo, onClose]);
+  }, [currentIndex, goTo, onClose, viewMode]);
 
   useEffect(() => {
     const container = thumbContainerRef.current;
@@ -124,23 +137,79 @@ export function ListingLightbox({ photos, address, initialIndex = 0, onClose, li
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       data-testid="listing-lightbox"
     >
-      {/* Header — counter + close */}
+      {/* Header — counter + grid toggle + close */}
       <div className="flex items-center justify-between px-4 py-3 shrink-0">
         <span className="caps text-stone/60">
-          {currentIndex + 1} / {total}
+          {viewMode === 'carousel' ? `${currentIndex + 1} / ${total}` : `All ${total} photos`}
         </span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-stone/60 hover:text-gold transition-colors p-2"
-          aria-label="Close gallery"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setViewMode(viewMode === 'carousel' ? 'grid' : 'carousel')}
+            className={`caps text-[10px] tracking-[0.28em] px-3 py-2 border transition-colors ${
+              viewMode === 'grid'
+                ? 'border-gold text-gold bg-gold/10'
+                : 'border-stone/25 text-stone/70 hover:border-gold hover:text-gold'
+            }`}
+            aria-pressed={viewMode === 'grid'}
+            aria-label={viewMode === 'grid' ? 'View as carousel' : 'View all photos as grid'}
+          >
+            {viewMode === 'grid' ? 'Carousel' : 'All photos'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-stone/60 hover:text-gold transition-colors p-2"
+            aria-label="Close gallery"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
 
+      {viewMode === 'grid' ? (
+        // Grid view — every photo as a tile. Click any tile to jump
+        // back to the carousel at that index. Native lazy loading on
+        // each <img> keeps memory bounded for 50+ photo galleries.
+        <div className="flex-1 overflow-y-auto px-3 md:px-6 pb-6">
+          <div
+            className="grid gap-2 md:gap-3"
+            style={{
+              gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+            }}
+          >
+            {photos.map((url, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => {
+                  setCurrentIndex(i);
+                  setViewMode('carousel');
+                }}
+                className={`relative aspect-[4/3] overflow-hidden bg-stone/10 group transition-transform ${
+                  i === currentIndex ? 'ring-1 ring-gold' : ''
+                }`}
+                aria-label={`View photo ${i + 1}`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt={`${address} photo ${i + 1}`}
+                  className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span className="absolute top-1.5 left-1.5 caps text-[9px] tracking-widest text-stone/85 bg-ink/65 px-1.5 py-0.5 tabular-nums">
+                  {i + 1}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+      <>
       {/* Main image */}
       <div className="flex-1 flex items-center justify-center relative px-4 min-h-0">
         <button
@@ -233,6 +302,8 @@ export function ListingLightbox({ photos, address, initialIndex = 0, onClose, li
           </button>
         ))}
       </div>
+      </>
+      )}
     </div>
   );
 }
