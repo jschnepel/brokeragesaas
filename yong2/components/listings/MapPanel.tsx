@@ -156,11 +156,6 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
       });
       m.addControl(new maplibre.NavigationControl({ showCompass: false }), 'top-right');
       mapRef.current = m;
-      // DEBUG: expose map instance on window so we can verify pin source
-      // state from a remote diagnostic. Remove once the missing-pin
-      // investigation closes.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any).__yong2_debug_map = m;
 
       // Apply initial bbox from server-side default if present.
       if (initialBbox) {
@@ -185,9 +180,18 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
           type: 'geojson',
           data: {
             type: 'FeatureCollection',
+            // Do NOT set the top-level Feature `id`. ARMLS listingKeys
+            // are 24–25 digit strings (e.g. "20260411222220801575000000")
+            // that MapLibre's GeoJSON worker tries to encode as int64.
+            // The varint encoding overflows ("Given varint doesn't fit
+            // into 10 bytes") and the worker silently drops the entire
+            // feature batch — leaving the source apparently populated
+            // (_data.features has 60 items) but querySourceFeatures
+            // returns 0 and nothing renders. promoteId: 'key' below
+            // tells MapLibre to use properties.key as the feature id
+            // post-parse, which is the correct path.
             features: initialPinsForSource.map((p) => ({
               type: 'Feature',
-              id: p.listingKey,
               properties: {
                 key: p.listingKey,
                 id: p.listingId,
@@ -499,9 +503,11 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
       if (!src) return;
       src.setData({
         type: 'FeatureCollection',
+        // No top-level `id` field — see source-seed comment in m.on('load')
+        // above. ARMLS listingKeys overflow MapLibre's int64 varint
+        // encoder and silently drop the whole batch.
         features: pins.map((p) => ({
           type: 'Feature',
-          id: p.listingKey,
           properties: {
             key: p.listingKey,
             id: p.listingId,
