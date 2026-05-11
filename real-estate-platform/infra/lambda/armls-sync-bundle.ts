@@ -320,11 +320,44 @@ function coerce(col: string, val: unknown): unknown {
 
 // ─── Validation & Computed Fields ──────────────────────────────
 
+// Column character limits in listing_records — sanitize anything ARMLS sends
+// that overflows. Real-world cause: 2026-05-09 walker run errored on
+// `value too long for type character varying(20)` (a unit_number 21 chars long).
+// Truncate vs. fail. Mirrored in infra/fargate/armls-walker/src/index.ts.
+const VARCHAR_LIMITS: Record<string, number> = {
+  state_or_province: 5,
+  postal_code: 10,
+  street_dir_prefix: 10,
+  agent_cell_phone: 20,
+  list_office_phone: 20,
+  street_number: 20,
+  street_suffix: 20,
+  unit_number: 20,
+  association_fee_frequency: 30,
+  list_agent_mls_id: 30,
+  list_office_mls_id: 30,
+  listing_id: 30,
+  parcel_number: 30,
+  standard_status: 30,
+};
+
+function truncateVarchars(record: Record<string, unknown>): void {
+  for (const [col, max] of Object.entries(VARCHAR_LIMITS)) {
+    const v = record[col];
+    if (typeof v === "string" && v.length > max) {
+      console.warn(`[truncate] ${col} (${v.length} chars) → "${v.substring(0, max)}"`);
+      record[col] = v.substring(0, max);
+    }
+  }
+}
+
 /**
  * Validate a mapped record and null out values that fail bounds checks.
  * Runs AFTER field mapping, BEFORE upsert. Only affects newly synced records.
  */
 function validateRecord(record: Record<string, unknown>): Record<string, unknown> {
+  truncateVarchars(record);
+
   // Coordinate bounds (greater Arizona area)
   if (record.latitude != null && (Number(record.latitude) < 31 || Number(record.latitude) > 37 || Number(record.latitude) === 0)) {
     record.latitude = null;
@@ -801,199 +834,17 @@ async function fetchFilteredPage(
   return { records: data.value ?? [], nextSkipToken };
 }
 
-/**
- * Bulk UPSERT optimized for refresh-actives.
- *
- * Skips the per-row SAVEPOINT pattern + change-log generation — those exist
- * in upsertPage() to capture field-level changes during the delta sync.
- * refresh-actives doesn't need them: the delta sync still catches every
- * modification; this path's job is purely to bump last_synced_at on
- * unchanged rows for ARMLS 12h compliance.
- *
- * Performance: ~5ms per page vs upsertPage's ~25s per page. 5000x faster.
- *
- * Trade-off: if a row in the batch has a constraint/cast error, the WHOLE
- * batch fails. Acceptable here because refresh-actives is touching live
- * Spark data that just passed delta sync — schema correctness is already
- * proven.
- */
-async function bulkUpsertActives(records: Record<string, unknown>[]): Promise<number> {
-  if (records.length === 0) return 0;
-
-  const mapped = records
-    .map(mapRecord)
-    .filter((r): r is Record<string, unknown> => r !== null);
-  if (mapped.length === 0) return 0;
-
-  // Use the union of all keys across mapped rows. mapRecord() yields a
-  // stable shape, but defensively union in case of late-arriving fields.
-  const columnSet = new Set<string>();
-  for (const cols of mapped) {
-    for (const k of Object.keys(cols)) columnSet.add(k);
-  }
-  const columns = Array.from(columnSet);
-
-  // PG protocol caps at 65535 parameters per query. Chunk if needed.
-  // 1000 rows × ~85 cols = 85k > limit, so chunk by 500.
-  const CHUNK = 500;
-  const client = await getRdsClient();
-  let upserted = 0;
-
-  try {
-    await client.query("BEGIN");
-
-    for (let i = 0; i < mapped.length; i += CHUNK) {
-      const chunk = mapped.slice(i, i + CHUNK);
-      const valuesPlaceholders: string[] = [];
-      const params: unknown[] = [];
-      let p = 1;
-
-      for (const cols of chunk) {
-        const rowPlaceholders = columns.map((c) => {
-          if (c in cols) {
-            params.push(cols[c]);
-            return `$${p++}`;
-          } else {
-            return "NULL";
-          }
-        });
-        valuesPlaceholders.push(`(${rowPlaceholders.join(", ")})`);
-      }
-
-      const updateCols = columns
-        .filter((c) => c !== "listing_key" && c !== "id" && c !== "first_synced_at")
-        .map((c) => `${c} = EXCLUDED.${c}`)
-        .join(", ");
-
-      const sql = `
-        INSERT INTO listing_records (${columns.join(", ")})
-        VALUES ${valuesPlaceholders.join(", ")}
-        ON CONFLICT (listing_key) DO UPDATE SET ${updateCols}
-      `;
-      await client.query(sql, params);
-      upserted += chunk.length;
-    }
-
-    await client.query("COMMIT");
-    return upserted;
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
-/**
- * ARMLS 12h compliance refresh — re-fetches EVERY Active+AUC listing from
- * Spark and UPSERTs to bump last_synced_at, even if ModificationTimestamp
- * hasn't moved.
- *
- * Why this is separate from syncActiveListings():
- *   syncActiveListings() uses ModificationTimestamp watermark — only finds
- *   rows ARMLS reports as modified. Unchanged Active listings keep stale
- *   last_synced_at indefinitely, breaking ARMLS 12h compliance.
- *
- * This function ignores the watermark, walks all Active+AUC end-to-end:
- *   - $orderby=ModificationTimestamp desc to defeat Spark's response-cache
- *     dedupe (same trick we learned in active-snapshot)
- *   - 2.5s throttle between pages — under Spark's per-token rate cap
- *   - Follows @odata.nextLink directly (Spark uses $skip when sorted, not
- *     $skiptoken — also lessons from active-snapshot)
- *   - Reuses upsertPage() for the UPSERT — same field-mapper, same SAVEPOINT
- *     pattern
- *   - Does NOT touch listing_sync_state — delta sync's checkpoint is preserved
- *
- * Schedule via EventBridge rate(6h) → max stale = 6h, ARMLS 12h SLA satisfied
- * with 6h buffer for missed runs.
- */
-async function refreshAllActives(
-  deadlineMs: number,
-  orderDirection: 'asc' | 'desc' = 'desc'
-): Promise<{
-  pagesProcessed: number;
-  recordsUpserted: number;
-  completed: boolean;
-  error?: string;
-}> {
-  const accessToken = await getAccessToken();
-  // Cover all four "active inventory" statuses ARMLS displays via IDX:
-  // Active, AUC (under contract w/ backup offers), Pending (no backups), Coming Soon (pre-list).
-  // ARMLS audit guidelines apply to any of these on the IDX display.
-  const filter =
-    "(StandardStatus eq 'Active' or StandardStatus eq 'Active Under Contract'" +
-    " or StandardStatus eq 'Pending' or StandardStatus eq 'Coming Soon')";
-  const params = new URLSearchParams();
-  params.set("$filter", filter);
-  params.set("$top", "1000");
-  // Direction is chosen per-invocation to defeat Spark's per-token response
-  // cache: alternating ASC/DESC across consecutive runs guarantees a different
-  // URL hash and forces fresh data. ASC also surfaces the stalest rows first
-  // (oldest ModificationTimestamp = oldest last_synced_at).
-  params.set("$orderby", `ModificationTimestamp ${orderDirection}`);
-
-  let pageUrl: string | null = `${STANDARD_API_URL}/Property?${params.toString()}`;
-  let pagesProcessed = 0;
-  let recordsUpserted = 0;
-  const maxPages = 100; // 50K records ≈ 50 pages; cap protects against runaway
-
-  try {
-    while (pageUrl && pagesProcessed < maxPages) {
-      // Stop 60s before deadline
-      if (Date.now() >= deadlineMs - 60_000) {
-        console.warn(`[refresh-actives] near deadline after ${pagesProcessed} pages, stopping early`);
-        return { pagesProcessed, recordsUpserted, completed: false };
-      }
-
-      // 429/503 retry with backoff
-      let res!: Response;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        res = await fetch(pageUrl, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: "application/json",
-          },
-        });
-        if (res.ok) break;
-        if ((res.status === 429 || res.status === 503) && attempt < 2) {
-          const backoffMs = (attempt + 1) * 15_000;
-          console.warn(`[refresh-actives] Spark ${res.status}, retry in ${backoffMs / 1000}s`);
-          await new Promise((r) => setTimeout(r, backoffMs));
-          continue;
-        }
-        const text = await res.text();
-        throw new Error(`Spark error ${res.status}: ${text.substring(0, 200)}`);
-      }
-
-      const data = await res.json() as ODataResponse;
-      const records = data.value ?? [];
-
-      if (records.length === 0) {
-        // empty page = end of feed
-        return { pagesProcessed, recordsUpserted, completed: true };
-      }
-
-      // Bulk UPSERT — see bulkUpsertActives docstring. ~5000x faster than
-      // the per-row SAVEPOINT path; necessary to fit a full 50-page walk
-      // (50K listings) in Lambda's 900s timeout.
-      const count = await bulkUpsertActives(records);
-      recordsUpserted += count;
-      pagesProcessed++;
-
-      pageUrl = data["@odata.nextLink"] ?? null;
-
-      // Throttle between pages — under Spark's ~24 req/min rate cap
-      if (pageUrl) {
-        await new Promise((r) => setTimeout(r, 2_500));
-      }
-    }
-
-    return { pagesProcessed, recordsUpserted, completed: !pageUrl };
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return { pagesProcessed, recordsUpserted, completed: false, error: errorMsg };
-  }
-}
+// ─── REMOVED 2026-05-09 ────────────────────────────────────
+// `refresh-actives`, `fix-stale-actives`, and the supporting `bulkUpsertActives`
+// helper used to live here. They've been retired in favor of the always-on
+// Fargate ECS service `rlsir-armls-walker` (cluster `rlsir-walker`), which
+// runs the walk in a process with no 15-min Lambda ceiling — see
+// `memory/project_armls_walker_fargate.md` and `infra/fargate/armls-walker/`.
+// EventBridge rule `rlsir-armls-refresh-actives-schedule` was deleted.
+//
+// Don't reintroduce a paginated walk on this Lambda for compliance refresh.
+// A full Spark Property walk needs ~21 min; Lambda caps at 15. The walker is
+// the canonical mechanism.
 
 /**
  * Mark Active+AUC listings as Withdrawn if their last_synced_at is older
@@ -1433,24 +1284,21 @@ async function taskPurgeRawData(deadlineMs: number): Promise<{ purged: number; r
 }
 
 async function taskRefreshViews(): Promise<{ refreshed: boolean; normalizedRefreshed: boolean }> {
-  // Refresh the new clean-layer analytics pipeline (analytics_base + 9 MVs)
-  const pipelineStart = Date.now();
-  const result = await rdsQuery('SELECT * FROM refresh_analytics_pipeline()');
-  for (const row of result.rows) {
-    console.log(`[refresh] ${row.step}: ${row.duration_ms}ms, ${row.row_count} rows`);
-  }
-  console.log(`[refresh] Pipeline complete in ${Date.now() - pipelineStart}ms`);
-
-  // Also refresh legacy views if they exist (backward compat)
-  let normalizedRefreshed = false;
-  try {
-    await rdsQuery('SELECT refresh_analytics_views()');
-    normalizedRefreshed = true;
-  } catch {
-    // Legacy function may not exist — that's fine
-  }
-
-  return { refreshed: true, normalizedRefreshed };
+  // DEPRECATED 2026-05-10 (Phase 6 of dbt-cutover plan).
+  //
+  // The 9 dashboard MVs + analytics_base were dropped in migration 034 once
+  // yong2 cut over to reading dbt parquet marts via CloudFront. The
+  // refresh_analytics_pipeline() stored procedure was dropped with them.
+  // EventBridge rule `rlsir-mv-refresh-schedule` is DISABLED with no target,
+  // so this task is no longer invoked automatically.
+  //
+  // Left as a no-op rather than removed entirely so any historical alarm
+  // or manual `{"task":"refresh-views"}` invocation gets a clean response
+  // instead of a stored-procedure-not-found error.
+  //
+  // See memory/project_dbt_cutover_complete.md for the full architecture.
+  console.log('[refresh-views] task deprecated 2026-05-10 — yong2 reads parquet via CloudFront; no MVs to refresh');
+  return { refreshed: false, normalizedRefreshed: false };
 }
 
 // ─── DQ Assertions (Phase 3 — scheduled side-table writes) ──
@@ -1510,13 +1358,9 @@ interface LambdaEvent {
     | "run-dq"
     | "backfill-photos"
     | "sync-active"
-    /** Re-fetch every Active+AUC listing (ARMLS 12h compliance). Schedule via cron-style EventBridge rate(6 hours) or cron-window. */
-    | "refresh-actives"
     /** Mark Active+AUC listings as Withdrawn if last_synced_at older than staleHours (default 48h). */
     | "mark-stale-actives";
-  /** Walk direction for refresh-actives. Default: alternates ASC/DESC by hour-of-day to defeat Spark's per-token response cache. */
-  orderDirection?: "asc" | "desc";
-  /** Hours threshold for mark-stale-actives task (default 48). */
+  /** Hours threshold for mark-stale-actives (default 48). */
   staleHours?: number;
 }
 
@@ -1595,47 +1439,6 @@ export async function handler(event: LambdaEvent, context: LambdaContext) {
     };
     console.log(`[mark-stale-actives] ${JSON.stringify(summary)}`);
     return { statusCode: 200, body: JSON.stringify(summary) };
-  }
-
-  // ── ARMLS 12h compliance: full Active+AUC re-fetch (Track 3) ──
-  // Walks the entire active inventory, UPSERTs to bump last_synced_at on every
-  // row even when ModificationTimestamp didn't move. Doesn't touch the delta
-  // sync's checkpoint. Schedule rate(6h) keeps every active row < 6h stale.
-  if (event.task === "refresh-actives") {
-    await getAccessToken();
-    // Default orderDirection: alternate ASC/DESC by hour to defeat Spark's
-    // per-token response cache. Even hours = DESC, odd hours = ASC.
-    const direction =
-      event.orderDirection ??
-      (new Date(startTime).getUTCHours() % 2 === 0 ? "desc" : "asc");
-    const result = await refreshAllActives(deadlineMs, direction);
-    const stale12h = await countStaleActives(12);
-    const stale24h = await countStaleActives(24);
-
-    await Promise.all([
-      emitMetric("ActivesRefreshPagesProcessed", result.pagesProcessed),
-      emitMetric("ActivesRefreshRecordsUpserted", result.recordsUpserted),
-      emitMetric("ActivesStaleOver12h", stale12h),
-      emitMetric("ActivesStaleOver24h", stale24h),
-    ]);
-
-    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    const summary = {
-      task: "refresh-actives",
-      duration: `${duration}s`,
-      pagesProcessed: result.pagesProcessed,
-      recordsUpserted: result.recordsUpserted,
-      completed: result.completed,
-      activesStaleOver12h: stale12h,
-      activesStaleOver24h: stale24h,
-      error: result.error,
-    };
-    console.log(`[refresh-actives] ${JSON.stringify(summary)}`);
-
-    return {
-      statusCode: result.error ? 500 : 200,
-      body: JSON.stringify(summary),
-    };
   }
 
   // ── Active-only fast sync (Track 2) ──
