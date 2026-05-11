@@ -15,8 +15,15 @@ interface ListingLightboxProps {
   listingKey?: string;
 }
 
+/**
+ * Distance from `currentIndex` (in either swipe direction) within which
+ * the main mobile photo loads eagerly. Photos beyond this range still
+ * mount their `<img>` element — the browser's native `loading="lazy"`
+ * defers their fetch until they're about to scroll into view, so all
+ * photos remain reachable via swipe without paying the bandwidth cost
+ * up front.
+ */
 const PRELOAD_RANGE = 2;
-const THUMB_RANGE = 8;
 
 /**
  * Fullscreen photo lightbox for listing detail pages.
@@ -89,14 +96,19 @@ export function ListingLightbox({ photos, address, initialIndex = 0, onClose, li
     if (thumb) thumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
   }, [currentIndex]);
 
-  const isInRange = (index: number, range: number) => {
-    if (total === 0) return false;
-    const dist = Math.min(
+  /**
+   * Circular distance between `index` and `currentIndex` along the
+   * photo carousel — accounts for wrap-around (last photo neighbors
+   * the first). Used to bias eager loading toward the visitor's
+   * current view without gating render of distant photos.
+   */
+  const circularDistance = (index: number) => {
+    if (total === 0) return 0;
+    return Math.min(
       Math.abs(index - currentIndex),
       Math.abs(index - currentIndex + total),
       Math.abs(index - currentIndex - total),
     );
-    return dist <= range;
   };
 
   if (total === 0) return null;
@@ -157,18 +169,27 @@ export function ListingLightbox({ photos, address, initialIndex = 0, onClose, li
           })}
         </div>
 
-        {/* Mobile: swipe gallery */}
+        {/* Mobile: swipe gallery — every photo renders so the visitor can
+         *  swipe to any of them. Neighbors within ±PRELOAD_RANGE load
+         *  eagerly so the current photo and the next/prev are decoded
+         *  before the visitor swipes; everything else uses native
+         *  loading="lazy" and decodes only when scrolled into view. */}
         <div className="md:hidden w-full h-full overflow-x-auto scrollbar-hide snap-x snap-mandatory flex">
-          {photos.map((url, i) => (
-            <div key={i} className="w-full h-full flex-shrink-0 snap-center flex items-center justify-center">
-              {isInRange(i, PRELOAD_RANGE) ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={url} alt={`${address} photo ${i + 1}`} className="max-w-full max-h-full object-contain" />
-              ) : (
-                <div className="w-full h-full bg-stone/5" />
-              )}
-            </div>
-          ))}
+          {photos.map((url, i) => {
+            const eager = circularDistance(i) <= PRELOAD_RANGE;
+            return (
+              <div key={i} className="w-full h-full flex-shrink-0 snap-center flex items-center justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt={`${address} photo ${i + 1}`}
+                  className="max-w-full max-h-full object-contain"
+                  loading={eager ? 'eager' : 'lazy'}
+                  decoding="async"
+                />
+              </div>
+            );
+          })}
         </div>
 
         <button
@@ -183,7 +204,10 @@ export function ListingLightbox({ photos, address, initialIndex = 0, onClose, li
         </button>
       </div>
 
-      {/* Thumbnail rail (desktop) */}
+      {/* Thumbnail rail (desktop) — every thumb renders; native
+       *  loading="lazy" defers the bytes for thumbs not yet scrolled
+       *  into the rail's viewport so memory stays bounded even for
+       *  50+ photo galleries. */}
       <div
         ref={thumbContainerRef}
         className="hidden md:flex gap-1 px-4 py-3 overflow-x-auto scrollbar-hide justify-center shrink-0"
@@ -198,12 +222,14 @@ export function ListingLightbox({ photos, address, initialIndex = 0, onClose, li
             }`}
             aria-label={`Go to photo ${i + 1}`}
           >
-            {isInRange(i, THUMB_RANGE) ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
-            ) : (
-              <div className="w-full h-full bg-stone/10" />
-            )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={url}
+              alt=""
+              className="w-full h-full object-cover"
+              loading="lazy"
+              decoding="async"
+            />
           </button>
         ))}
       </div>
