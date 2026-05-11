@@ -1,0 +1,57 @@
+name: Verify Phoenix Analytics (nightly)
+
+# E2E numerics check: reads dbt parquet marts via CloudFront, fetches each
+# deployed yong2 Phoenix tab, asserts every KPI + table value matches.
+# No AWS credentials required — all reads are via the public CloudFront
+# distribution. Tab HTML is fetched from the public Amplify URL.
+#
+# Pass criterion: 0 hard failures. Sub-cycle drift (<1h dbt rebuild window)
+# is tracked separately and not a failure signal.
+#
+# Workflow lives in repo root .github/ rather than real-estate-platform/.github/
+# because the verifier script reaches into the platform monorepo for
+# `scripts/verify-phoenix-exhaustive.mjs`.
+
+on:
+  schedule:
+    # 06:00 UTC daily — after the dbt rebuild has finished and CloudFront
+    # has settled. Adjust if the dbt schedule moves.
+    - cron: '0 6 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Phoenix tab numerics
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install hyparquet + pg in real-estate-platform
+        working-directory: real-estate-platform
+        run: |
+          npm install --no-audit --no-fund --silent hyparquet hyparquet-compressors pg
+
+      - name: Run exhaustive verifier
+        working-directory: real-estate-platform
+        env:
+          YONG2_URL: https://feature-yong2-amplify.d2tuygdje4mmy3.amplifyapp.com
+          MARTS_CDN_BASE: https://d12v6de1xwcjhk.cloudfront.net
+        run: |
+          node scripts/verify-phoenix-exhaustive.mjs
+
+      - name: Surface report on failure
+        if: failure()
+        run: |
+          echo "::error::Phoenix tab numerics verification failed. See full output above."
+          echo "Quick triage:"
+          echo "  1. Was a dbt rebuild interrupted? Check CloudWatch Lambda /aws/lambda/rlsir-analytics-dbt"
+          echo "  2. Did the Amplify build fail? Check console.aws.amazon.com → Amplify → d2tuygdje4mmy3"
+          echo "  3. Has Spark feed changed shape? Re-run dbt manually with task=models-only"
