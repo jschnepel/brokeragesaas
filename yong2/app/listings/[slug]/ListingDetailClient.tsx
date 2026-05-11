@@ -39,6 +39,7 @@ import { RequestTourCta } from '@/components/portfolio/RequestTourCta';
 import { StickyContact } from '@/components/portfolio/StickyContact';
 import { SimilarListingsStrip } from '@/components/portfolio/SimilarListingsStrip';
 import { MockTheRead } from '@/components/portfolio/MockTheRead';
+import { MortgageEstimator } from '@/components/portfolio/MortgageEstimator';
 import { IDXComplianceFooter } from '@/components/portfolio/IDXComplianceFooter';
 import { yongBio } from '@/content/yong';
 import { siteContent } from '@/content/site';
@@ -229,6 +230,22 @@ export function ListingDetailClient({
             areaMonthsOfSupply={readData.areaMonthsOfSupply}
             areaYoYPriceChangePct={readData.areaYoYPriceChangePct}
             areaLabel={readData.areaLabel}
+          />
+        </SectionFrame>
+      ) : null}
+
+      {/* ── 3c. MONTHLY ESTIMATE ─────────────────────── */}
+      {listing.listPrice && listing.listPrice > 0 ? (
+        <SectionFrame className="py-16 md:py-20 border-t border-white/5">
+          <MortgageEstimator
+            listPrice={listing.listPrice}
+            taxAnnualAmount={listing.taxAnnualAmount ?? null}
+            hoaFeeMonthly={
+              listing.associationFee != null &&
+              listing.associationFeeFrequency?.toLowerCase().startsWith('month')
+                ? listing.associationFee
+                : null
+            }
           />
         </SectionFrame>
       ) : null}
