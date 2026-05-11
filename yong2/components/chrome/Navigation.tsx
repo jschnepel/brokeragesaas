@@ -3,6 +3,10 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { siteContent } from '@/content/site';
+import {
+  getSavedListings,
+  onSavedListingsChange,
+} from '@/components/portfolio/HeroTopBar';
 
 type NavigationProps = {
   initialTransparent?: boolean;
@@ -11,6 +15,7 @@ type NavigationProps = {
 export function Navigation({ initialTransparent = false }: NavigationProps) {
   const [scrolled, setScrolled] = useState(!initialTransparent);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [savedCount, setSavedCount] = useState(0);
 
   useEffect(() => {
     if (!initialTransparent) return;
@@ -19,6 +24,17 @@ export function Navigation({ initialTransparent = false }: NavigationProps) {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, [initialTransparent]);
+
+  // Keep the saved-listings counter in sync with localStorage so the
+  // heart badge reflects the live count without a page reload after
+  // saving from a listing detail page.
+  useEffect(() => {
+    setSavedCount(getSavedListings().length);
+    const unsub = onSavedListingsChange(() => {
+      setSavedCount(getSavedListings().length);
+    });
+    return unsub;
+  }, []);
 
   const isTransparent = initialTransparent && !scrolled && !menuOpen;
 
@@ -43,6 +59,29 @@ export function Navigation({ initialTransparent = false }: NavigationProps) {
               {item.label}
             </Link>
           ))}
+          <Link
+            href="/saved"
+            aria-label={`Saved listings${savedCount > 0 ? ` (${savedCount})` : ''}`}
+            className="relative text-stone hover:text-gold transition-colors flex items-center"
+          >
+            <svg
+              aria-hidden="true"
+              className="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill={savedCount > 0 ? 'currentColor' : 'none'}
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            </svg>
+            {savedCount > 0 ? (
+              <span className="absolute -top-1.5 -right-2.5 bg-gold text-ink text-[10px] caps tabular-nums px-1.5 py-px rounded-full leading-none">
+                {savedCount > 99 ? '99+' : savedCount}
+              </span>
+            ) : null}
+          </Link>
         </div>
         <button
           aria-label={menuOpen ? 'Close menu' : 'Open menu'}
@@ -77,6 +116,13 @@ export function Navigation({ initialTransparent = false }: NavigationProps) {
               {item.label}
             </Link>
           ))}
+          <Link
+            href="/saved"
+            className="font-serif italic text-2xl text-stone"
+            onClick={() => setMenuOpen(false)}
+          >
+            Saved{savedCount > 0 ? ` (${savedCount})` : ''}
+          </Link>
           <a href={siteContent.contact.mobileHref} className="caps mt-4 text-gold">
             {siteContent.contact.mobile}
           </a>

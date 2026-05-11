@@ -75,7 +75,17 @@ export function ListingDetailClient({
   const tourMessage = `${listing.unparsedAddress}${listing.community ? ` (${listing.community})` : ''}`;
   const tourHref = `/contact?listing=${encodeURIComponent(tourMessage)}&interest=Buying`;
 
-  const { isSaved, toggle } = useSavedListing(listing.listingKey);
+  const { isSaved, toggle } = useSavedListing(listing.listingKey, {
+    slug: listing.slug,
+    address: listing.unparsedAddress,
+    community: listing.community,
+    price: listing.listPrice,
+    imageUrl: listing.coverPhotoUrl,
+    beds: listing.bedrooms,
+    baths:
+      typeof listing.bathroomsTotal === 'number' ? listing.bathroomsTotal : null,
+    livingArea: listing.livingArea,
+  });
 
   const hoaProp =
     listing.associationFee != null && listing.associationFeeFrequency

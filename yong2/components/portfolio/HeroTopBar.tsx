@@ -130,10 +130,89 @@ function SaveIcon({ filled }: { filled: boolean }) {
 }
 
 /**
- * Convenience hook for localStorage-backed save state. Stores a flat
- * array of listingKey strings under `yong2_saved_listings`.
+ * Snapshot of a saved listing, persisted in localStorage so the /saved
+ * index page can render without re-fetching every listing from Spark.
+ * Kept intentionally minimal — only the fields the saved-listings
+ * tile needs.
  */
-export function useSavedListing(listingKey: string): {
+export interface SavedListingSnapshot {
+  key: string;
+  slug: string;
+  address: string;
+  community: string;
+  price: number | null;
+  imageUrl: string | null;
+  beds: number | null;
+  baths: number | null;
+  livingArea: number | null;
+  savedAt: string; // ISO timestamp, drives recency sort on /saved
+}
+
+const STORAGE_KEY = 'yong2_saved_listings_v2';
+const STORAGE_KEY_LEGACY = 'yong2_saved_listings';
+const SAVED_LISTINGS_CHANGE_EVENT = 'yong2:saved-listings-change';
+
+function readSavedSnapshots(): SavedListingSnapshot[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is SavedListingSnapshot =>
+      x && typeof x === 'object' && typeof x.key === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeSavedSnapshots(next: SavedListingSnapshot[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    window.dispatchEvent(new CustomEvent(SAVED_LISTINGS_CHANGE_EVENT));
+  } catch {
+    /* localStorage unavailable */
+  }
+}
+
+/**
+ * Public reader for /saved page. Returns a stable array sorted by
+ * most-recently-saved descending. Safe to call client-side only.
+ */
+export function getSavedListings(): SavedListingSnapshot[] {
+  return [...readSavedSnapshots()].sort((a, b) => {
+    const ta = new Date(a.savedAt).getTime() || 0;
+    const tb = new Date(b.savedAt).getTime() || 0;
+    return tb - ta;
+  });
+}
+
+/** Subscribe to localStorage saves so the nav badge stays in sync. */
+export function onSavedListingsChange(handler: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  const wrapped = () => handler();
+  window.addEventListener(SAVED_LISTINGS_CHANGE_EVENT, wrapped);
+  // storage event fires across tabs.
+  window.addEventListener('storage', wrapped);
+  return () => {
+    window.removeEventListener(SAVED_LISTINGS_CHANGE_EVENT, wrapped);
+    window.removeEventListener('storage', wrapped);
+  };
+}
+
+/**
+ * Convenience hook for localStorage-backed save state. When a snapshot
+ * is supplied, saving stores the full record so the /saved page can
+ * render the tile without re-fetching from Spark. When omitted, only
+ * the key is tracked (back-compat for callers that don't need the
+ * snapshot — e.g. card-level Save controls on the search page).
+ */
+export function useSavedListing(
+  listingKey: string,
+  snapshot?: Omit<SavedListingSnapshot, 'key' | 'savedAt'>,
+): {
   isSaved: boolean;
   toggle: () => void;
 } {
@@ -141,28 +220,40 @@ export function useSavedListing(listingKey: string): {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem('yong2_saved_listings');
-      const list = raw ? (JSON.parse(raw) as string[]) : [];
-      setIsSaved(list.includes(listingKey));
-    } catch {
-      /* localStorage unavailable — feature degrades silently */
+    // One-time migration: drop the legacy string[] format. Old
+    // entries don't have enough data to render anyway.
+    if (window.localStorage.getItem(STORAGE_KEY_LEGACY)) {
+      window.localStorage.removeItem(STORAGE_KEY_LEGACY);
     }
+    setIsSaved(readSavedSnapshots().some((s) => s.key === listingKey));
+    const unsub = onSavedListingsChange(() => {
+      setIsSaved(readSavedSnapshots().some((s) => s.key === listingKey));
+    });
+    return unsub;
   }, [listingKey]);
 
   function toggle() {
     if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem('yong2_saved_listings');
-      const list = raw ? (JSON.parse(raw) as string[]) : [];
-      const next = list.includes(listingKey)
-        ? list.filter((k) => k !== listingKey)
-        : [listingKey, ...list].slice(0, 50); // cap at 50
-      window.localStorage.setItem('yong2_saved_listings', JSON.stringify(next));
-      setIsSaved(next.includes(listingKey));
-    } catch {
-      /* localStorage unavailable */
-    }
+    const current = readSavedSnapshots();
+    const has = current.some((s) => s.key === listingKey);
+    const next: SavedListingSnapshot[] = has
+      ? current.filter((s) => s.key !== listingKey)
+      : (() => {
+          const stub: SavedListingSnapshot = {
+            key: listingKey,
+            slug: snapshot?.slug ?? '',
+            address: snapshot?.address ?? '',
+            community: snapshot?.community ?? '',
+            price: snapshot?.price ?? null,
+            imageUrl: snapshot?.imageUrl ?? null,
+            beds: snapshot?.beds ?? null,
+            baths: snapshot?.baths ?? null,
+            livingArea: snapshot?.livingArea ?? null,
+            savedAt: new Date().toISOString(),
+          };
+          return [stub, ...current].slice(0, 50);
+        })();
+    writeSavedSnapshots(next);
   }
 
   return { isSaved, toggle };
