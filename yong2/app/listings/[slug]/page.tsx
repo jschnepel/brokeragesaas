@@ -22,6 +22,7 @@ import { getListingBySlug, getNearbyListings } from '@/lib/spark/search';
 import { buildFeatureGroups } from '@/lib/spark/listing-features';
 import { matchCuratedCommunity } from '@/lib/community-match';
 import { computeDistances } from '@/lib/distances';
+import { getListingReadData } from '@/lib/listing-analytics';
 import { siteUrl } from '@/lib/seo';
 import { ListingDetailClient } from './ListingDetailClient';
 
@@ -62,19 +63,20 @@ export default async function ListingDetailPage({ params }: PageProps) {
   const distances = computeDistances(listing.latitude, listing.longitude);
   const listingUrl = `${SITE_URL}/listings/${listing.slug}`;
 
-  // Nearby listings — only fetched when the subject has lat/lng so the
-  // bbox query is meaningful. Failures swallowed because the strip is
-  // a recommendation, not load-bearing for the page.
-  const nearby =
+  // Nearby listings + market read fetch in parallel — both are
+  // recommendations, neither is load-bearing. Failures swallowed.
+  const [nearby, readData] = await Promise.all([
     listing.latitude != null && listing.longitude != null
-      ? await getNearbyListings({
+      ? getNearbyListings({
           excludeListingId: listing.listingId,
           latitude: listing.latitude,
           longitude: listing.longitude,
           listPrice: listing.listPrice,
           limit: 4,
         }).catch(() => [])
-      : [];
+      : Promise.resolve([]),
+    getListingReadData(listing).catch(() => null),
+  ]);
 
   return (
     <ListingDetailClient
@@ -83,6 +85,7 @@ export default async function ListingDetailPage({ params }: PageProps) {
       curatedCommunity={curatedCommunity}
       distances={distances}
       nearby={nearby}
+      readData={readData}
       listingUrl={listingUrl}
     />
   );

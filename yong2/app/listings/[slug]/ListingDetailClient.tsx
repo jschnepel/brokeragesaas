@@ -38,6 +38,7 @@ import { ShareButton } from '@/components/portfolio/ShareButton';
 import { RequestTourCta } from '@/components/portfolio/RequestTourCta';
 import { StickyContact } from '@/components/portfolio/StickyContact';
 import { SimilarListingsStrip } from '@/components/portfolio/SimilarListingsStrip';
+import { MockTheRead } from '@/components/portfolio/MockTheRead';
 import { IDXComplianceFooter } from '@/components/portfolio/IDXComplianceFooter';
 import { yongBio } from '@/content/yong';
 import { siteContent } from '@/content/site';
@@ -45,6 +46,7 @@ import type { Listing } from '@/lib/types';
 import type { FeatureGroup } from '@/lib/listing-narrative';
 import type { CuratedCommunity } from '@/content/communities';
 import type { DistanceRow } from '@/lib/distances';
+import type { ListingReadData } from '@/lib/listing-analytics';
 
 type ListingDetailClientProps = {
   listing: Listing;
@@ -54,6 +56,8 @@ type ListingDetailClientProps = {
   distances: ReadonlyArray<DistanceRow>;
   /** Up to 4 nearby Active residentials in a similar price band. */
   nearby: Listing[];
+  /** Market-read aggregates shaped from dbt marts. Null when unavailable. */
+  readData: ListingReadData | null;
   listingUrl: string;
 };
 
@@ -70,6 +74,7 @@ export function ListingDetailClient({
   curatedCommunity,
   distances,
   nearby,
+  readData,
   listingUrl,
 }: ListingDetailClientProps) {
   const tourMessage = `${listing.unparsedAddress}${listing.community ? ` (${listing.community})` : ''}`;
@@ -210,6 +215,21 @@ export function ListingDetailClient({
       {featureGroups.length > 0 ? (
         <SectionFrame className="py-16 md:py-20 border-t border-white/5">
           <KeyFeaturesGrid groups={featureGroups} visibleCount={6} />
+        </SectionFrame>
+      ) : null}
+
+      {/* ── 3b. THE READ (market context) ───────────── */}
+      {readData ? (
+        <SectionFrame className="py-16 md:py-20 border-t border-white/5">
+          <MockTheRead
+            subjectPpsf={readData.subjectPpsf}
+            compMedianPpsf={readData.compMedianPpsf}
+            compPoolSize={readData.compPoolSize}
+            areaMedianDom={readData.areaMedianDom}
+            areaMonthsOfSupply={readData.areaMonthsOfSupply}
+            areaYoYPriceChangePct={readData.areaYoYPriceChangePct}
+            areaLabel={readData.areaLabel}
+          />
         </SectionFrame>
       ) : null}
 
