@@ -18,6 +18,12 @@ type MockReadProps = {
   areaYoYPriceChangePct: number;
   /** Area scope label — "Silverleaf", "North Scottsdale", etc. */
   areaLabel: string;
+  /** Optional — median sale-to-list ratio (0.964 = 96.4% of list). */
+  saleToListRatio?: number | null;
+  /** Optional — median days from Active → Pending. */
+  medianDaysToPending?: number | null;
+  /** Optional — % of closings in the period that had a price reduction (0.31 = 31%). */
+  pctWithReduction?: number | null;
   /**
    * Narrative-workflow-supplied 1-sentence interpretation of the
    * comp-position number. Templated against the magnitude + sign of
@@ -54,6 +60,9 @@ export function MockTheRead({
   areaMonthsOfSupply,
   areaYoYPriceChangePct,
   areaLabel,
+  saleToListRatio,
+  medianDaysToPending,
+  pctWithReduction,
   compsCommentary,
   areaCommentary,
 }: MockReadProps) {
@@ -111,10 +120,58 @@ export function MockTheRead({
           ) : null}
         </div>
       </div>
+      {/* Advanced market signals — rendered when any of the three
+       *  optional metrics has a value. Three compact tiles below the
+       *  primary 2-column read so the page rhythm holds. */}
+      {(saleToListRatio != null ||
+        medianDaysToPending != null ||
+        pctWithReduction != null) && (
+        <div className="mt-12 pt-10 border-t border-white/5">
+          <CapsLabel as="h3" className="mb-6 text-stone/70 text-[10px]">
+            Advanced market signals · Phoenix Metro
+          </CapsLabel>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            {saleToListRatio != null && (
+              <AdvancedTile
+                label="Sale-to-list"
+                value={`${(saleToListRatio * 100).toFixed(1)}%`}
+                caption="Median across recent closes — how close buyers are landing to ask."
+              />
+            )}
+            {medianDaysToPending != null && (
+              <AdvancedTile
+                label="Days to pending"
+                value={`${medianDaysToPending} d`}
+                caption="Median days from Active → Pending for recent closings."
+              />
+            )}
+            {pctWithReduction != null && (
+              <AdvancedTile
+                label="With price cut"
+                value={`${(pctWithReduction * 100).toFixed(0)}%`}
+                caption="Share of recent closes that took at least one price reduction."
+              />
+            )}
+          </div>
+        </div>
+      )}
+
       <p className="caps text-stone/40 text-[10px] mt-10 tracking-wider">
         Source · ARMLS Spark · Refreshed hourly
       </p>
     </section>
+  );
+}
+
+function AdvancedTile({ label, value, caption }: { label: string; value: string; caption: string }) {
+  return (
+    <div className="border border-white/5 bg-ink/40 p-5">
+      <CapsLabel as="div" className="text-stone/55 text-[10px] mb-2">
+        {label}
+      </CapsLabel>
+      <p className="font-serif text-3xl text-stone tabular-nums mb-2">{value}</p>
+      <p className="text-xs text-stone/55 leading-relaxed">{caption}</p>
+    </div>
   );
 }
 

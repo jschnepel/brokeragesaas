@@ -230,6 +230,9 @@ export function ListingDetailClient({
             areaMonthsOfSupply={readData.areaMonthsOfSupply}
             areaYoYPriceChangePct={readData.areaYoYPriceChangePct}
             areaLabel={readData.areaLabel}
+            saleToListRatio={readData.saleToListRatio}
+            medianDaysToPending={readData.medianDaysToPending}
+            pctWithReduction={readData.pctWithReduction}
           />
         </SectionFrame>
       ) : null}

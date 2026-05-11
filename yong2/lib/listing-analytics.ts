@@ -28,6 +28,17 @@ interface MosRow extends ScopeFilter {
   months_of_supply_3mo: number | null;
 }
 
+interface NegotiationRow extends ScopeFilter {
+  month: string;
+  median_sale_to_list: number | null;
+  pct_with_reduction: number | null;
+}
+
+interface StatusVelocityRow extends ScopeFilter {
+  month: string;
+  median_days_to_pending: number | null;
+}
+
 export interface ListingReadData {
   subjectPpsf: number;
   compMedianPpsf: number;
@@ -36,6 +47,10 @@ export interface ListingReadData {
   areaMonthsOfSupply: number;
   areaYoYPriceChangePct: number;
   areaLabel: string;
+  /** Optional advanced signals — null when the relevant mart row is missing. */
+  saleToListRatio: number | null;
+  medianDaysToPending: number | null;
+  pctWithReduction: number | null;
 }
 
 const METRO_FILTER: ScopeFilter = {
@@ -86,19 +101,23 @@ export async function getListingReadData(
   });
   const regionKey = regionScopeKeyFor(curated);
 
-  // Pull metro + region pulse and MoS in parallel. fct_market_pulse_region
-  // is the small (~470KB) split file; metro is even smaller. Both are
-  // cached for 1h in lib/marts.ts, so subsequent listings amortize.
+  // Pull metro + region pulse, MoS, negotiation, and velocity in
+  // parallel. All marts are small split files cached for 1h in
+  // lib/marts.ts, so subsequent listings amortize the fetch cost.
   let metroPulse: MarketPulseRow[];
   let regionPulse: MarketPulseRow[];
   let mosRows: MosRow[];
+  let negotiationRows: NegotiationRow[];
+  let velocityRows: StatusVelocityRow[];
   try {
-    [metroPulse, regionPulse, mosRows] = await Promise.all([
+    [metroPulse, regionPulse, mosRows, negotiationRows, velocityRows] = await Promise.all([
       readMart<MarketPulseRow>('fct_market_pulse_metro'),
       regionKey
         ? readMart<MarketPulseRow>('fct_market_pulse_region')
         : Promise.resolve([] as MarketPulseRow[]),
       readMart<MosRow>('fct_months_of_supply'),
+      readMart<NegotiationRow>('fct_negotiation_metro').catch(() => [] as NegotiationRow[]),
+      readMart<StatusVelocityRow>('fct_status_velocity').catch(() => [] as StatusVelocityRow[]),
     ]);
   } catch {
     return null;
@@ -169,6 +188,14 @@ export async function getListingReadData(
     num(mosSource?.months_of_supply_3mo) ??
     0;
 
+  // Negotiation / velocity — metro scope only (the per-scope splits
+  // for these marts aren't enabled yet). Pulls the latest month with
+  // populated values; null when the row's measure is missing.
+  const negotiationLatest = filterScope(negotiationRows, METRO_FILTER)
+    .sort((a, b) => (a.month < b.month ? 1 : -1))[0];
+  const velocityLatest = filterScope(velocityRows, METRO_FILTER)
+    .sort((a, b) => (a.month < b.month ? 1 : -1))[0];
+
   return {
     subjectPpsf: listing.pricePerSqft,
     compMedianPpsf: latestMedianPpsf,
@@ -177,7 +204,14 @@ export async function getListingReadData(
     areaMonthsOfSupply: mos,
     areaYoYPriceChangePct: yoy,
     areaLabel: label,
+    saleToListRatio: num(negotiationLatest?.median_sale_to_list),
+    medianDaysToPending: roundOrNull(num(velocityLatest?.median_days_to_pending)),
+    pctWithReduction: num(negotiationLatest?.pct_with_reduction),
   };
+}
+
+function roundOrNull(n: number | null): number | null {
+  return n == null ? null : Math.round(n);
 }
 
 function num(v: number | bigint | null | undefined): number | null {
