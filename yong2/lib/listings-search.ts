@@ -79,6 +79,24 @@ export type StatusFilter = 'Active' | 'Coming Soon' | 'Pending';
  */
 export type HomeType = 'house' | 'condo' | 'multi' | 'land';
 
+/**
+ * Sort key for the search result set. Drives the OData `$orderby` so
+ * the entire matching pool is ordered — not just the 60 listings
+ * currently rendered. Without server-side sort, "Price · Low → High"
+ * means "cheapest of the first 60 by ListPrice desc" which is the
+ * wrong mental model.
+ *
+ * Keep aligned with `SortKey` in components/listings/SearchBar.tsx.
+ */
+export type SortKey =
+  | 'newest'
+  | 'price-asc'
+  | 'price-desc'
+  | 'sqft-desc'
+  | 'lot-desc'
+  | 'year-desc'
+  | 'dom-asc';
+
 export interface SearchOpts {
   q?: string;
   bbox?: BBox;
@@ -121,6 +139,21 @@ export interface SearchOpts {
   /** Hard-capped at 200 internally to keep response payloads bounded. */
   limit?: number;
   offset?: number;
+  /**
+   * Sort order applied to the entire matching pool. Pushed into the
+   * upstream `$orderby` so the offset/cursor paginate a stably-ordered
+   * set. Defaults to 'price-desc' when omitted — preserves the prior
+   * luxury-first behavior for callers that don't specify sort.
+   */
+  sort?: SortKey;
+  /**
+   * Cursor for keyset pagination — opaque token returned in the
+   * previous response's `nextCursor`. When present, supersedes
+   * `offset`; the underlying pool is filtered to records strictly
+   * after the cursor. Stable across pool reorderings because the
+   * cursor encodes the sort-key value + listingKey tiebreaker.
+   */
+  cursor?: string;
 }
 
 export interface PinPoint {
@@ -160,6 +193,14 @@ export interface SearchResult {
    * successful fetch; cached re-reads should keep their original value.
    */
   fetchedAt: string;
+  /**
+   * Opaque pagination cursor — the client passes this back as
+   * `cursor` on the next request to fetch the page after this one.
+   * Null when `hasMore` is false. Stable across pool reorderings:
+   * encodes the sort-key value + listingKey tiebreaker of the LAST
+   * record in this response.
+   */
+  nextCursor?: string | null;
 }
 
 // ── Internal: shared WHERE builder ──────────────────

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { Listing } from '@/lib/types';
 import type { BBox, PinPoint, PolygonGeoJSON, StatusFilter } from '@/lib/listings-search';
 import { SearchBar, type SortKey } from '@/components/listings/SearchBar';
@@ -16,6 +17,11 @@ import { ResultsList } from '@/components/listings/ResultsList';
 import { MapPanel, type MapPanelHandle } from '@/components/listings/MapPanel';
 import { IDXSearchFooter } from '@/components/listings/IDXSearchFooter';
 import { track } from '@/lib/analytics/events';
+import {
+  parseListingsUrl,
+  serializeListingsState,
+  urlHasUserState,
+} from '@/lib/listings-url';
 
 const INITIAL_FILTER: FilterState = {
   status: [],
@@ -34,6 +40,7 @@ type ListingsClientProps = {
   initialTotal: number;
   initialHasMore: boolean;
   initialFetchedAt: string;
+  initialNextCursor: string | null;
 };
 
 // Page size for both initial fetch and each Load More click. Kept
@@ -54,7 +61,25 @@ export function ListingsClient({
   initialTotal,
   initialHasMore,
   initialFetchedAt,
+  initialNextCursor,
 }: ListingsClientProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // Parse the URL ONCE on the first render. We don't want to re-derive
+  // state from `searchParams` on every render — the URL is the source
+  // of truth only at mount; thereafter state changes drive the URL via
+  // router.replace. Wrapping useSearchParams() reads in useState's
+  // lazy initializer keeps the parse off the hot render path.
+  const initialUrlState = useMemo(
+    () => parseListingsUrl(new URLSearchParams(searchParams?.toString() ?? '')),
+    // Intentional one-shot read — useSearchParams() is stable in App
+    // Router unless the URL actually changes externally, and we drive
+    // those changes ourselves below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   const [listings, setListings] = useState<Listing[]>(initialListings);
   const [pins, setPins] = useState<PinPoint[]>(initialPins);
   const [total, setTotal] = useState<number>(initialTotal);
@@ -62,61 +87,20 @@ export function ListingsClient({
   const [fetchedAt, setFetchedAt] = useState<string>(initialFetchedAt);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [q, setQ] = useState('');
-  const [bbox, setBbox] = useState<BBox | null>(null);
-  const [polygon, setPolygon] = useState<PolygonGeoJSON | null>(null);
+  const [q, setQ] = useState(initialUrlState.q ?? '');
+  const [bbox, setBbox] = useState<BBox | null>(initialUrlState.bbox ?? null);
+  const [polygon, setPolygon] = useState<PolygonGeoJSON | null>(initialUrlState.polygon ?? null);
   const [drawingActive, setDrawingActive] = useState(false);
-  const [filters, setFilters] = useState<FilterState>(INITIAL_FILTER);
+  const [filters, setFilters] = useState<FilterState>(initialUrlState.filters ?? INITIAL_FILTER);
   const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
   const [scrollToKey, setScrollToKey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('split'); // for mobile
-  const [sort, setSort] = useState<SortKey>('newest');
-
-  // Client-side sort over the loaded listings — keeps the UI affordance
-  // working today against whatever set the API returned. When the data
-  // layer is rewritten, sort can be pushed into the search request.
-  const sortedListings = useMemo(() => {
-    const arr = [...listings];
-    // Numeric sort helper — null/undefined/missing always lands at the
-    // end regardless of direction so 0/null don't pollute the head of
-    // ascending lists or look like the largest in descending lists.
-    const cmpNum = (a: number | null | undefined, b: number | null | undefined, dir: 1 | -1) => {
-      const av = typeof a === 'number' && Number.isFinite(a) ? a : null;
-      const bv = typeof b === 'number' && Number.isFinite(b) ? b : null;
-      if (av === null && bv === null) return 0;
-      if (av === null) return 1;
-      if (bv === null) return -1;
-      return dir === 1 ? av - bv : bv - av;
-    };
-    switch (sort) {
-      case 'price-asc':
-        arr.sort((a, b) => cmpNum(a.listPrice, b.listPrice, 1));
-        break;
-      case 'price-desc':
-        arr.sort((a, b) => cmpNum(a.listPrice, b.listPrice, -1));
-        break;
-      case 'sqft-desc':
-        arr.sort((a, b) => cmpNum(a.livingArea, b.livingArea, -1));
-        break;
-      case 'lot-desc':
-        arr.sort((a, b) => cmpNum(a.lotAcres, b.lotAcres, -1));
-        break;
-      case 'year-desc':
-        arr.sort((a, b) => cmpNum(a.yearBuilt, b.yearBuilt, -1));
-        break;
-      case 'dom-asc':
-        arr.sort((a, b) => cmpNum(a.daysOnMarket, b.daysOnMarket, 1));
-        break;
-      case 'newest':
-      default:
-        arr.sort((a, b) => {
-          const ad = a.modificationTimestamp ? new Date(a.modificationTimestamp).getTime() : 0;
-          const bd = b.modificationTimestamp ? new Date(b.modificationTimestamp).getTime() : 0;
-          return bd - ad;
-        });
-    }
-    return arr;
-  }, [listings, sort]);
+  const [sort, setSort] = useState<SortKey>(initialUrlState.sort ?? 'price-desc');
+  // Cursor for the next Load More request — surfaced by the API on
+  // every response. Null when there's no next page. Replaces the
+  // offset-based paginator: cursors stay valid even if pool ordering
+  // shifts slightly between requests.
+  const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor);
 
   const mapRef = useRef<MapPanelHandle | null>(null);
 
@@ -208,17 +192,44 @@ export function ListingsClient({
     if (adv.newConstruction) opts.newConstruction = true;
     if (adv.priceReduced) opts.priceReduced = true;
 
+    // Sort is pushed server-side so "Price · Low → High" means the
+    // cheapest match in the entire pool, not the cheapest of 60.
+    opts.sort = sort;
     opts.limit = PAGE_LIMIT;
     return opts;
-  }, [q, polygon, bbox, filters]);
+  }, [q, polygon, bbox, filters, sort]);
+
+  // Push every user-visible state change into the URL. Refresh, back/
+  // forward, and shared links all preserve filter intent. router.replace
+  // does a shallow update in App Router — no re-render, no scroll jump.
+  //
+  // BBox is included in this sync but the value is rounded to ~1m
+  // precision in serializeListingsState, so sub-meter map jitter
+  // doesn't churn the URL. Polygon is encoded as a flattened ring.
+  useEffect(() => {
+    const sp = serializeListingsState({ q, filters, sort, bbox, polygon });
+    const next = sp.toString();
+    const current = searchParams?.toString() ?? '';
+    if (next === current) return;
+    const target = next ? `${pathname}?${next}` : pathname;
+    router.replace(target, { scroll: false });
+    // pathname/router/searchParams identities are stable from Next's
+    // routing context; including them in deps keeps the linter happy
+    // without causing extra runs.
+  }, [q, filters, sort, bbox, polygon, pathname, router, searchParams]);
 
   // Skip the initial render's fetch (server gave us hydration data already).
-  // EXCEPT: when the SSR'd pins array came back empty — usually a stale ISR
-  // cache from before a recent fix, or a transient Spark rate-limit during
-  // the server render. In that case we eagerly re-fetch on mount so the map
-  // never starts blank. The listings array can still hydrate from SSR; only
-  // the pins array drives the map's visibility.
-  const isFirstRunRef = useRef(initialPins.length > 0);
+  // EXCEPT:
+  //   1. SSR pins came back empty (stale ISR cache / transient Spark hiccup)
+  //   2. The URL has user-state filters that don't match the SSR defaults
+  // In either case we eagerly re-fetch on mount so the map and result set
+  // reflect what the visitor actually asked for.
+  const initialUrlHasState = useMemo(
+    () => urlHasUserState(new URLSearchParams(searchParams?.toString() ?? '')),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  const isFirstRunRef = useRef(initialPins.length > 0 && !initialUrlHasState);
   useEffect(() => {
     if (isFirstRunRef.current) {
       isFirstRunRef.current = false;
@@ -245,12 +256,14 @@ export function ListingsClient({
           total: number;
           hasMore?: boolean;
           fetchedAt?: string;
+          nextCursor?: string | null;
         };
         if (cancelled) return;
         setListings(json.listings);
         setPins(json.pins);
         setTotal(json.total);
         setHasMore(Boolean(json.hasMore));
+        setNextCursor(json.nextCursor ?? null);
         if (json.fetchedAt) setFetchedAt(json.fetchedAt);
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
@@ -341,22 +354,32 @@ export function ListingsClient({
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
+      // Cursor pagination — pass the previous response's `nextCursor`
+      // (when available) rather than an offset count. Cursors stay
+      // stable across small pool reorderings between requests, so
+      // Load More can't skip or duplicate records the way offset can
+      // if a listing's price/status shifted mid-session.
+      const body = nextCursor
+        ? { ...searchOpts, cursor: nextCursor }
+        : { ...searchOpts, offset: listings.length };
       const res = await fetch('/api/listings/search', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ...searchOpts, offset: listings.length }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`Load more failed: ${res.status}`);
       const json = (await res.json()) as {
         listings: Listing[];
         pins?: PinPoint[];
         hasMore?: boolean;
+        nextCursor?: string | null;
       };
       track('results_load_more', {
         results_count: listings.length + json.listings.length,
       });
       setListings((prev) => [...prev, ...json.listings]);
       setHasMore(Boolean(json.hasMore));
+      setNextCursor(json.nextCursor ?? null);
       // Merge pin universe — keep existing pins, fold in the server's
       // current pin set (might shift slightly across requests), and
       // ensure every newly-loaded listing has a pin even if it sits
@@ -390,7 +413,7 @@ export function ListingsClient({
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMore, searchOpts, listings.length]);
+  }, [loadingMore, hasMore, searchOpts, listings.length, nextCursor]);
 
   const handleCardClick = useCallback((key: string) => {
     // Position is the listing's index in the current results array — useful
@@ -465,7 +488,7 @@ export function ListingsClient({
           </p>
           <div className="flex-1 overflow-y-auto min-h-0">
             <ResultsList
-              listings={sortedListings}
+              listings={listings}
               highlightedKey={highlightedKey}
               loading={loading}
               total={total}

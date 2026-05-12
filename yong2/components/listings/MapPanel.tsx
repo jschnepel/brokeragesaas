@@ -209,11 +209,20 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
               geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
             })),
           },
-          // Individual pins everywhere — visitors get a one-to-one
-          // pin-to-listing affordance with a hover popup. The cluster
-          // layer config below is kept as a no-op (filter never matches
-          // when cluster: false) so layer ids stay stable.
-          cluster: false,
+          // Zoom-aware clustering. Below zoom 11 the dense Phoenix
+          // metro produces ~hundreds of overlapping dots — clusters
+          // restore legibility. Above 11 we drop to per-pin rendering
+          // with the popup + price-pill treatment.
+          //
+          // clusterMaxZoom = 11 means clusters DISAPPEAR at zoom 12+;
+          // every feature renders as an individual pin from 12 up.
+          // clusterRadius = 50px works well on a 1280px-wide map.
+          // promoteId: 'key' propagates the listingKey as the feature
+          // id post-clustering for the unclustered layer; the cluster
+          // layer uses MapLibre's auto-generated cluster_id.
+          cluster: true,
+          clusterMaxZoom: 11,
+          clusterRadius: 50,
           promoteId: 'key',
         });
 

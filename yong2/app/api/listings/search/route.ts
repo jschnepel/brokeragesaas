@@ -60,6 +60,10 @@ const bodySchema = z.object({
   priceReduced: z.boolean().optional(),
   limit: z.number().int().positive().max(200).optional(),
   offset: z.number().int().nonnegative().optional(),
+  sort: z
+    .enum(['newest', 'price-asc', 'price-desc', 'sqft-desc', 'lot-desc', 'year-desc', 'dom-asc'])
+    .optional(),
+  cursor: z.string().max(256).optional(),
 });
 
 export async function POST(req: Request): Promise<Response> {

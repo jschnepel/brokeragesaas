@@ -33,6 +33,7 @@ import type {
   PolygonGeoJSON,
   SearchOpts,
   SearchResult,
+  SortKey,
   StatusFilter,
 } from '@/lib/listings-search';
 
@@ -526,6 +527,179 @@ function pointInPolygon(x: number, y: number, ring: number[][]): boolean {
   return inside;
 }
 
+// ── Sort + cursor ─────────────────────────────────────
+
+/**
+ * Sort key → OData `$orderby` clause + SparkProperty field used for
+ * client-side sort/cursor logic. The same field is used for the
+ * cursor's comparable value, so sort order and cursor comparison
+ * always agree.
+ *
+ * Stable secondary key (`ListingKey`) makes ordering deterministic
+ * across Spark page boundaries — without it, two records with the
+ * same `ListPrice` could swap positions between page 1 and page 2
+ * and the cursor would skip or duplicate them.
+ */
+interface SortDef {
+  orderby: string;
+  field: string;
+  direction: 'asc' | 'desc';
+  /** Extract the comparable scalar for sort/cursor logic. Returns null for
+   *  missing values; null always sorts to the end regardless of direction. */
+  extract: (r: SparkProperty) => number | null;
+}
+
+function getSortDef(sort: SortKey | undefined): SortDef {
+  switch (sort) {
+    case 'newest':
+      return {
+        orderby: 'ModificationTimestamp desc, ListingKey asc',
+        field: 'ModificationTimestamp',
+        direction: 'desc',
+        extract: (r) => {
+          const v = asString(r['ModificationTimestamp']);
+          if (!v) return null;
+          const t = Date.parse(v);
+          return Number.isFinite(t) ? t : null;
+        },
+      };
+    case 'price-asc':
+      return {
+        orderby: 'ListPrice asc, ListingKey asc',
+        field: 'ListPrice',
+        direction: 'asc',
+        extract: (r) => asNumber(r['ListPrice']),
+      };
+    case 'sqft-desc':
+      return {
+        orderby: 'LivingArea desc, ListingKey asc',
+        field: 'LivingArea',
+        direction: 'desc',
+        extract: (r) => asNumber(r['LivingArea']),
+      };
+    case 'lot-desc':
+      return {
+        orderby: 'LotSizeAcres desc, ListingKey asc',
+        field: 'LotSizeAcres',
+        direction: 'desc',
+        extract: (r) => asNumber(r['LotSizeAcres']),
+      };
+    case 'year-desc':
+      return {
+        orderby: 'YearBuilt desc, ListingKey asc',
+        field: 'YearBuilt',
+        direction: 'desc',
+        extract: (r) => asNumber(r['YearBuilt']),
+      };
+    case 'dom-asc':
+      return {
+        orderby: 'DaysOnMarket asc, ListingKey asc',
+        field: 'DaysOnMarket',
+        direction: 'asc',
+        extract: (r) => asNumber(r['DaysOnMarket']),
+      };
+    case 'price-desc':
+    default:
+      return {
+        orderby: 'ListPrice desc, ListingKey asc',
+        field: 'ListPrice',
+        direction: 'desc',
+        extract: (r) => asNumber(r['ListPrice']),
+      };
+  }
+}
+
+/**
+ * Sort the post-filter pool by `(sortValue, listingKey)`. Nulls always
+ * land at the end regardless of direction. Stable on listingKey so
+ * cursor pagination is deterministic — two records with the same
+ * primary sort value resolve to a fixed order.
+ */
+function sortPool(pool: SparkProperty[], def: SortDef): SparkProperty[] {
+  const cmpDir = def.direction === 'asc' ? 1 : -1;
+  return [...pool].sort((a, b) => {
+    const av = def.extract(a);
+    const bv = def.extract(b);
+    if (av === null && bv === null) {
+      // Both null — fall through to listingKey tiebreaker.
+    } else if (av === null) {
+      return 1;
+    } else if (bv === null) {
+      return -1;
+    } else if (av !== bv) {
+      return cmpDir === 1 ? av - bv : bv - av;
+    }
+    const ak = asString(a['ListingKey']) ?? '';
+    const bk = asString(b['ListingKey']) ?? '';
+    return ak < bk ? -1 : ak > bk ? 1 : 0;
+  });
+}
+
+interface DecodedCursor {
+  s: SortKey;
+  v: number | null;
+  k: string;
+}
+
+function encodeCursor(sort: SortKey, value: number | null, listingKey: string): string {
+  const payload: DecodedCursor = { s: sort, v: value, k: listingKey };
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+}
+
+function decodeCursor(cursor: string | undefined, expectedSort: SortKey): DecodedCursor | null {
+  if (!cursor) return null;
+  try {
+    const json = Buffer.from(cursor, 'base64url').toString('utf8');
+    const parsed = JSON.parse(json) as Partial<DecodedCursor>;
+    // Sort key must match — otherwise the comparable value isn't
+    // meaningful against the new ordering. The client must re-paginate
+    // from scratch when sort changes.
+    if (parsed.s !== expectedSort) return null;
+    if (typeof parsed.k !== 'string' || parsed.k.length === 0) return null;
+    const v = parsed.v === null || typeof parsed.v === 'number' ? parsed.v : null;
+    return { s: parsed.s, v: v ?? null, k: parsed.k };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Find the index in `pool` of the first record strictly AFTER the
+ * cursor under the given sort definition. Returns 0 when no cursor,
+ * pool.length when the cursor points beyond the last record.
+ *
+ * Pool MUST already be sorted by sortPool() — this is a linear scan
+ * that relies on the established ordering for correctness when ties
+ * collapse to the listingKey tiebreaker.
+ */
+function cursorIndex(
+  pool: SparkProperty[],
+  def: SortDef,
+  cursor: DecodedCursor | null,
+): number {
+  if (!cursor) return 0;
+  const dirSign = def.direction === 'asc' ? 1 : -1;
+  for (let i = 0; i < pool.length; i++) {
+    const r = pool[i];
+    const v = def.extract(r);
+    const k = asString(r['ListingKey']) ?? '';
+    // Compare (v, k) against (cursor.v, cursor.k) under the direction.
+    // "After" means strictly greater under the sort ordering.
+    if (v === cursor.v) {
+      if (k > cursor.k) return i;
+      continue;
+    }
+    if (v === null) continue; // nulls sort last; cursor can't point past them in normal case
+    if (cursor.v === null) {
+      // Cursor's value is null (last bucket). Any non-null record is
+      // BEFORE it under the ordering, so we never advance.
+      continue;
+    }
+    if (dirSign === 1 ? v > cursor.v : v < cursor.v) return i;
+  }
+  return pool.length;
+}
+
 // ── Public API — same shape as lib/listings-search.ts ──
 
 /**
@@ -626,31 +800,27 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
   const limit = Math.min(Math.max(opts.limit ?? 60, 1), 200);
   const offset = Math.max(opts.offset ?? 0, 0);
   const filter = buildSearchFilter(opts);
+  const sortDef = getSortDef(opts.sort);
+  const cursor = decodeCursor(opts.cursor, opts.sort ?? 'price-desc');
 
   // Pagination + pin coverage strategy: a single Spark call returns
-  // ALL records this query needs. The listings array is sliced from
-  // the pool; pins are derived from the same pool's filtered records
-  // (every record that survived bbox/IDX gets a pin, regardless of
-  // whether it landed in the visible listings slice).
+  // ALL records this query needs. The pool is sorted on the requested
+  // sort key (with a stable ListingKey tiebreaker) so both offset and
+  // cursor pagination are deterministic. Listings are sliced from the
+  // sorted pool; pins are derived from the same pool's top-1000.
   //
-  // Previously we made TWO parallel Spark calls — one for listings
-  // (with Media expansion) and one for pins (with light $select). The
-  // parallel pair occasionally returned 0 from the pins call even
-  // though Spark direct returned 1000 records with the same filter
-  // (some kind of per-token collision). Collapsing to one call
-  // eliminates the race entirely.
-  //
-  // Window sizing: for offset=0/limit=60 we fetch 4 pages (1000
-  // records) so the initial map has a wide pin universe. Beyond that
-  // (Load More), we fetch only the pages needed to serve the new
-  // listings slice + 1 for hasMore — the client-side pin merge in
-  // ListingsClient grows the map's pin set as the visitor scrolls.
+  // Window sizing: when starting fresh (no cursor and offset=0) we
+  // fetch 4 pages (1000 records) so the initial map has a wide pin
+  // universe. Beyond that, we fetch only the pages needed to serve
+  // the new listings slice + 1 for hasMore — the client-side pin
+  // merge in ListingsClient grows the map's pin set as the visitor
+  // scrolls.
   const PAGE_SIZE = 250;
   const INITIAL_PIN_PAGES = 4; // 1000 records on the first page load
-  const pagesNeeded =
-    offset === 0
-      ? INITIAL_PIN_PAGES
-      : Math.max(Math.ceil((offset + limit + 1) / PAGE_SIZE), 1);
+  const isFreshStart = !cursor && offset === 0;
+  const pagesNeeded = isFreshStart
+    ? INITIAL_PIN_PAGES
+    : Math.max(Math.ceil((offset + limit + 1) / PAGE_SIZE), 1);
 
   // Single Spark call — fetch the full pool, slice for listings, derive
   // pins from the bbox/IDX-filtered records.
@@ -660,7 +830,7 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
     const records = await fetchAllProperties({
       filter,
       top: PAGE_SIZE,
-      orderby: 'ListPrice desc',
+      orderby: sortDef.orderby,
       expand: ['Media($top=1;$orderby=Order)'],
       maxPages: pagesNeeded,
     });
@@ -669,18 +839,41 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
     fetchError = err instanceof Error ? err.message : String(err);
   }
 
-  const sliceHasMore = pool.length > offset + limit;
-  const listings = pool
-    .slice(offset, offset + limit)
-    .map(sparkRecordToListing);
+  // Re-sort the pool client-side after applyClientFilters() — Spark's
+  // orderby is honored upstream, but bbox/polygon filtering can drop
+  // records mid-page in a way that breaks the upstream ordering's
+  // tiebreaker assumptions. A local sort restores the deterministic
+  // (sortValue, listingKey) order that the cursor logic depends on.
+  pool = sortPool(pool, sortDef);
+
+  // Resolve pagination — cursor wins over offset when present, offset
+  // is the legacy path. Both produce an [start, start+limit) window.
+  const start = cursor ? cursorIndex(pool, sortDef, cursor) : offset;
+  const end = start + limit;
+  const sliceHasMore = pool.length > end;
+  const listings = pool.slice(start, end).map(sparkRecordToListing);
 
   // Pins — every pool record with lat/lng, capped at 1000 for map
-  // performance (cluster: false renders each as its own marker).
+  // performance. Always drawn from the START of the sorted pool so the
+  // map represents the "best" 1000 for the active sort (cheapest under
+  // price-asc, most recent under newest, etc.).
   const pins: PinPoint[] = [];
   for (const r of pool.slice(0, 1000)) {
     const p = pinFromRecord(r);
     if (p) pins.push(p);
   }
+
+  // Cursor encoding the last record in this slice — feeds the next
+  // page request. Null when there's no next page.
+  const lastRecord = listings.length > 0 ? pool[start + listings.length - 1] : null;
+  const nextCursor = sliceHasMore && lastRecord
+    ? encodeCursor(
+        opts.sort ?? 'price-desc',
+        sortDef.extract(lastRecord),
+        asString(lastRecord['ListingKey']) ?? '',
+      )
+    : null;
+
   // Total reflects the bbox-filtered pool, capped at the pin
   // universe size (1000). This is honest about the viewport.
   const total = pool.length;
@@ -697,6 +890,7 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
     total,
     hasMore: sliceHasMore,
     fetchedAt,
+    nextCursor,
   };
 }
 

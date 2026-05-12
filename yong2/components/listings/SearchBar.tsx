@@ -1,15 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import type { SortKey } from '@/lib/listings-search';
 
-export type SortKey =
-  | 'newest'
-  | 'price-asc'
-  | 'price-desc'
-  | 'sqft-desc'
-  | 'lot-desc'
-  | 'year-desc'
-  | 'dom-asc';
+export type { SortKey };
 
 const SORT_LABELS: Record<SortKey, string> = {
   newest: 'Newest',

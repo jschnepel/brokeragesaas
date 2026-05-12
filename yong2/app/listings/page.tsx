@@ -43,6 +43,10 @@ async function ListingsResults() {
   const initial = await searchListings({
     bbox: DEFAULT_BBOX,
     homeTypes: ['house', 'condo'],
+    // Server-side sort default must match ListingsClient's initial
+    // sort state so the post-hydration re-fetch doesn't re-order the
+    // SSR result set unnecessarily.
+    sort: 'price-desc',
     limit: 60,
   }).catch((err) => {
     // eslint-disable-next-line no-console
@@ -53,6 +57,7 @@ async function ListingsResults() {
       total: 0,
       hasMore: false,
       fetchedAt: new Date().toISOString(),
+      nextCursor: null,
     };
   });
   return (
@@ -62,6 +67,7 @@ async function ListingsResults() {
       initialTotal={initial.total}
       initialHasMore={initial.hasMore}
       initialFetchedAt={initial.fetchedAt}
+      initialNextCursor={initial.nextCursor ?? null}
     />
   );
 }
