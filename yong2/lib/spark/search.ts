@@ -282,9 +282,8 @@ function buildSearchFilter(opts: SearchOpts): string {
   // window that post-fetch filtering would have to over-fetch from.
   if (opts.q && opts.q.trim().length > 0) {
     const escaped = escapeLiteral(opts.q.trim());
-    clauses.push(
-      `(contains(UnparsedAddress,'${escaped}') or contains(City,'${escaped}') or contains(SubdivisionName,'${escaped}'))`,
-    );
+    const textClause = `(contains(UnparsedAddress,'${escaped}') or contains(City,'${escaped}') or contains(SubdivisionName,'${escaped}'))`;
+    clauses.push(textClause);
   }
 
   if (typeof opts.priceMin === 'number') {
@@ -378,6 +377,16 @@ function buildSearchFilter(opts: SearchOpts): string {
   // OData either. We over-fetch, then narrow client-side.
 
   return clauses.join(' and ');
+}
+
+/**
+ * Diagnostic exporter — returns the same string buildSearchFilter
+ * would emit for these opts. Exposed so the API route can echo the
+ * generated filter back to the client (or to logs) when a debug
+ * flag is set, without forcing a duplicate Spark round-trip.
+ */
+export function debugSearchFilter(opts: SearchOpts): string {
+  return buildSearchFilter(opts);
 }
 
 /**
