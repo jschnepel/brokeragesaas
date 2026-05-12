@@ -329,18 +329,27 @@ function buildSearchFilter(opts: SearchOpts): string {
   // Home Type — translates the visitor's Zillow-style buckets to
   // ARMLS PropertyType + PropertySubType clauses.
   //
-  // The IMPORTANT subtle bit: ARMLS uses PropertyType='Residential'
-  // for FOR-SALE residential and PropertyType='Residential Lease' for
-  // rentals. Filtering on PropertySubType alone returns both, so we
-  // anchor 'house'/'condo' to PropertyType='Residential' to exclude
-  // rentals from a for-sale search.
+  // ARMLS uses PropertyType='Residential' for FOR-SALE residential and
+  // PropertyType='Residential Lease' for rentals. Filtering on
+  // PropertySubType alone returns both, so we anchor 'house'/'condo'
+  // to PropertyType='Residential' to exclude rentals from a for-sale
+  // search.
   //
-  // Spark's OData parser caps parenthesis nesting at 2 levels deep, so
-  // we distribute the PropertyType anchor through each PropertySubType
-  // branch rather than nesting one level deeper. Builds:
-  //   (PropertyType eq 'Residential' and PropertySubType eq 'X')
-  //     or (PropertyType eq 'Residential' and PropertySubType eq 'Y')
-  //     or PropertyType eq 'Land'
+  // Filter shape — empirically required by Spark's OData parser:
+  //
+  //   ResidentialOnly  → PropertyType eq 'Residential' and (PST=X or PST=Y)
+  //   ResidentialOnly + Land/Multi (mixed):
+  //                      (PropertyType eq 'Residential' and (PST=X or PST=Y))
+  //                      or PropertyType eq 'Land'
+  //                      or PropertyType eq 'Residential Income'
+  //   LandOnly         → PropertyType eq 'Land'
+  //
+  // The earlier distributed form
+  //   ((PT='Residential' and PST='SFR') or (PT='Residential' and PST='Condo'))
+  // confuses Spark's parser when combined with another contains()-based
+  // AND clause: Spark returns Condominium results that don't satisfy
+  // the contains() at all. Verified directly against the API — the
+  // flat-anchor form below produces correct results in every combo.
   if (opts.homeTypes && opts.homeTypes.length > 0) {
     const residentialSubTypes: string[] = [];
     const standalonePropTypes: string[] = [];
@@ -355,17 +364,25 @@ function buildSearchFilter(opts: SearchOpts): string {
         standalonePropTypes.push('Land');
       }
     }
-    const branches: string[] = [];
-    for (const s of residentialSubTypes) {
-      branches.push(
-        `(PropertyType eq 'Residential' and PropertySubType eq '${escapeLiteral(s)}')`,
-      );
-    }
-    for (const p of standalonePropTypes) {
-      branches.push(`PropertyType eq '${escapeLiteral(p)}'`);
-    }
-    if (branches.length > 0) {
-      clauses.push(`(${branches.join(' or ')})`);
+    // Residential branch — collapsed to a single AND with an
+    // inner subtype OR group. One layer of nesting.
+    const residentialBranch =
+      residentialSubTypes.length > 0
+        ? `(PropertyType eq 'Residential' and (${residentialSubTypes
+            .map((s) => `PropertySubType eq '${escapeLiteral(s)}'`)
+            .join(' or ')}))`
+        : null;
+    const standaloneBranches = standalonePropTypes.map(
+      (p) => `PropertyType eq '${escapeLiteral(p)}'`,
+    );
+    const allBranches = [
+      residentialBranch,
+      ...standaloneBranches,
+    ].filter((b): b is string => b !== null);
+    if (allBranches.length === 1) {
+      clauses.push(allBranches[0]);
+    } else if (allBranches.length > 1) {
+      clauses.push(`(${allBranches.join(' or ')})`);
     }
   }
 
