@@ -616,150 +616,80 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
   const offset = Math.max(opts.offset ?? 0, 0);
   const filter = buildSearchFilter(opts);
 
-  // Pagination strategy: fetch exactly enough Spark pages to cover the
-  // requested offset+limit window, plus one extra record so we can tell
-  // whether more results exist beyond the slice (drives hasMore).
+  // Pagination + pin coverage strategy: a single Spark call returns
+  // ALL records this query needs. The listings array is sliced from
+  // the pool; pins are derived from the same pool's filtered records
+  // (every record that survived bbox/IDX gets a pin, regardless of
+  // whether it landed in the visible listings slice).
   //
-  // Text query is now applied server-side via OData contains() in
-  // buildSearchFilter, so we no longer have to over-fetch to compensate
-  // for post-fetch text narrowing.
+  // Previously we made TWO parallel Spark calls — one for listings
+  // (with Media expansion) and one for pins (with light $select). The
+  // parallel pair occasionally returned 0 from the pins call even
+  // though Spark direct returned 1000 records with the same filter
+  // (some kind of per-token collision). Collapsing to one call
+  // eliminates the race entirely.
+  //
+  // Window sizing: for offset=0/limit=60 we fetch 4 pages (1000
+  // records) so the initial map has a wide pin universe. Beyond that
+  // (Load More), we fetch only the pages needed to serve the new
+  // listings slice + 1 for hasMore — the client-side pin merge in
+  // ListingsClient grows the map's pin set as the visitor scrolls.
   const PAGE_SIZE = 250;
-  const pagesNeeded = Math.max(
-    Math.ceil((offset + limit + 1) / PAGE_SIZE),
-    1,
-  );
+  const INITIAL_PIN_PAGES = 4; // 1000 records on the first page load
+  const pagesNeeded =
+    offset === 0
+      ? INITIAL_PIN_PAGES
+      : Math.max(Math.ceil((offset + limit + 1) / PAGE_SIZE), 1);
 
-  // Two Spark calls in parallel. Both go through fetchAllProperties
-  // (which uses the env-injected token from next.config.ts env block).
-  // IDX opt-out (InternetEntireListingDisplayYN) is enforced via
-  // isIdxDisplayable() post-fetch — Spark's OData rejects the field
-  // in $filter, so the check has to happen on the response payload.
-  const [listingsResult, pinsResult] = await Promise.allSettled([
-    (async () => {
-      // Fetch enough Spark pages to cover offset+limit+1 records.
-      //
-      // \$expand=Media inflates ~30x when unbounded — past attempts
-      // tripped Spark's per-token rate limit (429 "exceeds performance
-      // threshold"). The nested OData option `Media(\$top=1;\$orderby=Order)`
-      // limits the expansion to just the primary cover photo, bringing
-      // payload back to ~1.05x while still giving the cards an image.
-      // The detail page (getListingBySlug) keeps the unbounded expand
-      // since it needs the full gallery for one record.
-      //
-      // NOTE on counts: we deliberately do NOT pass count:true here.
-      // Spark's @odata.count reflects the OData filter only and ignores
-      // post-fetch bbox/IDX filtering. For bbox queries that's wildly
-      // misleading (e.g. 220K when the viewport actually contains 850
-      // listings). The total reported to the UI is derived from the
-      // pins call below, which DOES apply bbox post-fetch.
-      const records = await fetchAllProperties({
-        filter,
-        top: PAGE_SIZE,
-        orderby: 'ListPrice desc',
-        expand: ['Media($top=1;$orderby=Order)'],
-        maxPages: pagesNeeded,
-      });
-      const pool = applyClientFilters(records, opts)
-        .filter(isIdxDisplayable);
-      // hasMore is true when the filtered pool extends beyond the
-      // requested slice — i.e., another Load More click would return
-      // additional listings. Derived here (not from `pins.length`) so
-      // pagination is decoupled from the pin-universe cap and scales
-      // with whatever Spark's nextLink chain returns.
-      const sliceHasMore = pool.length > offset + limit;
-      const sliced = pool.slice(offset, offset + limit).map(sparkRecordToListing);
-      return { listings: sliced, sliceHasMore };
-    })(),
-    (async () => {
-      // Pin universe — capped at top × maxPages records pulled with a
-      // light $select so the bytes stay small per record. The bbox /
-      // IDX filtering then narrows whatever fell inside the viewport.
-      // Single page × 1000 keeps the fetch under Spark's per-token
-      // rate-limit threshold. Text query is now applied server-side
-      // (contains() in buildSearchFilter), so the 1000-record window
-      // is already narrowed by both Spark's filter and the visitor's
-      // text query before we get here.
-      const records = await fetchAllProperties({
-        filter,
-        top: 1000,
-        orderby: 'ListPrice desc',
-        select: PIN_SELECT,
-        maxPages: 1,
-      });
-      const filtered = applyClientFilters(records, opts);
-      const pins: PinPoint[] = [];
-      for (const r of filtered) {
-        if (!isIdxDisplayable(r)) continue;
-        const p = pinFromRecord(r);
-        if (p) pins.push(p);
-      }
-      return pins;
-    })(),
-  ]);
-
-  const listingsPayload =
-    listingsResult.status === 'fulfilled'
-      ? listingsResult.value
-      : { listings: [] as Listing[], sliceHasMore: false };
-  const listings = listingsPayload.listings;
-  let pins = pinsResult.status === 'fulfilled' ? pinsResult.value : [];
-  // Diagnostic flags surfaced via debugSearchFilter / route ?debug=1.
-  const pinsFetchStatus = pinsResult.status;
-  const pinsRejectReason =
-    pinsResult.status === 'rejected'
-      ? pinsResult.reason instanceof Error
-        ? pinsResult.reason.message
-        : String(pinsResult.reason)
-      : null;
-  const pinsFromCallCount = pins.length;
-  let usedListingsFallback = false;
-
-  // Fallback: when the dedicated pins call returns nothing (rate-limit
-  // 429, transient 503, schema drift), derive pins from the loaded
-  // listings so the map never goes empty. Pins-from-listings cover at
-  // least the visible slice; the dedicated pins call gives the broader
-  // pool when it succeeds.
-  if (pins.length === 0 && listings.length > 0) {
-    usedListingsFallback = true;
-    pins = listings
-      .filter((l) => l.latitude != null && l.longitude != null)
-      .map((l) => ({
-        listingKey: l.listingKey,
-        listingId: l.listingId,
-        slug: l.slug,
-        latitude: l.latitude as number,
-        longitude: l.longitude as number,
-        listPrice: l.listPrice,
-        status: l.status,
-      }));
+  // Single Spark call — fetch the full pool, slice for listings, derive
+  // pins from the bbox/IDX-filtered records.
+  let pool: SparkProperty[] = [];
+  let fetchError: string | null = null;
+  try {
+    const records = await fetchAllProperties({
+      filter,
+      top: PAGE_SIZE,
+      orderby: 'ListPrice desc',
+      expand: ['Media($top=1;$orderby=Order)'],
+      maxPages: pagesNeeded,
+    });
+    pool = applyClientFilters(records, opts).filter(isIdxDisplayable);
+  } catch (err) {
+    fetchError = err instanceof Error ? err.message : String(err);
   }
 
-  // Total reflects the pin universe (capped by the pins call's
-  // top + maxPages). Pins are bbox-filtered post-fetch in
-  // applyClientFilters, so this count is honest about the viewport.
-  //
-  // Floor guarantee: when the pins call fails or returns fewer
-  // records than the listings slice (e.g. Spark per-token rate
-  // limit on the parallel call, transient 503), the visitor should
-  // still see at least the listings count — never "0 listings" with
-  // 60 cards rendered. Honest underestimate beats misleading zero.
-  const total = Math.max(pins.length, listings.length);
+  const sliceHasMore = pool.length > offset + limit;
+  const listings = pool
+    .slice(offset, offset + limit)
+    .map(sparkRecordToListing);
+
+  // Pins — every pool record with lat/lng, capped at 1000 for map
+  // performance (cluster: false renders each as its own marker).
+  const pins: PinPoint[] = [];
+  for (const r of pool.slice(0, 1000)) {
+    const p = pinFromRecord(r);
+    if (p) pins.push(p);
+  }
+  const usedListingsFallback = false;
+  const pinsFromCallCount = pins.length;
+  const pinsFetchStatus = fetchError ? 'rejected' : 'fulfilled';
+  const pinsRejectReason = fetchError;
+
+  // Total reflects the bbox-filtered pool, capped at the pin
+  // universe size (1000). This is honest about the viewport.
+  const total = pool.length;
   const fetchedAt = new Date().toISOString();
 
-  if (listingsResult.status === 'rejected') {
+  if (fetchError) {
     // eslint-disable-next-line no-console
-    console.error('[spark/search] listings call failed:', listingsResult.reason);
-  }
-  if (pinsResult.status === 'rejected') {
-    // eslint-disable-next-line no-console
-    console.warn('[spark/search] pins call failed (falling back to listings.length for total):', pinsResult.reason);
+    console.error('[spark/search] fetch failed:', fetchError);
   }
 
   return {
     listings,
     pins,
     total,
-    hasMore: listingsPayload.sliceHasMore,
+    hasMore: sliceHasMore,
     fetchedAt,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     _debug: {
@@ -767,6 +697,7 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
       pinsFromCallCount,
       usedListingsFallback,
       pinsRejectReason,
+      poolSize: pool.length,
     } as unknown,
   } as SearchResult;
 }
