@@ -1,3 +1,5 @@
+import Image from 'next/image';
+
 type IDXComplianceFooterProps = {
   /** ARMLS modification timestamp from the listing — ISO date string. */
   lastUpdatedISO: string | null;
@@ -60,16 +62,25 @@ export function IDXComplianceFooter({
       aria-label="IDX compliance and broker attribution"
     >
       <div className="max-w-[1400px] mx-auto px-6 md:px-12 lg:px-16 grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6 md:gap-10">
-        {/* ARMLS logo placeholder — replace src with /images/armls-idx-logo.png
-         * once the asset lands in /public/images. Compliance only requires
-         * the logo be present near the data; size and exact treatment are
-         * not specified beyond legibility. */}
-        <div
-          className="caps text-stone/70 text-[10px] tracking-widest border border-stone/30 px-4 py-3 inline-block"
-          aria-label="ARMLS IDX"
-        >
-          ARMLS<br />
-          <span className="text-[8px] tracking-wider">IDX</span>
+        {/* Official ARMLS IDX wordmark — required near the listing
+         *  data per ARMLS rules. Source asset: 600x150 PNG with
+         *  transparent background; rendered at 140x35 (4:1 aspect
+         *  preserved) which sits comfortably alongside the
+         *  attribution column at 12-13px text. Light-mode panel
+         *  preserves the crimson trademark color. */}
+        <div className="bg-stone/95 rounded-sm px-4 py-3 inline-flex items-center self-start">
+          <Image
+            src="/images/armls-idx-logo.png"
+            alt="ARMLS — Arizona Regional Multiple Listing Service"
+            width={140}
+            height={35}
+            // unoptimized: PNG with transparency at this small size has
+            // no benefit from AVIF conversion; skipping the optimizer
+            // shaves a few ms on cold renders and guarantees the
+            // trademark color isn't subtly shifted by re-encoding.
+            unoptimized
+            priority={false}
+          />
         </div>
         <div className="space-y-3 text-[13px] text-stone/75 leading-[1.6]">
           {(listAgentName || listOfficeName) && (

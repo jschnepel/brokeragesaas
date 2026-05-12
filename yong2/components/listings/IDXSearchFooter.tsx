@@ -1,3 +1,5 @@
+import Image from 'next/image';
+
 /**
  * IDX compliance footer for the /listings (Home Search) page.
  *
@@ -56,14 +58,18 @@ export function IDXSearchFooter({
       aria-label="ARMLS IDX compliance and broker attribution"
     >
       <div className="max-w-[1400px] mx-auto grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6 md:gap-10 items-start">
-        {/* ARMLS IDX logo placeholder — swap to /images/armls-idx-logo.png
-         *  when the asset lands. Compliance only requires legibility. */}
-        <div
-          className="caps text-stone/70 text-[11px] tracking-widest border border-stone/30 px-4 py-3 inline-block self-start"
-          aria-label="ARMLS IDX"
-        >
-          ARMLS<br />
-          <span className="text-[9px] tracking-wider">IDX</span>
+        {/* Official ARMLS IDX wordmark — required near the IDX
+         *  result data. Light-mode panel under the dark footer so the
+         *  crimson trademark color stays accurate. */}
+        <div className="bg-stone/95 rounded-sm px-4 py-3 inline-flex items-center self-start">
+          <Image
+            src="/images/armls-idx-logo.png"
+            alt="ARMLS — Arizona Regional Multiple Listing Service"
+            width={140}
+            height={35}
+            unoptimized
+            priority={false}
+          />
         </div>
 
         <div className="space-y-3 text-[13px] text-stone/75 leading-[1.6]">
