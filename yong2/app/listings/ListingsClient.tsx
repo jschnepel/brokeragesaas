@@ -41,6 +41,14 @@ type ListingsClientProps = {
   initialHasMore: boolean;
   initialFetchedAt: string;
   initialNextCursor: string | null;
+  /**
+   * Bbox the SSR fetch ran with. Seeded into client state on mount so
+   * the right pane is scoped to the visible map viewport from first
+   * paint — without this the client's `bbox` would start null and the
+   * displayed list would include the whole metro even though the map
+   * is centered on a smaller area.
+   */
+  initialBbox: BBox;
 };
 
 // Page size for both initial fetch and each Load More click. Kept
@@ -62,6 +70,7 @@ export function ListingsClient({
   initialHasMore,
   initialFetchedAt,
   initialNextCursor,
+  initialBbox,
 }: ListingsClientProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -88,7 +97,19 @@ export function ListingsClient({
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [q, setQ] = useState(initialUrlState.q ?? '');
-  const [bbox, setBbox] = useState<BBox | null>(initialUrlState.bbox ?? null);
+  // Bbox seeding precedence: URL → SSR default. The client's bbox
+  // state must reflect a real viewport from the first render so the
+  // right pane is already scoped to the visible map area; otherwise
+  // the initial list would span the entire ARMLS feed even though the
+  // map is centered on, say, Scottsdale.
+  const [bbox, setBbox] = useState<BBox | null>(initialUrlState.bbox ?? initialBbox);
+  // Has the user moved the map since mount? Drives URL serialization:
+  // we don't want the SSR default bbox polluting clean URLs, but we do
+  // want pans/zooms (or a URL-supplied bbox on landing) to show up
+  // in the shareable URL. Initialized true when the URL already had a
+  // bbox — that means the user landed on a deep-link and we should
+  // keep echoing the value back to the URL on subsequent changes.
+  const userMovedMapRef = useRef<boolean>(initialUrlState.bbox != null);
   const [polygon, setPolygon] = useState<PolygonGeoJSON | null>(initialUrlState.polygon ?? null);
   const [drawingActive, setDrawingActive] = useState(false);
   const [filters, setFilters] = useState<FilterState>(initialUrlState.filters ?? INITIAL_FILTER);
@@ -207,7 +228,17 @@ export function ListingsClient({
   // precision in serializeListingsState, so sub-meter map jitter
   // doesn't churn the URL. Polygon is encoded as a flattened ring.
   useEffect(() => {
-    const sp = serializeListingsState({ q, filters, sort, bbox, polygon });
+    // bbox is suppressed from URL serialization until the user
+    // actually moves the map (or arrived via a URL that included
+    // bbox). Without this gate, the SSR default would land in every
+    // fresh URL and clutter shareable links.
+    const sp = serializeListingsState({
+      q,
+      filters,
+      sort,
+      bbox: userMovedMapRef.current ? bbox : null,
+      polygon,
+    });
     const next = sp.toString();
     const current = searchParams?.toString() ?? '';
     if (next === current) return;
@@ -282,6 +313,7 @@ export function ListingsClient({
   const handleViewportChange = useCallback((next: BBox) => {
     // Polygon takes precedence — ignore viewport pans while a shape is set.
     if (polygon) return;
+    userMovedMapRef.current = true;
     setBbox(next);
   }, [polygon]);
 
@@ -426,6 +458,40 @@ export function ListingsClient({
     setViewMode((v) => (v === 'list' ? 'split' : v));
   }, [listings]);
 
+  // Prefetch the first ~40 pin cover photos so map hover popups
+  // render with no network flicker. The browser's image cache
+  // honors the same URL when the Popup later mounts an <img src>.
+  // Capped at 40 to keep bandwidth modest on cellular — most users
+  // hover a handful of pins before either clicking or moving on.
+  useEffect(() => {
+    if (typeof window === 'undefined' || pins.length === 0) return;
+    const cancelled = { v: false };
+    const seen = new Set<string>();
+    let i = 0;
+    let queued = 0;
+    const tick = () => {
+      if (cancelled.v) return;
+      while (i < pins.length && queued < 40) {
+        const url = pins[i].coverPhotoUrl;
+        i += 1;
+        if (!url || seen.has(url)) continue;
+        seen.add(url);
+        queued += 1;
+        const img = new Image();
+        img.decoding = 'async';
+        img.loading = 'eager';
+        img.src = url;
+      }
+    };
+    // Defer to next idle frame so the prefetch never delays the
+    // first paint after pins arrive.
+    const handle = (window.requestIdleCallback ?? window.requestAnimationFrame)(tick);
+    return () => {
+      cancelled.v = true;
+      (window.cancelIdleCallback ?? window.cancelAnimationFrame)(handle as number);
+    };
+  }, [pins]);
+
   // IDX freshness reflects when WE last fetched from the upstream
   // data source, not the newest modificationTimestamp in the visible
   // result set. Slow-churn luxury inventory routinely has
@@ -460,6 +526,7 @@ export function ListingsClient({
             onPinClick={handlePinClick}
             onPinHover={handlePinHover}
             onViewportChange={handleViewportChange}
+            initialBbox={bbox}
             listingsByKey={listingsByKey}
           />
         </div>

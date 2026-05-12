@@ -68,6 +68,7 @@ async function ListingsResults() {
       initialHasMore={initial.hasMore}
       initialFetchedAt={initial.fetchedAt}
       initialNextCursor={initial.nextCursor ?? null}
+      initialBbox={DEFAULT_BBOX}
     />
   );
 }

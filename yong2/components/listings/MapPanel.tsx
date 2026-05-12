@@ -315,7 +315,12 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
           type: 'symbol',
           source: SOURCE_ID,
           filter: ['!', ['has', 'point_count']],
-          minzoom: 12,
+          // minzoom 13 (was 12) — at zoom 12 over Phoenix metro the
+          // collision-detection pass over hundreds of price labels was
+          // the single biggest per-frame cost during pan/zoom. Bumping
+          // by one zoom level halves the visible feature count and
+          // makes the label layer essentially free.
+          minzoom: 13,
           layout: {
             'text-field': ['coalesce', ['get', 'priceLabel'], ''],
             'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
@@ -427,7 +432,12 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
         };
         m.on('moveend', () => {
           if (viewportTimer) clearTimeout(viewportTimer);
-          viewportTimer = setTimeout(fireBbox, 400);
+          // 250ms — fast enough to feel responsive, slow enough that a
+          // rapid drag doesn't fire intermediate fetches mid-gesture.
+          // Lower than 200ms starts to fire on micro-jitter from
+          // touchpad inertia; higher than ~300ms feels laggy when
+          // chasing a specific neighborhood by zoom.
+          viewportTimer = setTimeout(fireBbox, 250);
           // Throttle map_pan to every 5th moveend so a long drag emits one
           // event rather than dozens. Skip while the user is mid-draw.
           if (drawingActiveRef.current) return;
