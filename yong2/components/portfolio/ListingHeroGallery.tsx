@@ -16,6 +16,20 @@ import {
 } from '@/components/shared/formatters';
 
 /**
+ * Tiny inline SVG blur placeholder — dark navy matching bg-ink so the
+ * hero area never reads as a "white flash" or transparent void during
+ * the ~150ms image-decode window after HTML body arrives but before
+ * the AVIF transform finishes. base64 inline keeps the payload <200
+ * bytes; no extra round-trip. The same placeholder is used for every
+ * hero photo since real listing photos quickly overlay it.
+ */
+// Pre-encoded — this is a 'use client' module so Buffer isn't available
+// at runtime in the browser. Source SVG: 8x6 vertical gradient
+// #13202E → #0A1320 (matches the bg-ink hero surface).
+const HERO_BLUR_PLACEHOLDER =
+  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4IDYiPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHgyPSIwIiB5MT0iMCIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzEzMjAyRSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzBBMTMyMCIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjYiIGZpbGw9InVybCgjZykiLz48L3N2Zz4=';
+
+/**
  * Filter to remove non-photo URLs (tour-factory, virtual-tour iframes etc.)
  * that occasionally end up in the ARMLS photo array. We only keep URLs that
  * look like actual image files OR are from the Spark CDN photos host (which
@@ -159,6 +173,8 @@ export function ListingHeroGallery({ listing, photos: rawPhotos, topOverlay }: L
             fetchPriority="high"
             quality={60}
             sizes="100vw"
+            placeholder="blur"
+            blurDataURL={HERO_BLUR_PLACEHOLDER}
             className="object-cover"
           />
         </button>
@@ -194,6 +210,8 @@ export function ListingHeroGallery({ listing, photos: rawPhotos, topOverlay }: L
                 fetchPriority={i === 0 ? 'high' : 'auto'}
                 quality={60}
                 sizes="100vw"
+                placeholder={i === 0 ? 'blur' : 'empty'}
+                blurDataURL={i === 0 ? HERO_BLUR_PLACEHOLDER : undefined}
                 className="object-cover"
               />
             </button>
