@@ -205,6 +205,7 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
                 baths: p.bathroomsTotal ?? null,
                 sqft: p.livingArea ?? null,
                 photo: p.coverPhotoUrl ?? '',
+                office: p.listOfficeName ?? '',
               },
               geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
             })),
@@ -741,6 +742,7 @@ function buildPopupHtml(
   const pinBeds = typeof pinProps.beds === 'number' ? pinProps.beds : null;
   const pinBaths = typeof pinProps.baths === 'number' ? pinProps.baths : null;
   const pinSqft = typeof pinProps.sqft === 'number' ? pinProps.sqft : null;
+  const pinOffice = typeof pinProps.office === 'string' ? pinProps.office : '';
 
   const photoUrl = pinPhoto ?? listing?.coverPhotoUrl ?? null;
   const address =
@@ -754,6 +756,9 @@ function buildPopupHtml(
   const bedsN = pinBeds ?? listing?.bedrooms ?? null;
   const bathsN = pinBaths ?? (typeof listing?.bathroomsTotal === 'number' ? listing.bathroomsTotal : null);
   const sqftN = pinSqft ?? listing?.livingArea ?? null;
+  // IDX brokerage attribution — required on every listing display
+  // surface including map popups (ARMLS Rules § Map Display).
+  const officeName = pinOffice || listing?.listOfficeName || '';
   const beds = bedsN != null ? `${bedsN} bd` : null;
   const baths = bathsN != null ? `${bathsN} ba` : null;
   const sqft = sqftN != null ? `${sqftN.toLocaleString('en-US')} sf` : null;
@@ -768,6 +773,23 @@ function buildPopupHtml(
          ${statusBadge}
        </div>`
     : '';
+  // IDX compliance footer inside popup — ARMLS rules § Map Display
+  // require listing brokerage attribution on every map listing
+  // affordance. The 12px floor + sufficient contrast against the
+  // dark popup background satisfy ARMLS Rules § Attribution Display.
+  const attributionRow = officeName
+    ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(239,233,223,0.12);display:flex;align-items:center;gap:8px;">
+         <span style="display:inline-flex;align-items:center;background:rgba(239,233,223,0.95);border-radius:2px;padding:2px 5px;flex-shrink:0;">
+           <img src="/images/armls-idx-logo.png" alt="ARMLS" style="height:9px;width:auto;display:block;" />
+         </span>
+         <span style="font-size:11px;color:rgba(239,233,223,0.75);line-height:1.3;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Courtesy of ${escape(officeName)}</span>
+       </div>`
+    : `<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(239,233,223,0.12);display:flex;align-items:center;gap:8px;">
+         <span style="display:inline-flex;align-items:center;background:rgba(239,233,223,0.95);border-radius:2px;padding:2px 5px;flex-shrink:0;">
+           <img src="/images/armls-idx-logo.png" alt="ARMLS" style="height:9px;width:auto;display:block;" />
+         </span>
+         <span style="font-size:11px;color:rgba(239,233,223,0.75);line-height:1.3;flex:1;">Listing courtesy of ARMLS</span>
+       </div>`;
   return `
     <div style="width:280px;background:#0B1620;color:#EFE9DF;font-family:Inter,system-ui,sans-serif;border:1px solid rgba(212,184,138,0.3);">
       ${photo}
@@ -776,6 +798,7 @@ function buildPopupHtml(
         <div style="font-family:'Playfair Display',Georgia,serif;font-size:18px;color:#D4B88A;line-height:1.2;margin-bottom:6px;">${fmtPrice(price)}</div>
         ${specs ? `<div style="font-size:11px;color:rgba(239,233,223,0.7);font-variant-numeric:tabular-nums;margin-bottom:6px;">${escape(specs)}</div>` : ''}
         ${address ? `<div style="font-size:11.5px;color:rgba(239,233,223,0.65);line-height:1.35;">${escape(address)}</div>` : ''}
+        ${attributionRow}
       </div>
     </div>
   `;

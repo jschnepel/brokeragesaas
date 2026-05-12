@@ -885,6 +885,7 @@ function pinFromRecord(r: SparkProperty): PinPoint | null {
       asNumber(r['BathroomsTotalDecimal']),
     livingArea: asNumber(r['LivingArea']),
     coverPhotoUrl,
+    listOfficeName: asString(r['ListOfficeName']),
   };
 }
 

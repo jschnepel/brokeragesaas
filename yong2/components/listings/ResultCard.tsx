@@ -61,10 +61,17 @@ export function ResultCard({ listing, highlighted, onHover, onCardClick }: Resul
   const sqft = listing.livingArea != null ? formatSqft(listing.livingArea) : null;
 
   const updated = formatUpdated(listing.modificationTimestamp);
-  const attribution =
-    listing.listAgentName || listing.listAgentKey
-      ? `Listed by ${listing.listAgentName ?? 'Agent'}`
-      : null;
+  // ARMLS IDX rule § Attribution: "Listing Brokerage Name MANDATORY"
+  // on every search-result card. Render the listing office name
+  // alongside the agent name — "Listed by {agent}, {office}". Truncate
+  // long office names so the row doesn't wrap to three lines on small
+  // cards; the full name shows on the detail page footer.
+  const attributionAgent = listing.listAgentName ?? (listing.listAgentKey ? 'Agent' : null);
+  const attribution = attributionAgent
+    ? listing.listOfficeName
+      ? `Listed by ${attributionAgent}, ${listing.listOfficeName}`
+      : `Listed by ${attributionAgent}`
+    : null;
   // IDX mark surfaces only on listings held by brokerages OTHER than
   // the host (Russ Lyon). Per ARMLS Rules § IDX display: in-house
   // listings don't require the IDX mark; third-party IDX listings do.

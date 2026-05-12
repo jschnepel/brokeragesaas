@@ -172,6 +172,13 @@ export interface PinPoint {
   bathroomsTotal?: number | null;
   livingArea?: number | null;
   coverPhotoUrl?: string | null;
+  /**
+   * Listing brokerage name. Required per ARMLS IDX rules on every
+   * listing display surface — including map hover popups. Shipping
+   * this inline with the pin payload means no extra fetch when the
+   * user hovers a pin outside the visible-listings window.
+   */
+  listOfficeName?: string | null;
 }
 
 export interface SearchResult {
