@@ -195,9 +195,16 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
               properties: {
                 key: p.listingKey,
                 id: p.listingId,
+                slug: p.slug,
                 price: p.listPrice ?? 0,
                 priceLabel: formatPriceLabel(p.listPrice),
                 status: p.status,
+                address: p.unparsedAddress ?? '',
+                community: p.community ?? '',
+                beds: p.bedrooms ?? null,
+                baths: p.bathroomsTotal ?? null,
+                sqft: p.livingArea ?? null,
+                photo: p.coverPhotoUrl ?? '',
               },
               geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
             })),
@@ -371,10 +378,13 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
           if (popup) popup.remove();
           const geom = feat?.geometry as { type: string; coordinates: [number, number] } | undefined;
           if (!geom) return;
+          // Every pin carries enough data inline (address, beds/baths/sqft,
+          // photo) for the popup to render richly — see PinPoint in
+          // lib/listings-search.ts. The listingsByKey lookup is only a
+          // belt-and-suspenders fallback for the visible-listings slice.
           const listing = listingsByKeyRef.current?.get(key);
-          const pinPrice = feat?.properties?.price as number | undefined;
-          const pinStatus = feat?.properties?.status as string | undefined;
-          const html = buildPopupHtml(listing, key, pinPrice, pinStatus);
+          const props = (feat?.properties ?? {}) as Record<string, unknown>;
+          const html = buildPopupHtml(listing, key, props);
           popup = new maplibre.Popup({
             closeButton: false,
             closeOnClick: false,
@@ -511,11 +521,18 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
           properties: {
             key: p.listingKey,
             id: p.listingId,
+            slug: p.slug,
             price: p.listPrice ?? 0,
             // priceLabel is pre-formatted on the client because
             // MapLibre's expression DSL has no Intl.NumberFormat.
             priceLabel: formatPriceLabel(p.listPrice),
             status: p.status,
+            address: p.unparsedAddress ?? '',
+            community: p.community ?? '',
+            beds: p.bedrooms ?? null,
+            baths: p.bathroomsTotal ?? null,
+            sqft: p.livingArea ?? null,
+            photo: p.coverPhotoUrl ?? '',
           },
           geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
         })),
@@ -606,8 +623,7 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
 function buildPopupHtml(
   listing: Listing | undefined,
   _key: string,
-  pinPrice: number | undefined,
-  pinStatus: string | undefined,
+  pinProps: Record<string, unknown>,
 ): string {
   const escape = (s: string) =>
     s
@@ -624,21 +640,37 @@ function buildPopupHtml(
       maximumFractionDigits: 0,
     }).format(n);
   };
-  const photoUrl = listing?.coverPhotoUrl ?? null;
+  // Pin properties are the source of truth — every pin carries the
+  // surface the popup needs (address, photo, beds/baths/sqft). The
+  // visible-listings Listing object is just a richer fallback for
+  // fields the pin doesn't carry.
+  const pinPhoto = typeof pinProps.photo === 'string' && pinProps.photo ? pinProps.photo : null;
+  const pinAddress = typeof pinProps.address === 'string' ? pinProps.address : '';
+  const pinCommunity = typeof pinProps.community === 'string' ? pinProps.community : '';
+  const pinPrice =
+    typeof pinProps.price === 'number' && pinProps.price > 0
+      ? pinProps.price
+      : null;
+  const pinStatus = typeof pinProps.status === 'string' ? pinProps.status : null;
+  const pinBeds = typeof pinProps.beds === 'number' ? pinProps.beds : null;
+  const pinBaths = typeof pinProps.baths === 'number' ? pinProps.baths : null;
+  const pinSqft = typeof pinProps.sqft === 'number' ? pinProps.sqft : null;
+
+  const photoUrl = pinPhoto ?? listing?.coverPhotoUrl ?? null;
   const address =
+    pinAddress ||
     listing?.unparsedAddress ||
     `${listing?.streetNumber ?? ''} ${listing?.streetName ?? ''}`.trim() ||
     '';
-  const community = listing?.community ?? '';
-  const price = listing?.listPrice ?? pinPrice ?? null;
-  const status = listing?.status ?? pinStatus ?? null;
-  const beds = listing?.bedrooms != null ? `${listing.bedrooms} bd` : null;
-  const baths =
-    listing?.bathroomsTotal != null ? `${listing.bathroomsTotal} ba` : null;
-  const sqft =
-    listing?.livingArea != null
-      ? `${listing.livingArea.toLocaleString('en-US')} sf`
-      : null;
+  const community = pinCommunity || listing?.community || '';
+  const price = pinPrice ?? listing?.listPrice ?? null;
+  const status = pinStatus ?? listing?.status ?? null;
+  const bedsN = pinBeds ?? listing?.bedrooms ?? null;
+  const bathsN = pinBaths ?? (typeof listing?.bathroomsTotal === 'number' ? listing.bathroomsTotal : null);
+  const sqftN = pinSqft ?? listing?.livingArea ?? null;
+  const beds = bedsN != null ? `${bedsN} bd` : null;
+  const baths = bathsN != null ? `${bathsN} ba` : null;
+  const sqft = sqftN != null ? `${sqftN.toLocaleString('en-US')} sf` : null;
   const specs = [beds, baths, sqft].filter(Boolean).join(' · ');
   const statusBadge =
     status && status !== 'Active'

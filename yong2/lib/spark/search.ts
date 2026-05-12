@@ -572,14 +572,35 @@ function pinFromRecord(r: SparkProperty): PinPoint | null {
   if (lat == null || lng == null) return null;
   const listingId = asString(r['ListingId']) ?? asString(r['ListingKey']) ?? '';
   const listingKey = asString(r['ListingKey']) ?? listingId;
+  const unparsed = asString(r['UnparsedAddress']) ?? '';
+  // Pull the primary photo from the expanded Media array (the listings
+  // call uses $expand=Media($top=1)). Keeps the hover popup rich for
+  // every pin on the map, not just the 60 listings currently in view.
+  let coverPhotoUrl: string | null = null;
+  const media = r['Media'];
+  if (Array.isArray(media) && media.length > 0) {
+    const first = media[0] as { MediaURL?: unknown };
+    coverPhotoUrl = asString(first?.MediaURL);
+  }
   return {
     listingKey,
     listingId,
-    slug: listingSlug(asString(r['UnparsedAddress']) ?? '', listingId),
+    slug: listingSlug(unparsed, listingId),
     latitude: lat,
     longitude: lng,
     listPrice: asNumber(r['ListPrice']),
     status: asString(r['StandardStatus']) ?? 'Active',
+    unparsedAddress: unparsed || null,
+    community:
+      asString(r['SubdivisionName']) ??
+      asString(r['CityRegion']) ??
+      asString(r['City']),
+    bedrooms: asInt(r['BedroomsTotal']),
+    bathroomsTotal:
+      asNumber(r['BathroomsTotalInteger']) ??
+      asNumber(r['BathroomsTotalDecimal']),
+    livingArea: asNumber(r['LivingArea']),
+    coverPhotoUrl,
   };
 }
 

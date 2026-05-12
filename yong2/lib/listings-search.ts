@@ -131,6 +131,14 @@ export interface PinPoint {
   longitude: number;
   listPrice: number | null;
   status: string;
+  /** Light surface for the map hover popup — without these, pins outside the
+   *  currently-loaded listings window fall back to a minimal price-only popup. */
+  unparsedAddress?: string | null;
+  community?: string | null;
+  bedrooms?: number | null;
+  bathroomsTotal?: number | null;
+  livingArea?: number | null;
+  coverPhotoUrl?: string | null;
 }
 
 export interface SearchResult {

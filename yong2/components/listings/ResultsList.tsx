@@ -39,14 +39,30 @@ export function ResultsList({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  // Lazy-load on scroll: when the sentinel below the last card enters
-  // the scroll container's viewport, fire onLoadMore. Falls back to
-  // the explicit Load More button rendered below the sentinel for
-  // accessibility and for visitors who prefer click-driven pagination.
+  // Lazy-load on scroll: when the sentinel below the last card nears
+  // the scroll container's edge, fire onLoadMore. Critically, the
+  // observer's root must be the inner overflow-y-auto container (the
+  // right pane scroll surface) — NOT the page viewport. The cards
+  // live inside a flex column that doesn't grow with the page, so a
+  // viewport-rooted observer sees the sentinel as either always-in-
+  // viewport or never-in-viewport depending on initial layout, and
+  // the auto-load never fires past the first batch.
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     if (!hasMore || loadingMore) return;
+    // Walk up from the sentinel to find the nearest scrollable ancestor.
+    // matches() check on computedStyle is the only reliable way — Tailwind's
+    // overflow-y-auto applies overflow-y not overflow.
+    let scrollRoot: Element | null = sentinel.parentElement;
+    while (scrollRoot && scrollRoot !== document.body) {
+      const style = window.getComputedStyle(scrollRoot);
+      const oy = style.overflowY;
+      if (oy === 'auto' || oy === 'scroll' || oy === 'overlay') break;
+      scrollRoot = scrollRoot.parentElement;
+    }
+    const observerRoot =
+      scrollRoot && scrollRoot !== document.body ? scrollRoot : null;
     const obs = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -56,7 +72,10 @@ export function ResultsList({
           }
         }
       },
-      { rootMargin: '600px 0px' }, // trigger ~600px before reach
+      {
+        root: observerRoot,
+        rootMargin: '600px 0px', // trigger ~600px before reach
+      },
     );
     obs.observe(sentinel);
     return () => obs.disconnect();
