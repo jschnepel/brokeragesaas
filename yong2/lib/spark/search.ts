@@ -948,16 +948,18 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
       filter,
       top: PAGE_SIZE,
       orderby: sortDef.orderby,
-      // $select pares the per-record payload from the full RESO entity
-      // (~200 fields) down to the ~75 we actually read. Cuts the search
-      // response payload roughly in half.
-      select: LIST_SELECT,
-      // Nested $select inside $expand limits the Media subentity to
-      // just the four fields extractPhotos consults — saves another
-      // chunk of payload, especially across 1000 records.
-      expand: [
-        'Media($top=1;$orderby=Order;$select=MediaURL,MediaType,MediaCategory,Order)',
-      ],
+      // NOTE: explicit $select reverted 2026-05-12 after Spark
+      // returned empty responses to projected queries — the ARMLS
+      // Spark variant appears to interact poorly with $select on
+      // multi-page paginated Property requests (the @odata.nextLink
+      // it emits drops the $select and serves fewer records). The
+      // unfiltered request fetches the full RESO Property entity per
+      // record (5-10MB for 1000 records); a future fix should either
+      // (a) re-issue $select on every page rather than following
+      // nextLink verbatim, or (b) move to a server-side projection
+      // proxy. The Media expand stays narrowed via $top=1 — that
+      // limit Spark does honor.
+      expand: ['Media($top=1;$orderby=Order)'],
       maxPages: pagesNeeded,
     });
     pool = applyClientFilters(records, opts).filter(isIdxDisplayable);
