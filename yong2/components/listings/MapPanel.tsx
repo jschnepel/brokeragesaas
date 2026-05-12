@@ -460,19 +460,46 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
           track('map_zoom', { direction, level: Math.round(z * 10) / 10 });
         });
 
-        // Initialize terra-draw with a single polygon mode. We instantiate
-        // it but only enable on demand via .start()/.stop() in the prop sync
-        // effect below.
+        // Initialize terra-draw with FREEHAND mode — press-and-drag lasso
+        // matching Zillow's UX. The earlier TerraDrawPolygonMode was a
+        // click-to-place-vertex tool, which felt clunky for drawing a
+        // neighborhood-shaped boundary.
+        //
+        // TerraDrawFreehandMode captures pointer movement at ~8px
+        // intervals while the user holds the mouse/touch down, then
+        // auto-closes the ring on release. The resulting polygon is
+        // already simplified by terra-draw's internal Ramer-Douglas-
+        // Peucker pass, so we don't ship hundreds of micro-vertices to
+        // the backend.
         const adapter = new adapterMod.TerraDrawMapLibreGLAdapter({ map: m });
         const draw = new terraDrawMod.TerraDraw({
           adapter,
           modes: [
-            new terraDrawMod.TerraDrawPolygonMode({
+            new terraDrawMod.TerraDrawFreehandMode({
+              // Press-and-drag (Zillow-style) — NOT click-to-start /
+              // move-freely / click-to-end. With click-drag the user
+              // mousedowns to begin, traces while holding, and the
+              // polygon auto-closes on mouseup.
+              drawInteraction: 'click-drag',
+              // Pixel spacing between captured vertices during the
+              // drag. 6px is smooth enough to feel continuous; lower
+              // values bloat the polygon and slow PostGIS intersection
+              // checks downstream.
+              minDistance: 6,
+              // Auto-close the ring on mouseup so the user doesn't
+              // have to land exactly on the start point.
+              autoClose: true,
+              // Smoothing factor — terra-draw applies Chaikin's
+              // algorithm to the captured vertices before closing.
+              // 0.3 noticeably softens jagged hand-drawn lines without
+              // distorting the boundary.
+              smoothing: 0.3,
+              cursors: { start: 'crosshair', close: 'crosshair' },
               styles: {
                 fillColor: '#D4B88A',
-                fillOpacity: 0.18,
+                fillOpacity: 0.16,
                 outlineColor: '#D4B88A',
-                outlineWidth: 2,
+                outlineWidth: 2.5,
                 closingPointColor: '#D4B88A',
                 closingPointOutlineColor: '#EFE9DF',
                 closingPointOutlineWidth: 2,
@@ -482,25 +509,27 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
         });
         draw.start();
         drawRef.current = draw;
-        // We started the engine, but no mode is active yet — switch to a
-        // benign no-op mode by not calling setMode. terra-draw only listens
-        // to events when a mode is set.
         draw.setMode('static');
 
-        // When the user closes a polygon, dispatch upstream and stop drawing.
+        // Fired when the user releases the mouse/touch — freehand
+        // mode auto-closes the polygon at that moment.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         draw.on('finish', (_id: string | number, ctx: any) => {
-          if (ctx?.mode !== 'polygon') return;
+          if (ctx?.mode !== 'freehand') return;
           const snapshot = draw.getSnapshot();
           const feature = snapshot.find((f) => f.geometry?.type === 'Polygon');
           if (!feature) return;
           const geom = feature.geometry as { type: 'Polygon'; coordinates: number[][][] };
-          // Approximate polygon area (km²) via the spherical-excess formula
-          // — close enough for analytics without pulling in turf.
+          // Sanity check — a degenerate "blip" (mousedown + immediate
+          // mouseup without moving) produces a tiny invalid polygon.
+          // Filter < 0.01 km² (~30m radius) so a stray click doesn't
+          // narrow the listings to a postage stamp.
           const area_km2 = polygonAreaKm2(geom.coordinates);
-          // results_count is recomputed by the parent's fetch effect; we
-          // don't have it here yet. Pass -1 as "unknown" — the parent
-          // emits the search-result count via search_query separately.
+          if (area_km2 < 0.01) {
+            try { draw.clear(); } catch { /* ignore */ }
+            draw.setMode('static');
+            return;
+          }
           track('map_polygon_draw_complete', { area_km2, results_count: -1 });
           drawStartedRef.current = false;
           callbacksRef.current.onPolygonComplete({ type: 'Polygon', coordinates: geom.coordinates });
@@ -573,7 +602,16 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
     if (!draw) return;
     if (drawingActive) {
       try { draw.clear(); } catch { /* ignore */ }
-      draw.setMode('polygon');
+      draw.setMode('freehand');
+      // Disable map drag while drawing — without this, pressing and
+      // dragging would pan the map underneath the lasso. terra-draw
+      // doesn't auto-disable map interactions in freehand mode the
+      // way it does for click-to-place polygon mode.
+      const m = mapRef.current;
+      if (m) {
+        m.dragPan.disable();
+        m.getCanvas().style.cursor = 'crosshair';
+      }
       if (!drawStartedRef.current) {
         drawStartedRef.current = true;
         track('map_polygon_draw_start', {});
@@ -581,6 +619,11 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
     } else {
       draw.setMode('static');
       drawStartedRef.current = false;
+      const m = mapRef.current;
+      if (m) {
+        m.dragPan.enable();
+        m.getCanvas().style.cursor = '';
+      }
     }
   }, [drawingActive]);
 
@@ -618,17 +661,40 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
     }
   }, [drawingActive]);
 
-  // The onClearShape prop is exposed via the parent's "Clear shape" button;
-  // we don't need to wire it inside the map directly. Keep a no-op reference
-  // to silence the unused-prop lint without changing the public API.
-  void onClearShape;
-
   return (
-    <div
-      ref={containerRef}
-      className="absolute inset-0 w-full h-full bg-ink-surface"
-      aria-label="Map of listings"
-    />
+    <>
+      <div
+        ref={containerRef}
+        className="absolute inset-0 w-full h-full bg-ink-surface"
+        aria-label="Map of listings"
+      />
+      {/* Draw-mode instruction overlay — appears when freehand lasso
+       *  is armed. Anchored top-center so it doesn't compete with
+       *  the bottom-right map controls. Dims the basemap subtly so
+       *  the visitor knows interaction-mode has shifted. The
+       *  pointer-events-none guarantees the overlay can't intercept
+       *  the very mousedown that should start the draw. */}
+      {drawingActive ? (
+        <div className="pointer-events-none absolute inset-0 z-10">
+          <div className="absolute inset-x-0 top-3 flex justify-center">
+            <div className="pointer-events-auto rounded-full bg-ink/85 backdrop-blur-sm border border-gold/50 px-4 py-2 shadow-lg flex items-center gap-3">
+              <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
+              <span className="caps text-[10px] tracking-[0.28em] text-stone">
+                Click &amp; drag to draw your area
+              </span>
+              <button
+                type="button"
+                onClick={onClearShape}
+                className="caps text-[10px] tracking-[0.28em] text-gold hover:text-stone transition-colors"
+                aria-label="Cancel drawing"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 });
 
