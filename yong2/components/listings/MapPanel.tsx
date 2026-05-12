@@ -40,7 +40,7 @@ interface MapPanelProps {
   drawingActive: boolean;
   onPolygonComplete: (poly: PolygonGeoJSON) => void;
   onClearShape: () => void;
-  onPinClick: (key: string) => void;
+  onPinClick: (key: string, slug: string) => void;
   onPinHover: (key: string | null) => void;
   onViewportChange: (bbox: { minLng: number; minLat: number; maxLng: number; maxLat: number }) => void;
   initialBbox?: { minLng: number; minLat: number; maxLng: number; maxLat: number } | null;
@@ -361,7 +361,8 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
         m.on('click', PIN_LAYER, (e) => {
           const feat = e.features?.[0];
           const key = feat?.properties?.key as string | undefined;
-          if (key) callbacksRef.current.onPinClick(key);
+          const slug = feat?.properties?.slug as string | undefined;
+          if (key && slug) callbacksRef.current.onPinClick(key, slug);
         });
 
         // Hover popup — Zillow-style mini-card anchored above the pin.

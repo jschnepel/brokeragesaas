@@ -352,14 +352,15 @@ export function ListingsClient({
     mapRef.current?.setHighlight(key);
   }, []);
 
-  const handlePinClick = useCallback((key: string) => {
+  const handlePinClick = useCallback((key: string, slug: string) => {
     track('map_pin_click', { listingKey: key });
-    setHighlightedKey(key);
-    mapRef.current?.setHighlight(key);
-    setScrollToKey(key);
-    // Mobile: surface the list when the user picks a pin.
-    setViewMode((v) => (v === 'map' ? 'split' : v));
-  }, []);
+    // Navigate to the listing detail page. router.push triggers Next
+    // App Router's client transition, prefetched if the slug was
+    // hovered or scrolled into view recently. We don't bother with
+    // highlight/scroll side-effects here — the user is leaving this
+    // page so the visual feedback would be wasted.
+    router.push(`/listings/${slug}`);
+  }, [router]);
 
   // Debounced result_card_hover — fire only after a key sticks for 300ms so
   // a fast cursor sweep doesn't flood the event stream.

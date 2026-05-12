@@ -527,6 +527,123 @@ function pointInPolygon(x: number, y: number, ring: number[][]): boolean {
   return inside;
 }
 
+// ── Field projection ──────────────────────────────────
+
+/**
+ * Explicit OData `$select` for the search endpoint. Without this,
+ * Spark returns the full RESO Property entity (~200 fields) per
+ * record — for a 1000-record pool that's 5-10MB of JSON, most of
+ * which we never read.
+ *
+ * Every field in this list is consumed by at least one of:
+ *   - sparkRecordToListing (mapper to the Listing type)
+ *   - applyClientFilters    (bbox/polygon/horse/residential narrow)
+ *   - getSortDef.extract    (sort key + cursor value)
+ *   - isIdxDisplayable      (IDX gate)
+ *   - pinFromRecord         (map pin metadata)
+ *
+ * Add a field here when you add a new filter, sort, or card surface
+ * that reads it. The /listings/[slug] DETAIL page uses a separate
+ * fetch path (getListingBySlug) with its own broader projection —
+ * trimming this list does not affect detail rendering.
+ */
+const LIST_SELECT: string[] = [
+  // Identity
+  'ListingKey',
+  'ListingId',
+  'StandardStatus',
+  // IDX gate
+  'InternetEntireListingDisplayYN',
+  // Address
+  'UnparsedAddress',
+  'StreetNumber',
+  'StreetName',
+  'StreetSuffix',
+  'City',
+  'PostalCode',
+  'CountyOrParish',
+  'SubdivisionName',
+  'CityRegion',
+  'MLSAreaMajor',
+  // Geometry
+  'Latitude',
+  'Longitude',
+  // Pricing
+  'ListPrice',
+  'OriginalListPrice',
+  'PricePerSquareFoot',
+  // Specs
+  'BedroomsTotal',
+  'BathroomsFull',
+  'BathroomsHalf',
+  'BathroomsTotalInteger',
+  'BathroomsTotalDecimal',
+  'LivingArea',
+  'LotSizeAcres',
+  'LotSizeSquareFeet',
+  'YearBuilt',
+  'DaysOnMarket',
+  'CumulativeDaysOnMarket',
+  'StoriesTotal',
+  'FireplacesTotal',
+  'GarageSpaces',
+  // Type
+  'PropertyType',
+  'PropertySubType',
+  // Amenity bools
+  'PoolPrivateYN',
+  'SpaYN',
+  'WaterfrontYN',
+  'FireplaceYN',
+  'NewConstructionYN',
+  'AssociationYN',
+  'HorseYN',
+  // Feature arrays (consumed by mapper + horse filter + future feature text)
+  'ArchitecturalStyle',
+  'ConstructionMaterials',
+  'Flooring',
+  'Appliances',
+  'InteriorFeatures',
+  'ExteriorFeatures',
+  'PoolFeatures',
+  'SpaFeatures',
+  'FireplaceFeatures',
+  'ParkingFeatures',
+  'View',
+  'Heating',
+  'Cooling',
+  'WindowFeatures',
+  'LaundryFeatures',
+  'LotFeatures',
+  'Fencing',
+  'Vegetation',
+  'AssociationAmenities',
+  'HorseAmenities',
+  'CommunityFeatures',
+  // HOA
+  'AssociationName',
+  'AssociationFee',
+  'AssociationFeeFrequency',
+  // Tax
+  'TaxAnnualAmount',
+  'TaxYear',
+  'ParcelNumber',
+  // Schools
+  'ElementarySchool',
+  'MiddleOrJuniorSchool',
+  'HighSchool',
+  'HighSchoolDistrict',
+  // Agent/Office
+  'ListAgentMlsId',
+  'ListAgentFullName',
+  'ListAgentDirectPhone',
+  'ListOfficeName',
+  'ListOfficePhone',
+  // Remarks + meta
+  'PublicRemarks',
+  'ModificationTimestamp',
+];
+
 // ── Sort + cursor ─────────────────────────────────────
 
 /**
@@ -831,7 +948,16 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
       filter,
       top: PAGE_SIZE,
       orderby: sortDef.orderby,
-      expand: ['Media($top=1;$orderby=Order)'],
+      // $select pares the per-record payload from the full RESO entity
+      // (~200 fields) down to the ~75 we actually read. Cuts the search
+      // response payload roughly in half.
+      select: LIST_SELECT,
+      // Nested $select inside $expand limits the Media subentity to
+      // just the four fields extractPhotos consults — saves another
+      // chunk of payload, especially across 1000 records.
+      expand: [
+        'Media($top=1;$orderby=Order;$select=MediaURL,MediaType,MediaCategory,Order)',
+      ],
       maxPages: pagesNeeded,
     });
     pool = applyClientFilters(records, opts).filter(isIdxDisplayable);
