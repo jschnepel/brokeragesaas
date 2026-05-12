@@ -86,7 +86,16 @@ export async function POST(req: Request): Promise<Response> {
     const url = new URL(req.url);
     const includeDebug = url.searchParams.get('debug') === '1';
     const responseBody = includeDebug
-      ? { ...result, _debugFilter: debugSearchFilter(parsed.data) }
+      ? {
+          ...result,
+          _debugFilter: debugSearchFilter(parsed.data),
+          _debugMeta: {
+            // Surface the diagnostic flags the search layer sets when
+            // a pins-fetch falls back to listings-derived pins, etc.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ...((result as any)._debug ?? {}),
+          },
+        }
       : result;
     return NextResponse.json(responseBody, {
       headers: {

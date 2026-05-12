@@ -703,6 +703,16 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
       : { listings: [] as Listing[], sliceHasMore: false };
   const listings = listingsPayload.listings;
   let pins = pinsResult.status === 'fulfilled' ? pinsResult.value : [];
+  // Diagnostic flags surfaced via debugSearchFilter / route ?debug=1.
+  const pinsFetchStatus = pinsResult.status;
+  const pinsRejectReason =
+    pinsResult.status === 'rejected'
+      ? pinsResult.reason instanceof Error
+        ? pinsResult.reason.message
+        : String(pinsResult.reason)
+      : null;
+  const pinsFromCallCount = pins.length;
+  let usedListingsFallback = false;
 
   // Fallback: when the dedicated pins call returns nothing (rate-limit
   // 429, transient 503, schema drift), derive pins from the loaded
@@ -710,6 +720,7 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
   // least the visible slice; the dedicated pins call gives the broader
   // pool when it succeeds.
   if (pins.length === 0 && listings.length > 0) {
+    usedListingsFallback = true;
     pins = listings
       .filter((l) => l.latitude != null && l.longitude != null)
       .map((l) => ({
@@ -750,7 +761,14 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
     total,
     hasMore: listingsPayload.sliceHasMore,
     fetchedAt,
-  };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    _debug: {
+      pinsFetchStatus,
+      pinsFromCallCount,
+      usedListingsFallback,
+      pinsRejectReason,
+    } as unknown,
+  } as SearchResult;
 }
 
 /**
