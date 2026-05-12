@@ -16,7 +16,7 @@ import { z } from 'zod';
 // been dropped from the analytics MV set; keeping the API on the same
 // data source as the SSR initial fetch avoids divergent behavior on map
 // pans / Load More.
-import { debugSearchFilter, searchListings } from '@/lib/spark/search';
+import { searchListings } from '@/lib/spark/search';
 import { checkRateLimit } from '@/lib/rate-limit';
 
 const bboxSchema = z.object({
@@ -83,21 +83,7 @@ export async function POST(req: Request): Promise<Response> {
     const result = await searchListings(parsed.data);
     const dbMs = Math.round(performance.now() - dbStart);
     const totalMs = Math.round(performance.now() - reqStart);
-    const url = new URL(req.url);
-    const includeDebug = url.searchParams.get('debug') === '1';
-    const responseBody = includeDebug
-      ? {
-          ...result,
-          _debugFilter: debugSearchFilter(parsed.data),
-          _debugMeta: {
-            // Surface the diagnostic flags the search layer sets when
-            // a pins-fetch falls back to listings-derived pins, etc.
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ...((result as any)._debug ?? {}),
-          },
-        }
-      : result;
-    return NextResponse.json(responseBody, {
+    return NextResponse.json(result, {
       headers: {
         'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=60',
         'Server-Timing': `db;dur=${dbMs}, total;dur=${totalMs}`,

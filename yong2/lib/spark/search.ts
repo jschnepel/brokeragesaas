@@ -397,16 +397,6 @@ function buildSearchFilter(opts: SearchOpts): string {
 }
 
 /**
- * Diagnostic exporter — returns the same string buildSearchFilter
- * would emit for these opts. Exposed so the API route can echo the
- * generated filter back to the client (or to logs) when a debug
- * flag is set, without forcing a duplicate Spark round-trip.
- */
-export function debugSearchFilter(opts: SearchOpts): string {
-  return buildSearchFilter(opts);
-}
-
-/**
  * Post-fetch narrow: bbox/polygon spatial check + text-search substring
  * match. Equivalent semantics to the OData clauses we used to send,
  * but applied to the response payload because Spark's $filter rejects
@@ -691,11 +681,6 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
     const p = pinFromRecord(r);
     if (p) pins.push(p);
   }
-  const usedListingsFallback = false;
-  const pinsFromCallCount = pins.length;
-  const pinsFetchStatus = fetchError ? 'rejected' : 'fulfilled';
-  const pinsRejectReason = fetchError;
-
   // Total reflects the bbox-filtered pool, capped at the pin
   // universe size (1000). This is honest about the viewport.
   const total = pool.length;
@@ -712,15 +697,7 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
     total,
     hasMore: sliceHasMore,
     fetchedAt,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    _debug: {
-      pinsFetchStatus,
-      pinsFromCallCount,
-      usedListingsFallback,
-      pinsRejectReason,
-      poolSize: pool.length,
-    } as unknown,
-  } as SearchResult;
+  };
 }
 
 /**
