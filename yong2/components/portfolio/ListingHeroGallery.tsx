@@ -171,10 +171,27 @@ export function ListingHeroGallery({ listing, photos: rawPhotos, topOverlay }: L
             fill
             priority
             fetchPriority="high"
-            quality={60}
             sizes="100vw"
             placeholder="blur"
             blurDataURL={HERO_BLUR_PLACEHOLDER}
+            // unoptimized: bypass the Amplify Next image optimizer
+            // Lambda. The Lambda's cold-start transform was adding
+            // 500-1000ms to LCP and the cache doesn't persist across
+            // cold starts. Spark's photo CDN is already a fast global
+            // CDN; pointing at it directly cuts that latency at the
+            // cost of shipping the unoptimized -o.jpg (~1.6MB) instead
+            // of an AVIF (~100KB).
+            //
+            // Trade-off — broadband: net win (no optimizer wait beats
+            //   the larger payload by ~300-500ms). Cellular: roughly
+            //   neutral since the bigger payload takes longer to
+            //   transfer, but warm-cache hits on second visit are
+            //   browser-native (no Lambda) and feel instant.
+            //
+            // priority + fetchPriority still emit the preload link
+            // so the browser starts fetching the moment HTML head
+            // parses.
+            unoptimized
             className="object-cover"
           />
         </button>
@@ -212,6 +229,10 @@ export function ListingHeroGallery({ listing, photos: rawPhotos, topOverlay }: L
                 sizes="100vw"
                 placeholder={i === 0 ? 'blur' : 'empty'}
                 blurDataURL={i === 0 ? HERO_BLUR_PLACEHOLDER : undefined}
+                // Only the first mobile slide is LCP-critical; the
+                // rest stay in the optimizer pipeline so swipe-ahead
+                // photos arrive lighter. unoptimized on i===0 only.
+                unoptimized={i === 0}
                 className="object-cover"
               />
             </button>
