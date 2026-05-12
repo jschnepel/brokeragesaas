@@ -330,10 +330,13 @@ export function ListingsClient({
     }
   }, []);
 
-  // Load More — append the next PAGE_LIMIT listings to the visible set.
-  // Uses the same searchOpts as the active query, only changes the
-  // offset. Pins/total are not refetched (they cover the full match pool
-  // already from the initial query).
+  // Load More — append the next PAGE_LIMIT listings to the visible set,
+  // and grow the pin universe so the map reflects every listing the
+  // visitor has actually scrolled to. The server's pin set is sorted
+  // by ListPrice desc and capped at ~1000; as the visitor pages past
+  // that depth, new listings would otherwise lack pins on the map.
+  // Merging server pins + every loaded listing's coord (deduped by key)
+  // keeps the map honest as the result set grows.
   const handleLoadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
@@ -346,6 +349,7 @@ export function ListingsClient({
       if (!res.ok) throw new Error(`Load more failed: ${res.status}`);
       const json = (await res.json()) as {
         listings: Listing[];
+        pins?: PinPoint[];
         hasMore?: boolean;
       };
       track('results_load_more', {
@@ -353,6 +357,33 @@ export function ListingsClient({
       });
       setListings((prev) => [...prev, ...json.listings]);
       setHasMore(Boolean(json.hasMore));
+      // Merge pin universe — keep existing pins, fold in the server's
+      // current pin set (might shift slightly across requests), and
+      // ensure every newly-loaded listing has a pin even if it sits
+      // below the server's top-1000 pin window.
+      setPins((prev) => {
+        const merged = new Map<string, PinPoint>();
+        for (const p of prev) merged.set(p.listingKey, p);
+        for (const p of json.pins ?? []) merged.set(p.listingKey, p);
+        for (const l of json.listings) {
+          if (
+            l.latitude != null &&
+            l.longitude != null &&
+            !merged.has(l.listingKey)
+          ) {
+            merged.set(l.listingKey, {
+              listingKey: l.listingKey,
+              listingId: l.listingId,
+              slug: l.slug,
+              latitude: l.latitude,
+              longitude: l.longitude,
+              listPrice: l.listPrice,
+              status: l.status,
+            });
+          }
+        }
+        return Array.from(merged.values());
+      });
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn('Load more failed', err);
