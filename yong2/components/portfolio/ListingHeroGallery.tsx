@@ -173,15 +173,28 @@ export function ListingHeroGallery({ listing, photos: rawPhotos, topOverlay }: L
               key={i}
               type="button"
               onClick={() => openLightbox(i)}
-              className="w-full h-full flex-shrink-0 snap-center"
+              className="w-full h-full flex-shrink-0 snap-center relative"
               aria-label={`Open photo ${i + 1}`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              {/* next/image (not raw <img>) so the mobile hero shares
+               *  the desktop optimizer's preload + size variants. The
+               *  raw <img loading="eager"> tag we used to emit here
+               *  triggered React 19's resource-hint auto-preload of
+               *  the un-optimized Spark URL, which duplicated the
+               *  next/image preload and competed for bandwidth.
+               *
+               *  i === 0 gets priority so it counts as the LCP image
+               *  on mobile; the rest lazy-load. fetchPriority="high"
+               *  is implied by `priority` but explicit for clarity. */}
+              <Image
                 src={url}
                 alt={`${headline} photo ${i + 1}`}
-                className="w-full h-full object-cover"
-                loading={i === 0 ? 'eager' : 'lazy'}
+                fill
+                priority={i === 0}
+                fetchPriority={i === 0 ? 'high' : 'auto'}
+                quality={60}
+                sizes="100vw"
+                className="object-cover"
               />
             </button>
           ))}

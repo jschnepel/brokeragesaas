@@ -20,6 +20,7 @@
  * lite-index over UnparsedAddress + SubdivisionName + City.
  */
 
+import { cache } from 'react';
 import {
   fetchAllProperties,
   fetchPropertiesWithMeta,
@@ -1032,31 +1033,39 @@ async function doSearchListings(opts: SearchOpts): Promise<SearchResult> {
  * The slug ends in the ARMLS listing_id (digits); we match exactly,
  * then fall through to a substring scan if not found.
  *
+ * Wrapped in React `cache()` so multiple callers within one request
+ * share the same Spark fetch. The listing-detail page calls this
+ * twice — once from `generateMetadata` and once from the page itself.
+ * Without the cache wrapper that's two sequential Spark round-trips
+ * (~1.5s each) before the SSR can render. With the wrapper it's one.
+ *
  * @compliance IDX: respects InternetEntireListingDisplayYN — Spark's
  *   OData rejects this field in $filter, so we check the response
  *   field after fetch and return null if the seller has opted out.
  */
-export async function getListingBySlug(slug: string): Promise<Listing | null> {
-  const match = slug.match(/-(\d+)$/);
-  const listingId = match ? match[1] : null;
-  if (!listingId) return null;
+export const getListingBySlug = cache(
+  async (slug: string): Promise<Listing | null> => {
+    const match = slug.match(/-(\d+)$/);
+    const listingId = match ? match[1] : null;
+    if (!listingId) return null;
 
-  try {
-    const records = await fetchAllProperties({
-      filter: `ListingId eq '${escapeLiteral(listingId)}'`,
-      top: 1,
-      expand: ['Media'],
-      maxPages: 1,
-    });
-    if (records.length === 0) return null;
-    if (!isIdxDisplayable(records[0])) return null;
-    return sparkRecordToListing(records[0]);
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[spark/search] getListingBySlug failed:', err);
-    return null;
-  }
-}
+    try {
+      const records = await fetchAllProperties({
+        filter: `ListingId eq '${escapeLiteral(listingId)}'`,
+        top: 1,
+        expand: ['Media'],
+        maxPages: 1,
+      });
+      if (records.length === 0) return null;
+      if (!isIdxDisplayable(records[0])) return null;
+      return sparkRecordToListing(records[0]);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[spark/search] getListingBySlug failed:', err);
+      return null;
+    }
+  },
+);
 
 /**
  * Nearby listings — surfaces a small set of comparable Active

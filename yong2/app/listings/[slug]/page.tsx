@@ -18,11 +18,10 @@
  */
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getListingBySlug, getNearbyListings } from '@/lib/spark/search';
+import { getListingBySlug } from '@/lib/spark/search';
 import { buildFeatureGroups } from '@/lib/spark/listing-features';
 import { matchCuratedCommunity } from '@/lib/community-match';
 import { computeDistances } from '@/lib/distances';
-import { getListingReadData } from '@/lib/listing-analytics';
 import { siteUrl } from '@/lib/seo';
 import { ListingDetailClient } from './ListingDetailClient';
 
@@ -63,29 +62,24 @@ export default async function ListingDetailPage({ params }: PageProps) {
   const distances = computeDistances(listing.latitude, listing.longitude);
   const listingUrl = `${SITE_URL}/listings/${listing.slug}`;
 
-  // Nearby listings + market read fetch in parallel — both are
-  // recommendations, neither is load-bearing. Failures swallowed.
-  const [nearby, readData] = await Promise.all([
-    listing.latitude != null && listing.longitude != null
-      ? getNearbyListings({
-          excludeListingId: listing.listingId,
-          latitude: listing.latitude,
-          longitude: listing.longitude,
-          listPrice: listing.listPrice,
-          limit: 4,
-        }).catch(() => [])
-      : Promise.resolve([]),
-    getListingReadData(listing).catch(() => null),
-  ]);
-
+  // Nearby listings + market read fetch were previously awaited here
+  // and added ~1s to TTFB on every detail-page load. Both are
+  // below-the-fold and non-essential to first paint — the hero,
+  // story, features, and location sections all render fine without
+  // them. ListingDetailClient now lazy-fetches both client-side
+  // after mount; the SSR HTML ships as soon as getListingBySlug
+  // resolves, which is the only round-trip the hero actually needs.
+  //
+  // Trade-off: no-JS / crawler views won't see Nearby / The Read in
+  // the initial HTML. Acceptable for these sections — the primary
+  // listing content (address, price, photos, attribution) is all
+  // server-rendered.
   return (
     <ListingDetailClient
       listing={listing}
       featureGroups={featureGroups}
       curatedCommunity={curatedCommunity}
       distances={distances}
-      nearby={nearby}
-      readData={readData}
       listingUrl={listingUrl}
     />
   );

@@ -22,6 +22,7 @@
  */
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Footer } from '@/components/chrome/Footer';
 import { Navigation } from '@/components/chrome/Navigation';
@@ -59,12 +60,13 @@ type ListingDetailClientProps = {
   curatedCommunity: CuratedCommunity | null;
   /** Pre-computed straight-line miles to curated Phoenix-metro POIs. */
   distances: ReadonlyArray<DistanceRow>;
-  /** Up to 4 nearby Active residentials in a similar price band. */
-  nearby: Listing[];
-  /** Market-read aggregates shaped from dbt marts. Null when unavailable. */
-  readData: ListingReadData | null;
   listingUrl: string;
 };
+
+interface DetailMetaPayload {
+  nearby: Listing[];
+  readData: ListingReadData | null;
+}
 
 const DOLLAR = (n: number) =>
   new Intl.NumberFormat('en-US', {
@@ -78,10 +80,28 @@ export function ListingDetailClient({
   featureGroups,
   curatedCommunity,
   distances,
-  nearby,
-  readData,
   listingUrl,
 }: ListingDetailClientProps) {
+  // Nearby comparable listings + market-read aggregates were previously
+  // fetched server-side and added ~1s to TTFB on every detail-page load.
+  // They're below-the-fold and non-essential to first paint, so we
+  // now fetch them client-side after mount. The hero ships in the SSR
+  // HTML and starts decoding immediately; these sections appear shortly
+  // after when the /detail-meta response arrives.
+  const [meta, setMeta] = useState<DetailMetaPayload>({ nearby: [], readData: null });
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetch(`/api/listings/${listing.slug}/detail-meta`, { signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: DetailMetaPayload | null) => {
+        if (json) setMeta(json);
+      })
+      .catch(() => {
+        /* swallow — these sections degrade gracefully when empty */
+      });
+    return () => ctrl.abort();
+  }, [listing.slug]);
+  const { nearby, readData } = meta;
   const tourMessage = `${listing.unparsedAddress}${listing.community ? ` (${listing.community})` : ''}`;
   const tourHref = `/contact?listing=${encodeURIComponent(tourMessage)}&interest=Buying`;
 
