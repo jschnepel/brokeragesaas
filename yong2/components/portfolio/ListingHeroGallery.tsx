@@ -139,17 +139,25 @@ export function ListingHeroGallery({ listing, photos: rawPhotos, topOverlay }: L
           className="hidden md:block absolute inset-0 w-full h-full cursor-pointer group"
           aria-label="Open photo gallery"
         >
-          {/* Hero — priority + high fetchPriority so the LCP photo
-           *  starts decoding before any other image on the page.
-           *  FadeImage adds an 800ms opacity transition once decoded
-           *  for a cinematic reveal against the dark hero surface. */}
-          <FadeImage
+          {/* Hero — plain next/image with priority + fetchPriority so
+           *  the LCP photo paints progressively as bytes arrive. We
+           *  deliberately do NOT use FadeImage here: the 800ms JS-
+           *  driven opacity transition fires AFTER hydration + onLoad,
+           *  which delays the visual hero by close to a second
+           *  (decode-time + hydrate-time + 800ms fade). The dark
+           *  bg-ink hero surface beneath serves as the placeholder
+           *  while the photo decodes — no flash of white.
+           *
+           *  quality=60 (was 70) trims roughly 15-25% off the
+           *  optimized AVIF byte count with no visible difference at
+           *  this composition density. */}
+          <Image
             src={heroPhoto}
             alt={headline}
             fill
             priority
             fetchPriority="high"
-            quality={70}
+            quality={60}
             sizes="100vw"
             className="object-cover"
           />
