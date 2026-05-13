@@ -23,6 +23,19 @@ const nextConfig: NextConfig = {
     // entry was the root cause: SPARK was in branch env + .env.production
     // .local but never reached process.env at request time.
     SPARK_ACCESS_TOKEN: process.env.SPARK_ACCESS_TOKEN ?? '',
+    // NEXT_PUBLIC_ brokerage / contact vars. NEXT_PUBLIC_SITE_URL is
+    // intentionally not duplicated here — Next inlines it into both
+    // client AND server bundles natively. The other four below are
+    // read in server components (content/site.ts → IDX footer,
+    // /contact, /about, home, etc.) so we need the same SSR-Lambda
+    // inlining the SPARK token gets. Verified via /api/diag/env
+    // after job 158: only NEXT_PUBLIC_SITE_URL was visible at runtime;
+    // the other four were absent despite being in branch env + the
+    // .env.production.local printf block.
+    NEXT_PUBLIC_ADVISOR_MOBILE: process.env.NEXT_PUBLIC_ADVISOR_MOBILE ?? '',
+    NEXT_PUBLIC_OFFICE_PHONE: process.env.NEXT_PUBLIC_OFFICE_PHONE ?? '',
+    NEXT_PUBLIC_ADVISOR_EMAIL: process.env.NEXT_PUBLIC_ADVISOR_EMAIL ?? '',
+    NEXT_PUBLIC_OFFICE_ADDRESS: process.env.NEXT_PUBLIC_OFFICE_ADDRESS ?? '',
   },
   images: {
     remotePatterns: [
