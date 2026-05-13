@@ -4,6 +4,7 @@ import { Footer } from '@/components/chrome/Footer';
 import { HeroCinematic } from '@/components/hero/HeroCinematic';
 import { StatsBand } from '@/components/home/StatsBand';
 import { HomeIntro } from '@/components/home/HomeIntro';
+import { MarketSnapshot } from '@/components/home/MarketSnapshot';
 import { FeaturedPortfolio } from '@/components/home/FeaturedPortfolio';
 import { SyndicationMarquee } from '@/components/home/SyndicationMarquee';
 import { HomeCommunities } from '@/components/home/HomeCommunities';
@@ -60,6 +61,7 @@ export default async function Home() {
       <HeroCinematic />
       <StatsBand />
       <HomeIntro />
+      <MarketSnapshot />
       <FeaturedPortfolio listings={featured} />
       <SyndicationMarquee />
       <HomeCommunities communities={communities} />
