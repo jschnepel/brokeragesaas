@@ -27,8 +27,19 @@ export function formatPhoneDisplay(raw: string | null | undefined): string | nul
 const advisorMobileRaw = process.env.NEXT_PUBLIC_ADVISOR_MOBILE || null;
 const officePhoneRaw = process.env.NEXT_PUBLIC_OFFICE_PHONE || null;
 const advisorEmail = process.env.NEXT_PUBLIC_ADVISOR_EMAIL || 'yong.choi@russlyon.com';
+// Hard-coded fallback — the brokerage address is essentially static
+// regardless of who deploys. Diagnostics across jobs 156/158/159
+// showed NEXT_PUBLIC_OFFICE_ADDRESS wasn't being inlined into the
+// build despite the var being in the Amplify branch env,
+// .env.production.local, AND next.config.ts's `env` block; most
+// likely the commas in the address trip @next/env's dotenv parsing
+// (see the SPARK_ACCESS_TOKEN block in amplify.yml for a similar
+// quoting-class bug). Env still wins when it flows through; the
+// fallback below makes the no-env path render the right shape (an
+// address, not the brokerage name). Update both this constant + the
+// Amplify branch env on a brokerage move.
 const officeAddress =
-  process.env.NEXT_PUBLIC_OFFICE_ADDRESS || "Russ Lyon Sotheby's International Realty";
+  process.env.NEXT_PUBLIC_OFFICE_ADDRESS || '34305 N Scottsdale Rd, Scottsdale, AZ 85266';
 
 const advisorMobileDisplay = formatPhoneDisplay(advisorMobileRaw);
 const advisorMobileHref = formatPhoneHref(advisorMobileRaw);
