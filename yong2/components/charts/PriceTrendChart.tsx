@@ -24,20 +24,30 @@ import {
 } from './chart-theme';
 
 type PriceTrendChartProps = {
-  data: QuarterPoint[];
+  data: QuarterPoint[] | Array<{ [k: string]: number | string }>;
   /**
    * Which neighborhoods to offer as toggles. Defaults to every key in the
-   * first point that isn't 'quarter'.
+   * first point that isn't the X-axis key.
    */
   neighborhoods?: string[];
+  /**
+   * Field name on each datum that drives the X-axis. Defaults to
+   * `'quarter'` for the legacy 8-quarter trend; pass `'month'` for the
+   * 24-month live-data wiring on /market-reports/[slug].
+   */
+  xDataKey?: string;
 };
 
 type PresetKey = 'signature' | 'notable' | 'all' | 'custom';
 
-export function PriceTrendChart({ data, neighborhoods }: PriceTrendChartProps) {
+export function PriceTrendChart({
+  data,
+  neighborhoods,
+  xDataKey = 'quarter',
+}: PriceTrendChartProps) {
   const available = useMemo(
-    () => neighborhoods ?? Object.keys(data[0] ?? {}).filter((k) => k !== 'quarter'),
-    [data, neighborhoods],
+    () => neighborhoods ?? Object.keys(data[0] ?? {}).filter((k) => k !== xDataKey),
+    [data, neighborhoods, xDataKey],
   );
 
   const defaultVisible = useMemo(
@@ -164,7 +174,7 @@ export function PriceTrendChart({ data, neighborhoods }: PriceTrendChartProps) {
               vertical={false}
             />
             <XAxis
-              dataKey="quarter"
+              dataKey={xDataKey}
               stroke={CHART_COLORS.hairline}
               tick={AXIS_TICK_STYLE}
               tickLine={false}

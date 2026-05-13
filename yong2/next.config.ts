@@ -70,6 +70,27 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // 301 redirects — preserve link equity from the retired quarterly
+  // cadence (q1-2026 / q4-2025 / q3-2025 / q2-2025) by collapsing
+  // every legacy quarter URL to the new index. The regex constraint
+  // `(q\\d+-\\d{4})` matches q1-q9 plus any 4-digit year so a future
+  // q5-YYYY doesn't slip through to a 404. The four explicit slugs
+  // are listed alongside the regex for sitemap/legacy-backlink
+  // discoverability — Next applies the first matching rule, so
+  // having explicit + catch-all is harmless.
+  async redirects() {
+    return [
+      { source: '/market-reports/q1-2026', destination: '/market-reports', permanent: true },
+      { source: '/market-reports/q4-2025', destination: '/market-reports', permanent: true },
+      { source: '/market-reports/q3-2025', destination: '/market-reports', permanent: true },
+      { source: '/market-reports/q2-2025', destination: '/market-reports', permanent: true },
+      {
+        source: '/market-reports/:slug(q\\d+-\\d{4})',
+        destination: '/market-reports',
+        permanent: true,
+      },
+    ];
+  },
   skipTrailingSlashRedirect: true,
   // Next 16.2.4 framework regression: prerendering the synthetic
   // `/_global-error` route hits `useContext(LayoutRouterContext)` returning

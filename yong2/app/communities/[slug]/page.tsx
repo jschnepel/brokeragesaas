@@ -11,7 +11,7 @@ import { ListingTile } from '@/components/portfolio/ListingTile';
 import { communitiesContent, communitySlugs, type CommunitySlug } from '@/content/communities';
 import { getCommunityScorecard } from '@/lib/communities';
 import { getListingsByCommunity, getListingsByRegionSlug } from '@/lib/listings';
-import { getReports } from '@/lib/market-reports';
+import { listAvailablePeriods, monthLabel, weekRangeLabel, type Period } from '@/lib/market-reports';
 import { communitySchema, breadcrumbListSchema } from '@/lib/jsonld';
 import { siteUrl, truncateMetaDescription } from '@/lib/seo';
 
@@ -62,12 +62,18 @@ export default async function CommunityDetailPage({ params }: PageProps) {
       ? getListingsByRegionSlug(c.scopeKey, 24).catch(() => [])
       : Promise.resolve([]);
 
-  const [kpis, listings, reports] = await Promise.all([
+  const [kpis, listings, periodManifest] = await Promise.all([
     getCommunityScorecard(c.scopeKey, c.scopeType).catch(() => null),
     listingsPromise,
-    getReports().catch(() => []),
+    listAvailablePeriods().catch(() => ({ weeks: [], months: [], latest: null as Period | null })),
   ]);
-  const latestReport = reports[0] ?? null;
+  const latestPeriod = periodManifest.latest;
+  const latestReportHref = latestPeriod ? `/market-reports/${latestPeriod.iso}` : null;
+  const latestReportLabel = latestPeriod
+    ? latestPeriod.kind === 'week'
+      ? weekRangeLabel(latestPeriod)
+      : `${monthLabel(latestPeriod)} read`
+    : null;
 
   const placeJsonLd = communitySchema({
     name: c.name,
@@ -117,13 +123,13 @@ export default async function CommunityDetailPage({ params }: PageProps) {
           {c.narrative.map((p, i) => (
             <p key={i} className="text-stone/85 leading-relaxed mb-4">{p}</p>
           ))}
-          {latestReport && (
+          {latestReportHref && latestReportLabel && (
             <p className="mt-6">
               <Link
-                href={`/market-reports/${latestReport.slug}`}
+                href={latestReportHref}
                 className="caps text-gold hover:text-stone transition-colors inline-flex items-center gap-2"
               >
-                Read the {latestReport.quarter} market report
+                Read the latest market read — {latestReportLabel}
                 <span aria-hidden="true">→</span>
               </Link>
             </p>
