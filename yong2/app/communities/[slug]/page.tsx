@@ -13,7 +13,7 @@ import { getCommunityScorecard } from '@/lib/communities';
 import { getListingsByCommunity, getListingsByRegionSlug } from '@/lib/listings';
 import { getReports } from '@/lib/market-reports';
 import { communitySchema, breadcrumbListSchema } from '@/lib/jsonld';
-import { siteUrl } from '@/lib/seo';
+import { siteUrl, truncateMetaDescription } from '@/lib/seo';
 
 export const revalidate = 3600;
 // Each community page fans out to ~36 RDS queries (4 quarterly reports
@@ -40,7 +40,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const c = communitiesContent[slug as CommunitySlug];
   return {
     title: c.name,
-    description: c.narrative[0]?.slice(0, 160),
+    description: c.narrative[0] ? truncateMetaDescription(c.narrative[0], 160) : undefined,
     alternates: { canonical: siteUrl(`/communities/${c.slug}`) },
   };
 }

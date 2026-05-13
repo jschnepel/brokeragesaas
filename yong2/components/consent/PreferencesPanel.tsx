@@ -24,12 +24,12 @@ export function PreferencesPanel() {
       <ConsentSettings variant="page" showShortcuts />
 
       <div className="border-t border-white/10 pt-8 space-y-3">
-        <div className="caps">Reset Analytics Id</div>
+        <div className="caps">Reset Anonymous Id</div>
         <p className="text-sm text-stone/70 leading-relaxed max-w-2xl">
           Clearing your anonymous id severs the link between this browser and any prior pageviews we&rsquo;ve
           seen. It does not delete events already collected — for that, email{' '}
-          <a href="mailto:privacy@yongchoi.com" className="text-gold underline underline-offset-4">
-            privacy@yongchoi.com
+          <a href="mailto:joey@echelonpoint.dev" className="text-gold underline underline-offset-4">
+            joey@echelonpoint.dev
           </a>
           .
         </p>

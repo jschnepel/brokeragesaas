@@ -4,8 +4,15 @@ import { Footer } from '@/components/chrome/Footer';
 import { SectionFrame } from '@/components/shared/SectionFrame';
 import { PageHero } from '@/components/shared/PageHero';
 import { AboutSplit } from '@/components/about/AboutSplit';
+import { TestimonialsSection } from '@/components/testimonials/TestimonialsSection';
 import { realEstateAgentSchema, breadcrumbListSchema } from '@/lib/jsonld';
 import { siteUrl } from '@/lib/seo';
+
+// ISR — hourly. Page is essentially evergreen but periodic rebuilds
+// guarantee any future tweak to the testimonials data, JSON-LD
+// schema, or copy reaches every CloudFront PoP within an hour
+// rather than persisting at the 1-year `s-maxage` default.
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: 'About Yong Choi',
@@ -41,6 +48,7 @@ export default function AboutPage() {
         <SectionFrame className="py-16 md:py-20">
           <AboutSplit />
         </SectionFrame>
+        <TestimonialsSection />
       </main>
       <Footer />
     </>

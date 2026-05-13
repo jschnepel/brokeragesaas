@@ -2,8 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { MARKET_REPORT_COPY } from '@/content/market-reports';
-import { getReport, getReports } from '@/lib/market-reports';
+import { MARKET_REPORT_COPY, type MarketReport, type MarketReportCopy } from '@/content/market-reports';
 import { siteContent } from '@/content/site';
 import { Navigation } from '@/components/chrome/Navigation';
 import { Footer } from '@/components/chrome/Footer';
@@ -38,14 +37,30 @@ const COMMUNITY_NAME_TO_SLUG: Record<string, string> = (() => {
 
 type Params = { slug: string };
 
-// ISR: refresh hourly so newly-refreshed MV data flows through.
+// ISR — hourly. Page renders purely from `MARKET_REPORT_COPY` so any
+// editorial edit reaches CloudFront edges within an hour.
+//
+// HISTORICAL: until the dbt cutover (Phase 6, 2026-05-10) this page
+// composed live charts from `analytics_base` + `mv_*` materialised
+// views. Those relations were dropped when the analytics pipeline
+// migrated to dbt parquet on CloudFront, which left getReport() throwing
+// "relation does not exist" and the page hard-404'ing for every quarter.
+// Until live charts get rewired against the parquet feed, the page is
+// editorial-copy only — every chart slot is conditional on
+// `report.charts`, so omitting charts collapses those sections without
+// breaking layout.
 export const revalidate = 3600;
-// Same reason as the community page: each report fans out to ~9 RDS
-// queries during render and current platform load makes prerender
-// exceed the 60s budget. Render on demand.
-export const dynamic = 'force-dynamic';
 
-// generateStaticParams disabled — see `dynamic = 'force-dynamic'` above.
+// Build a chart-less MarketReport from MarketReportCopy. Detail page is
+// editorial-only until the live-chart rewire (see comment on revalidate
+// above). The downstream chart components are all guarded by
+// `{report.charts && ...}` so an undefined charts field skips them.
+function copyToReport(copy: MarketReportCopy): MarketReport {
+  return {
+    ...copy,
+    headlineStats: copy.editorialStats ?? [],
+  };
+}
 
 export async function generateMetadata({
   params,
@@ -56,10 +71,20 @@ export async function generateMetadata({
   const copy = MARKET_REPORT_COPY.find((c) => c.slug === slug);
   if (!copy) return { title: 'Report not found' };
   return {
-    title: `${copy.title} · ${copy.quarter} · ${siteContent.brand.name}`,
+    // Absolute title — opt out of the layout's "%s · Yong Choi" template
+    // so we don't double-stamp the brand on a title that already ends
+    // with the site name (audit item 2.7).
+    title: { absolute: `${copy.title} · ${copy.quarter} · ${siteContent.brand.name}` },
     description: copy.summary,
     alternates: { canonical: siteUrl(`/market-reports/${copy.slug}`) },
   };
+}
+
+// Pre-render every quarter known to the editorial layer. New quarters
+// added to MARKET_REPORT_COPY will be picked up automatically on the
+// next deploy or ISR refresh.
+export function generateStaticParams(): Params[] {
+  return MARKET_REPORT_COPY.map((c) => ({ slug: c.slug }));
 }
 
 export default async function MarketReportDetailPage({
@@ -68,11 +93,18 @@ export default async function MarketReportDetailPage({
   params: Promise<Params>;
 }) {
   const { slug } = await params;
-  const report = await getReport(slug).catch(() => null);
-  if (!report) notFound();
+  const copy = MARKET_REPORT_COPY.find((c) => c.slug === slug);
+  if (!copy) notFound();
 
-  const allReports = await getReports().catch(() => []);
-  const others = allReports.filter((r) => r.slug !== report.slug).slice(0, 3);
+  const report = copyToReport(copy);
+  const others = MARKET_REPORT_COPY
+    .filter((r) => r.slug !== copy.slug)
+    .slice(0, 3)
+    .map(copyToReport);
+  // buildReportNarrative returns null when `report.charts` is undefined —
+  // which is always the case until live charts are rewired against the
+  // parquet feed. Every `{narrative && …}` block in the JSX below
+  // collapses cleanly.
   const narrative = buildReportNarrative(report);
   const breadcrumbs = breadcrumbListSchema([
     { name: 'Home', url: siteUrl('/') },

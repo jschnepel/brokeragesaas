@@ -8,6 +8,7 @@
 import type { Listing, CommunityKpis } from './types';
 import { siteContent } from '@/content/site';
 import { yongBio } from '@/content/yong';
+import { testimonials, testimonialsSource } from '@/content/testimonials';
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3200';
@@ -57,6 +58,34 @@ export function realEstateAgentSchema() {
       name: yongBio.brokerage,
     },
     areaServed: ['Scottsdale', 'Paradise Valley', 'Desert Mountain', 'Carefree', 'Cave Creek'],
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: testimonialsSource.rating.toFixed(1),
+      reviewCount: testimonialsSource.totalReviews,
+      bestRating: '5',
+      worstRating: '1',
+    },
+    review: testimonials.map((t) => ({
+      '@type': 'Review',
+      name: t.title,
+      reviewBody: t.body,
+      author: {
+        '@type': 'Person',
+        name: `Verified Client — ${t.location}`,
+      },
+      reviewRating: {
+        '@type': 'Rating',
+        ratingValue: '5',
+        bestRating: '5',
+        worstRating: '1',
+      },
+      publisher: {
+        '@type': 'Organization',
+        name: testimonialsSource.platform,
+        url: testimonialsSource.profileUrl,
+      },
+      url: t.url,
+    })),
   });
 }
 

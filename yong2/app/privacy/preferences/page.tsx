@@ -5,10 +5,15 @@ import { SectionFrame } from '@/components/shared/SectionFrame';
 import { PreferencesPanel } from '@/components/consent/PreferencesPanel';
 import { siteUrl } from '@/lib/seo';
 
+// ISR — hourly. Periodic rebuilds prevent a bad deploy from being
+// cached at edges for the 1-year `s-maxage` default of fully-static
+// prerenders.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Manage Preferences',
   description:
-    'Update your cookie and analytics preferences for yongchoi.com. Reset your anonymous analytics id at any time.',
+    'Update your cookie and analytics preferences for yong-choi.com. Reset your anonymous analytics id at any time.',
   alternates: { canonical: siteUrl('/privacy/preferences') },
 };
 

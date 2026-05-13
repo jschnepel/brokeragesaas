@@ -5,10 +5,15 @@ import { Footer } from '@/components/chrome/Footer';
 import { SectionFrame } from '@/components/shared/SectionFrame';
 import { siteUrl } from '@/lib/seo';
 
+// ISR — hourly. Legal copy is essentially evergreen but periodic
+// rebuilds prevent a bad deploy from being cached at edges for the
+// 1-year `s-maxage` default of fully-static prerenders.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Privacy Policy',
   description:
-    'How yongchoi.com collects, uses, and protects information about visitors. Includes our analytics providers, retention windows, and how to exercise data rights.',
+    'How yong-choi.com collects, uses, and protects information about visitors. Includes our analytics providers, retention windows, and how to exercise data rights.',
   alternates: { canonical: siteUrl('/privacy/policy') },
   robots: { index: true, follow: true },
 };
@@ -30,7 +35,7 @@ export default function PrivacyPolicyPage() {
 
             <section className="space-y-4 text-stone/85 leading-relaxed">
               <p>
-                This page explains what information we collect when you visit yongchoi.com, why we collect
+                This page explains what information we collect when you visit yong-choi.com, why we collect
                 it, how long we keep it, and the choices available to you. We default to collecting as little
                 as possible. Analytics are off until you opt in via the cookie banner. Browsers that send the
                 Do Not Track signal are treated as an automatic opt-out.
@@ -104,10 +109,10 @@ export default function PrivacyPolicyPage() {
                 <li>
                   Request access, correction, or deletion of your data by emailing{' '}
                   <a
-                    href="mailto:privacy@yongchoi.com"
+                    href="mailto:joey@echelonpoint.dev"
                     className="text-gold underline underline-offset-4"
                   >
-                    privacy@yongchoi.com
+                    joey@echelonpoint.dev
                   </a>
                   . We respond within 30 days.
                 </li>

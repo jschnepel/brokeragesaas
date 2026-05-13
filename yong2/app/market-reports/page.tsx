@@ -9,8 +9,18 @@ import { PriceTrendSparkline } from '@/components/portfolio/PriceTrendSparkline'
 import { MARKET_REPORT_COPY } from '@/content/market-reports';
 import { siteUrl } from '@/lib/seo';
 
+// ISR — hourly. Page renders purely from `MARKET_REPORT_COPY` so a
+// new quarterly publish (or any copy edit) reaches CloudFront edges
+// within an hour rather than persisting at the 1-year `s-maxage`
+// default of a fully-static prerender.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
-  title: `Market Reports · ${siteContent.brand.name}`,
+  // Absolute title — Next would otherwise apply the layout's `template`
+  // ("%s · Yong Choi") on top of this string, producing the
+  // "Market Reports · Yong Choi · Yong Choi" double-suffix audit item
+  // 2.7 flagged.
+  title: { absolute: `Market Reports · ${siteContent.brand.name}` },
   description: `Quarterly luxury market intelligence for Silverleaf, Desert Mountain, Estancia, Paradise Valley, and DC Ranch — authored by ${siteContent.brand.name} of Russ Lyon Sotheby's International Realty.`,
   alternates: { canonical: siteUrl('/market-reports') },
 };

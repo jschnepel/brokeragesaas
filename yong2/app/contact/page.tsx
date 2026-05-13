@@ -9,6 +9,11 @@ import { siteContent } from '@/content/site';
 import { breadcrumbListSchema } from '@/lib/jsonld';
 import { siteUrl } from '@/lib/seo';
 
+// ISR — hourly. Static copy + a client-side contact form. Periodic
+// rebuilds prevent a bad deploy from being cached at edges for the
+// 1-year `s-maxage` default of fully-static prerenders.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Contact',
   description: 'Begin a conversation with Yong Choi.',

@@ -8,6 +8,7 @@ import { FeaturedPortfolio } from '@/components/home/FeaturedPortfolio';
 import { SyndicationMarquee } from '@/components/home/SyndicationMarquee';
 import { HomeCommunities } from '@/components/home/HomeCommunities';
 import { AboutSnippet } from '@/components/home/AboutSnippet';
+import { TestimonialsSection } from '@/components/testimonials/TestimonialsSection';
 import { MarketBlurb } from '@/components/home/MarketBlurb';
 import { ContactCTA } from '@/components/home/ContactCTA';
 import { searchListings } from '@/lib/spark/search';
@@ -63,6 +64,7 @@ export default async function Home() {
       <SyndicationMarquee />
       <HomeCommunities communities={communities} />
       <AboutSnippet />
+      <TestimonialsSection />
       <MarketBlurb />
       <ContactCTA />
       <Footer />

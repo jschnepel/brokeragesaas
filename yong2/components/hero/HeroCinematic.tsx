@@ -26,7 +26,7 @@ export function HeroCinematic() {
       <div className="absolute inset-0">
         <Image
           src="/hero/hero-poster.jpg"
-          alt=""
+          alt="Sonoran desert at golden hour, McDowell range in the distance — North Scottsdale, Arizona"
           fill
           priority
           fetchPriority="high"

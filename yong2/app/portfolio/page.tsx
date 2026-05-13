@@ -10,6 +10,12 @@ import { siteUrl } from '@/lib/seo';
 // chosen to feature — not an auto-pulled IDX feed. Empty state shows
 // until he adds an entry. The full live ARMLS Active+Pending feed
 // lives at /listings (Home Search), Spark-backed.
+//
+// ISR — hourly. Periodic rebuilds prevent a bad deploy from being
+// cached at edges for the 1-year `s-maxage` default of fully-static
+// prerenders.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'The Portfolio',
   description: "Hand-curated current and recent representations from Yong Choi.",

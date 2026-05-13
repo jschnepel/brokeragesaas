@@ -5,10 +5,15 @@ import { Footer } from '@/components/chrome/Footer';
 import { SectionFrame } from '@/components/shared/SectionFrame';
 import { siteUrl } from '@/lib/seo';
 
+// ISR — hourly. Cookie disclosure copy is essentially evergreen but
+// periodic rebuilds prevent a bad deploy from being cached at edges
+// for the 1-year `s-maxage` default of fully-static prerenders.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Cookie Disclosure',
   description:
-    'A complete list of the cookies set by yongchoi.com and the third-party analytics services we use, including their purpose and lifetime.',
+    'A complete list of the cookies set by yong-choi.com and the third-party analytics services we use, including their purpose and lifetime.',
   alternates: { canonical: siteUrl('/privacy/cookies') },
 };
 
@@ -20,10 +25,10 @@ type CookieRow = {
 };
 
 const NECESSARY: CookieRow[] = [
-  { name: 'yong2_consent', vendor: 'yongchoi.com', purpose: 'Stores your cookie choices.', lifetime: '12 months' },
+  { name: 'yong2_consent', vendor: 'yong-choi.com', purpose: 'Stores your cookie choices.', lifetime: '12 months' },
   {
     name: 'yong2_anon_id',
-    vendor: 'yongchoi.com',
+    vendor: 'yong-choi.com',
     purpose: 'Anonymous session id used to stitch pageviews within a visit. Set only after analytics consent.',
     lifetime: '12 months',
   },
@@ -52,7 +57,7 @@ export default function CookieDisclosurePage() {
               </h1>
               <p className="text-stone/80 leading-relaxed max-w-2xl">
                 Cookies are small text files saved by your browser. Below is the full list of cookies that
-                yongchoi.com may set, grouped by category. Categories other than "Strictly necessary" only
+                yong-choi.com may set, grouped by category. Categories other than "Strictly necessary" only
                 load after you opt in via the{' '}
                 <Link href="/privacy/preferences" className="text-gold underline underline-offset-4">
                   preferences page

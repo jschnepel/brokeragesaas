@@ -22,7 +22,7 @@ import { getListingBySlug } from '@/lib/spark/search';
 import { buildFeatureGroups } from '@/lib/spark/listing-features';
 import { matchCuratedCommunity } from '@/lib/community-match';
 import { computeDistances } from '@/lib/distances';
-import { siteUrl } from '@/lib/seo';
+import { siteUrl, truncateMetaDescription } from '@/lib/seo';
 import { ListingDetailClient } from './ListingDetailClient';
 
 // 5-minute ISR — Spark refreshes hourly; 5min staleness is well within
@@ -37,13 +37,34 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   const listing = await getListingBySlug(slug).catch(() => null);
   if (!listing) return { title: 'Listing' };
+  const address = listing.unparsedAddress;
+  const community = listing.community ?? listing.city ?? 'Scottsdale';
+  const titleFull = `${address} | ${community} | Yong Choi`;
+  const description = listing.publicRemarks
+    ? truncateMetaDescription(listing.publicRemarks, 155)
+    : `${address}, ${community}. Luxury Arizona real estate represented by Yong Choi.`;
+  const canonical = siteUrl(`/listings/${listing.slug}`);
+  const image = listing.coverPhotoUrl;
   return {
-    title: `${listing.unparsedAddress} · ${listing.community}`,
-    description:
-      listing.publicRemarks?.slice(0, 160) ?? `${listing.unparsedAddress}.`,
-    alternates: { canonical: siteUrl(`/listings/${listing.slug}`) },
+    // `title.absolute` opts out of the root layout's `template`
+    // ("%s · Yong Choi") so we don't double-stamp the brand on
+    // listing-detail titles.
+    title: { absolute: titleFull },
+    description,
+    alternates: { canonical },
     openGraph: {
-      images: listing.coverPhotoUrl ? [listing.coverPhotoUrl] : undefined,
+      type: 'website',
+      title: titleFull,
+      description,
+      url: canonical,
+      siteName: 'Yong Choi',
+      images: image ? [{ url: image, alt: address }] : undefined,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: titleFull,
+      description,
+      images: image ? [image] : undefined,
     },
   };
 }
