@@ -58,6 +58,17 @@ applications:
                 printf 'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=%s\n' "${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}"
                 printf 'NEXT_PUBLIC_CLARITY_PROJECT_ID=%s\n' "${NEXT_PUBLIC_CLARITY_PROJECT_ID:-}"
                 printf 'NEXT_PUBLIC_POSTHOG_KEY=%s\n' "${NEXT_PUBLIC_POSTHOG_KEY:-}"
+                # Contact / brokerage config — sourced from Amplify branch env.
+                # Without these in .env.production.local the build silently
+                # falls back to the hardcoded defaults in content/site.ts,
+                # which caused the brokerage-address line in
+                # IDXComplianceFooter to render the brokerage name twice
+                # ("Russ Lyon Sotheby's · Russ Lyon Sotheby's") instead of
+                # the configured street address.
+                printf 'NEXT_PUBLIC_ADVISOR_MOBILE=%s\n' "${NEXT_PUBLIC_ADVISOR_MOBILE:-}"
+                printf 'NEXT_PUBLIC_OFFICE_PHONE=%s\n' "${NEXT_PUBLIC_OFFICE_PHONE:-}"
+                printf 'NEXT_PUBLIC_ADVISOR_EMAIL=%s\n' "${NEXT_PUBLIC_ADVISOR_EMAIL:-}"
+                printf 'NEXT_PUBLIC_OFFICE_ADDRESS=%s\n' "${NEXT_PUBLIC_OFFICE_ADDRESS:-}"
                 printf 'RESEND_API_KEY=%s\n' "${RESEND_API_KEY:-}"
                 printf 'CONTACT_TO_EMAIL=%s\n' "${CONTACT_TO_EMAIL:-}"
                 printf 'CONTACT_FROM_EMAIL=%s\n' "${CONTACT_FROM_EMAIL:-}"
