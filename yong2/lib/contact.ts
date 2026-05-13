@@ -45,7 +45,7 @@ export async function sendContactMessage(
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   const to = process.env.CONTACT_TO_EMAIL;
-  const from = process.env.CONTACT_FROM_EMAIL ?? 'no-reply@yongchoi.com';
+  const from = process.env.CONTACT_FROM_EMAIL ?? 'no-reply@yong-choi.com';
   if (!apiKey || !to) {
     throw new Error('RESEND_API_KEY and CONTACT_TO_EMAIL are required');
   }

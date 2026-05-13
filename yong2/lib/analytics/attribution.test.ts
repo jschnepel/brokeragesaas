@@ -19,7 +19,7 @@ function urlOf(s: string): URL {
 describe('deriveTouch — channel inference', () => {
   it('classifies gclid as paid_search/google', () => {
     const t = deriveTouch({
-      url: urlOf('https://yongchoi.com/?gclid=abc123'),
+      url: urlOf('https://yong-choi.com/?gclid=abc123'),
       referrer: null,
       nowMs: NOW,
     });
@@ -31,7 +31,7 @@ describe('deriveTouch — channel inference', () => {
 
   it('classifies fbclid as paid_social/facebook', () => {
     const t = deriveTouch({
-      url: urlOf('https://yongchoi.com/?fbclid=xyz'),
+      url: urlOf('https://yong-choi.com/?fbclid=xyz'),
       referrer: 'https://facebook.com/',
       nowMs: NOW,
     });
@@ -42,7 +42,7 @@ describe('deriveTouch — channel inference', () => {
 
   it('classifies msclkid as paid_search/bing', () => {
     const t = deriveTouch({
-      url: urlOf('https://yongchoi.com/?msclkid=ms123'),
+      url: urlOf('https://yong-choi.com/?msclkid=ms123'),
       referrer: null,
       nowMs: NOW,
     });
@@ -52,7 +52,7 @@ describe('deriveTouch — channel inference', () => {
 
   it('classifies utm_medium=cpc as paid_search', () => {
     const t = deriveTouch({
-      url: urlOf('https://yongchoi.com/?utm_source=google&utm_medium=cpc&utm_campaign=luxury'),
+      url: urlOf('https://yong-choi.com/?utm_source=google&utm_medium=cpc&utm_campaign=luxury'),
       referrer: null,
       nowMs: NOW,
     });
@@ -63,7 +63,7 @@ describe('deriveTouch — channel inference', () => {
 
   it('classifies utm_medium=email as email', () => {
     const t = deriveTouch({
-      url: urlOf('https://yongchoi.com/?utm_source=newsletter&utm_medium=email'),
+      url: urlOf('https://yong-choi.com/?utm_source=newsletter&utm_medium=email'),
       referrer: null,
       nowMs: NOW,
     });
@@ -72,7 +72,7 @@ describe('deriveTouch — channel inference', () => {
 
   it('classifies google.com referrer (no click id) as organic_search', () => {
     const t = deriveTouch({
-      url: urlOf('https://yongchoi.com/'),
+      url: urlOf('https://yong-choi.com/'),
       referrer: 'https://google.com/search?q=scottsdale+luxury',
       nowMs: NOW,
     });
@@ -83,7 +83,7 @@ describe('deriveTouch — channel inference', () => {
 
   it('classifies instagram.com referrer as social', () => {
     const t = deriveTouch({
-      url: urlOf('https://yongchoi.com/'),
+      url: urlOf('https://yong-choi.com/'),
       referrer: 'https://instagram.com/yongchoi',
       nowMs: NOW,
     });
@@ -93,7 +93,7 @@ describe('deriveTouch — channel inference', () => {
 
   it('classifies any other off-site referrer as referral', () => {
     const t = deriveTouch({
-      url: urlOf('https://yongchoi.com/'),
+      url: urlOf('https://yong-choi.com/'),
       referrer: 'https://sothebysrealty.com/agents/yong-choi',
       nowMs: NOW,
     });
@@ -103,8 +103,8 @@ describe('deriveTouch — channel inference', () => {
 
   it('classifies same-host referrer as direct (internal nav, not a touch)', () => {
     const t = deriveTouch({
-      url: urlOf('https://yongchoi.com/portfolio'),
-      referrer: 'https://yongchoi.com/',
+      url: urlOf('https://yong-choi.com/portfolio'),
+      referrer: 'https://yong-choi.com/',
       nowMs: NOW,
     });
     expect(t.channel).toBe('direct');
@@ -113,7 +113,7 @@ describe('deriveTouch — channel inference', () => {
 
   it('classifies no-referrer no-utm load as direct', () => {
     const t = deriveTouch({
-      url: urlOf('https://yongchoi.com/'),
+      url: urlOf('https://yong-choi.com/'),
       referrer: null,
       nowMs: NOW,
     });
@@ -127,7 +127,7 @@ describe('isCampaignTouch / isDirect', () => {
     expect(
       isDirect(
         deriveTouch({
-          url: urlOf('https://yongchoi.com/'),
+          url: urlOf('https://yong-choi.com/'),
           referrer: null,
           nowMs: NOW,
         }),
@@ -139,7 +139,7 @@ describe('isCampaignTouch / isDirect', () => {
     expect(
       isCampaignTouch(
         deriveTouch({
-          url: urlOf('https://yongchoi.com/?gclid=abc'),
+          url: urlOf('https://yong-choi.com/?gclid=abc'),
           referrer: null,
           nowMs: NOW,
         }),
@@ -151,7 +151,7 @@ describe('isCampaignTouch / isDirect', () => {
     expect(
       isCampaignTouch(
         deriveTouch({
-          url: urlOf('https://yongchoi.com/'),
+          url: urlOf('https://yong-choi.com/'),
           referrer: null,
           nowMs: NOW,
         }),
@@ -163,7 +163,7 @@ describe('isCampaignTouch / isDirect', () => {
 describe('mergeAttribution', () => {
   it('seeds first + last on first touch', () => {
     const t = deriveTouch({
-      url: urlOf('https://yongchoi.com/?gclid=a'),
+      url: urlOf('https://yong-choi.com/?gclid=a'),
       referrer: null,
       nowMs: NOW,
     });
@@ -174,13 +174,13 @@ describe('mergeAttribution', () => {
 
   it('preserves first across subsequent touches', () => {
     const t1 = deriveTouch({
-      url: urlOf('https://yongchoi.com/?utm_source=google&utm_medium=cpc'),
+      url: urlOf('https://yong-choi.com/?utm_source=google&utm_medium=cpc'),
       referrer: null,
       nowMs: NOW,
     });
     const merged1 = mergeAttribution(null, t1);
     const t2 = deriveTouch({
-      url: urlOf('https://yongchoi.com/?fbclid=xyz'),
+      url: urlOf('https://yong-choi.com/?fbclid=xyz'),
       referrer: 'https://facebook.com/',
       nowMs: NOW + 60_000,
     });
@@ -193,13 +193,13 @@ describe('mergeAttribution', () => {
 
   it('does NOT replace last on a pure-direct revisit', () => {
     const t1 = deriveTouch({
-      url: urlOf('https://yongchoi.com/?gclid=a'),
+      url: urlOf('https://yong-choi.com/?gclid=a'),
       referrer: null,
       nowMs: NOW,
     });
     const merged1 = mergeAttribution(null, t1);
     const t2 = deriveTouch({
-      url: urlOf('https://yongchoi.com/'),
+      url: urlOf('https://yong-choi.com/'),
       referrer: null,
       nowMs: NOW + 86_400_000,
     });
@@ -210,13 +210,13 @@ describe('mergeAttribution', () => {
 
   it('replaces last on an organic-search revisit (non-direct)', () => {
     const t1 = deriveTouch({
-      url: urlOf('https://yongchoi.com/?gclid=a'),
+      url: urlOf('https://yong-choi.com/?gclid=a'),
       referrer: null,
       nowMs: NOW,
     });
     const merged1 = mergeAttribution(null, t1);
     const t2 = deriveTouch({
-      url: urlOf('https://yongchoi.com/'),
+      url: urlOf('https://yong-choi.com/'),
       referrer: 'https://google.com/',
       nowMs: NOW + 86_400_000,
     });
@@ -227,14 +227,14 @@ describe('mergeAttribution', () => {
 
   it('reseeds when prev.first is older than 180 days', () => {
     const t1 = deriveTouch({
-      url: urlOf('https://yongchoi.com/?gclid=old'),
+      url: urlOf('https://yong-choi.com/?gclid=old'),
       referrer: null,
       nowMs: NOW,
     });
     const merged1 = mergeAttribution(null, t1);
     const veryLater = NOW + 200 * 24 * 60 * 60 * 1000;
     const t2 = deriveTouch({
-      url: urlOf('https://yongchoi.com/?gclid=new'),
+      url: urlOf('https://yong-choi.com/?gclid=new'),
       referrer: null,
       nowMs: veryLater,
     });
@@ -247,7 +247,7 @@ describe('mergeAttribution', () => {
 describe('cookie serialization', () => {
   it('round-trips via serialize/parse', () => {
     const t = deriveTouch({
-      url: urlOf('https://yongchoi.com/?utm_source=google'),
+      url: urlOf('https://yong-choi.com/?utm_source=google'),
       referrer: 'https://google.com/',
       nowMs: NOW,
     });
@@ -275,7 +275,7 @@ describe('cookie serialization', () => {
 describe('attributionChanged', () => {
   it('true when prev is null', () => {
     const t = deriveTouch({
-      url: urlOf('https://yongchoi.com/'),
+      url: urlOf('https://yong-choi.com/'),
       referrer: null,
       nowMs: NOW,
     });
@@ -285,7 +285,7 @@ describe('attributionChanged', () => {
 
   it('false when first.ts and last.ts unchanged', () => {
     const t = deriveTouch({
-      url: urlOf('https://yongchoi.com/?gclid=a'),
+      url: urlOf('https://yong-choi.com/?gclid=a'),
       referrer: null,
       nowMs: NOW,
     });
@@ -296,13 +296,13 @@ describe('attributionChanged', () => {
 
   it('true when last.ts changes', () => {
     const t1 = deriveTouch({
-      url: urlOf('https://yongchoi.com/?gclid=a'),
+      url: urlOf('https://yong-choi.com/?gclid=a'),
       referrer: null,
       nowMs: NOW,
     });
     const m1 = mergeAttribution(null, t1);
     const t2 = deriveTouch({
-      url: urlOf('https://yongchoi.com/'),
+      url: urlOf('https://yong-choi.com/'),
       referrer: 'https://google.com/',
       nowMs: NOW + 86_400_000,
     });

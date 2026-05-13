@@ -123,7 +123,7 @@ describe('jsonld builders', () => {
       name: 'Silverleaf',
       locality: 'North Scottsdale',
       description: 'A premier guard-gated village.',
-      url: 'https://yongchoi.com/communities/silverleaf',
+      url: 'https://yong-choi.com/communities/silverleaf',
     }) as Record<string, unknown> & {
       address: { addressLocality: string };
       url?: string;

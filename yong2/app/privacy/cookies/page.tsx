@@ -38,6 +38,8 @@ const ANALYTICS: CookieRow[] = [
   { name: '_clck', vendor: 'Microsoft Clarity', purpose: 'Distinguishes unique visitors.', lifetime: '12 months' },
   { name: '_clsk', vendor: 'Microsoft Clarity', purpose: 'Connects multiple pageviews within a session.', lifetime: '24 hours' },
   { name: 'ph_*', vendor: 'PostHog', purpose: 'Anonymous distinct id and session id for event metrics.', lifetime: '12 months' },
+  { name: '_ga', vendor: 'Google Analytics 4', purpose: 'Distinguishes unique visitors for aggregate measurement.', lifetime: '13 months' },
+  { name: '_ga_*', vendor: 'Google Analytics 4', purpose: 'Persists session state for a single GA4 property.', lifetime: '13 months' },
   { name: '_vercel_*', vendor: 'Vercel Web Analytics', purpose: 'Performance / pageview measurement (first-party).', lifetime: 'Session' },
 ];
 

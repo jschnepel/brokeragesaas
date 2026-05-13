@@ -74,6 +74,11 @@ export default function PrivacyPolicyPage() {
                   funnels. Configured events-only with autocapture and session recording disabled.
                 </li>
                 <li>
+                  <strong className="text-stone">Google Analytics 4</strong> — aggregated page views,
+                  sessions, and traffic source. IP addresses are anonymized at ingestion; we do not enable
+                  advertising features or share data with Google Ads.
+                </li>
+                <li>
                   <strong className="text-stone">Vercel Web Analytics</strong> — first-party Core Web Vitals
                   measurement. No cookies; aggregated only.
                 </li>

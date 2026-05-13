@@ -22,7 +22,7 @@ import { parquetReadObjects } from 'hyparquet';
 import { compressors } from 'hyparquet-compressors';
 
 // CloudFront distribution E3JUA9RU5MGWQV → S3 analytics/* (1h TTL).
-// Override via env if migrating to a custom domain (e.g. marts.yongchoi.com).
+// Override via env if migrating to a custom domain (e.g. marts.yong-choi.com).
 const CDN_BASE =
   process.env.NEXT_PUBLIC_MARTS_CDN_BASE
   ?? 'https://d12v6de1xwcjhk.cloudfront.net';
