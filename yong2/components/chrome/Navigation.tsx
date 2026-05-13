@@ -123,9 +123,11 @@ export function Navigation({ initialTransparent = false }: NavigationProps) {
           >
             Saved{savedCount > 0 ? ` (${savedCount})` : ''}
           </Link>
-          <a href={siteContent.contact.mobileHref} className="caps mt-4 text-gold">
-            {siteContent.contact.mobile}
-          </a>
+          {siteContent.contact.primaryPhoneHref && siteContent.contact.primaryPhone ? (
+            <a href={siteContent.contact.primaryPhoneHref} className="caps mt-4 text-gold">
+              {siteContent.contact.primaryPhone}
+            </a>
+          ) : null}
         </div>
       </div>
     </nav>

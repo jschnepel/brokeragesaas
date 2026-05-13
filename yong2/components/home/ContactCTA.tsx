@@ -22,14 +22,18 @@ export function ContactCTA() {
         </div>
         <div className="md:border-l md:border-white/10 md:pl-12">
           <dl className="space-y-3">
-            <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
-              <dt className="caps text-stone/70">Mobile</dt>
-              <dd>
-                <a href={siteContent.contact.mobileHref} className="hover:text-gold transition-colors">
-                  {siteContent.contact.mobile}
-                </a>
-              </dd>
-            </div>
+            {siteContent.contact.primaryPhoneHref &&
+            siteContent.contact.primaryPhone &&
+            siteContent.contact.primaryPhoneLabel ? (
+              <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
+                <dt className="caps text-stone/70">{siteContent.contact.primaryPhoneLabel}</dt>
+                <dd>
+                  <a href={siteContent.contact.primaryPhoneHref} className="hover:text-gold transition-colors">
+                    {siteContent.contact.primaryPhone}
+                  </a>
+                </dd>
+              </div>
+            ) : null}
             <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
               <dt className="caps text-stone/70">Email</dt>
               <dd>

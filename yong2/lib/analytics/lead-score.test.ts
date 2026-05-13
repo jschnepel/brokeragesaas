@@ -11,7 +11,7 @@ function attrFromUrl(url: string, referrer: string | null = null): Attribution {
 
 const baseForm: FormFields = {
   email: 'jane@somecompany.com',
-  phone: '(480) 555-1234',
+  phone: '(602) 555-0100',
   interest: 'Buying',
   message: 'Looking for a home in Silverleaf around $5M, ideally with mountain views.',
 };
@@ -44,7 +44,7 @@ describe('scoreLead', () => {
 
   it('hot when all signals stack — buyer with deep engagement + paid search brand', () => {
     const attr = attrFromUrl(
-      'https://yongchoi.com/?gclid=abc&utm_source=google&utm_medium=cpc&utm_campaign=yong-brand',
+      'https://yong-choi.com/?gclid=abc&utm_source=google&utm_medium=cpc&utm_campaign=yong-brand',
     );
     const result = scoreLead({
       form: baseForm,
@@ -64,7 +64,7 @@ describe('scoreLead', () => {
   });
 
   it('warm for typical luxury inquiry with moderate engagement', () => {
-    const attr = attrFromUrl('https://yongchoi.com/', 'https://google.com/');
+    const attr = attrFromUrl('https://yong-choi.com/', 'https://google.com/');
     const result = scoreLead({
       form: baseForm,
       attribution: attr,
@@ -149,7 +149,7 @@ describe('scoreLead', () => {
   });
 
   it('total never exceeds 100', () => {
-    const attr = attrFromUrl('https://yongchoi.com/?gclid=a&utm_campaign=yong-brand');
+    const attr = attrFromUrl('https://yong-choi.com/?gclid=a&utm_campaign=yong-brand');
     const result = scoreLead({
       form: {
         ...baseForm,

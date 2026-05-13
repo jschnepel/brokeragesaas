@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { CapsLabel } from '@/components/shared/CapsLabel';
+import { siteContent } from '@/content/site';
 
 type ScheduleShowingFormProps = {
   listingKey: string;
@@ -83,7 +84,7 @@ export function ScheduleShowingForm({ listingKey, listingAddress }: ScheduleShow
       </button>
       {status === 'error' ? (
         <p className="text-xs text-red-400 mt-3 text-center">
-          Couldn't send. Please call (480) 555-1234.
+          Couldn&rsquo;t send. Please try again or email {siteContent.contact.email}.
         </p>
       ) : null}
       <p className="text-[10px] text-stone/40 text-center mt-4 leading-relaxed">

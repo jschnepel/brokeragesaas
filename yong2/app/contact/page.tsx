@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 import { Navigation } from '@/components/chrome/Navigation';
 import { Footer } from '@/components/chrome/Footer';
 import { SectionFrame } from '@/components/shared/SectionFrame';
@@ -63,17 +64,52 @@ export default async function ContactPage({
                 Messages are read personally and replied to within 24 hours.
               </p>
               <dl className="mt-10 space-y-3">
-                {[
-                  { k: 'Mobile', v: <a href={siteContent.contact.mobileHref} className="hover:text-gold">{siteContent.contact.mobile}</a> },
-                  { k: 'Email', v: <a href={`mailto:${siteContent.contact.email}`} className="hover:text-gold">{siteContent.contact.email}</a> },
-                  { k: 'Office', v: <span className="text-mute">{siteContent.contact.office}</span> },
-                  { k: 'Instagram', v: <a href={siteContent.contact.instagramHref} className="hover:text-gold">{siteContent.contact.instagram}</a> },
-                ].map((row) => (
-                  <div key={row.k} className="flex justify-between border-b border-white/10 py-3 text-sm">
-                    <dt className="caps">{row.k}</dt>
-                    <dd>{row.v}</dd>
-                  </div>
-                ))}
+                {(() => {
+                  const rows: { k: string; v: ReactNode }[] = [];
+                  if (
+                    siteContent.contact.primaryPhone &&
+                    siteContent.contact.primaryPhoneHref &&
+                    siteContent.contact.primaryPhoneLabel
+                  ) {
+                    rows.push({
+                      k: siteContent.contact.primaryPhoneLabel,
+                      v: (
+                        <a href={siteContent.contact.primaryPhoneHref} className="hover:text-gold">
+                          {siteContent.contact.primaryPhone}
+                        </a>
+                      ),
+                    });
+                  }
+                  rows.push({
+                    k: 'Email',
+                    v: (
+                      <a href={`mailto:${siteContent.contact.email}`} className="hover:text-gold">
+                        {siteContent.contact.email}
+                      </a>
+                    ),
+                  });
+                  rows.push({
+                    k: 'Office',
+                    v: <span className="text-mute">{siteContent.contact.office}</span>,
+                  });
+                  rows.push({
+                    k: 'Instagram',
+                    v: (
+                      <a href={siteContent.contact.instagramHref} className="hover:text-gold">
+                        {siteContent.contact.instagram}
+                      </a>
+                    ),
+                  });
+                  return rows.map((row) => (
+                    <div
+                      key={row.k}
+                      className="flex justify-between border-b border-white/10 py-3 text-sm"
+                    >
+                      <dt className="caps">{row.k}</dt>
+                      <dd>{row.v}</dd>
+                    </div>
+                  ));
+                })()}
               </dl>
             </div>
             <ContactForm initialValues={initialValues} />

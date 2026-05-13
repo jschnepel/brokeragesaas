@@ -415,7 +415,7 @@ For qualified buyers and their      │                        │
 representatives.                    │ Email                  │
                                     │ ───────────────────    │
 PREFER TO SPEAK DIRECTLY            │                        │
-(480) 555-1234                      │ Phone (optional)       │
+(602) 555-0100                      │ Phone (optional)       │
                                     │ ───────────────────    │
                                     │                        │
                                     │ Preferred date         │
@@ -509,7 +509,7 @@ Wraps onto two rows; each control still touch-friendly (≥44×44).
 | Element | Source | Notes |
 |---|---|---|
 | Back link | static `/portfolio` | always present |
-| Call link | `tel:+14805551234` | static for now; pull from siteContent |
+| Call link | `tel:+1XXXXXXXXXX` (placeholder) | pulled from `siteContent.contact.primaryPhoneHref` (env-driven via `NEXT_PUBLIC_ADVISOR_MOBILE` / `NEXT_PUBLIC_OFFICE_PHONE`) |
 | Share | `ShareButton` (Web Share API + clipboard fallback) | dynamic URL |
 | Request tour | `RequestTourCta` → `/contact?listing=...&interest=Buying` | always present |
 
@@ -536,7 +536,7 @@ Wraps onto two rows; each control still touch-friendly (≥44×44).
 ┌────────┐
 │ ARMLS  │   Listed by Yong Choi, Russ Lyon Sotheby's
 │  IDX   │   International Realty.
-└────────┘   Agent: (480) 555-1234 · Office: (480) 287-5200
+└────────┘   Agent: (XXX) XXX-XXXX · Office: (XXX) XXX-XXXX
 
              Listing information © 2026 Arizona Regional MLS.
              All rights reserved. Last updated: Apr 29, 2026.

@@ -263,7 +263,7 @@ export function PreviewListingClient() {
         lastUpdatedISO={listing.modificationTimestamp}
         listAgentName={listing.listAgentName}
         listOfficeName="Russ Lyon Sotheby's International Realty"
-        agentCellPhone="(480) 555-1234"
+        agentCellPhone={siteContent.contact.mobile}
         listOfficePhone="(480) 287-5200"
         brokerage="Russ Lyon Sotheby's International Realty"
       />

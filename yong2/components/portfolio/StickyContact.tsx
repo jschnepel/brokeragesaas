@@ -40,6 +40,10 @@ export function StickyContact({ listingKey, tourHref }: StickyContactProps) {
 
   if (!visible) return null;
 
+  const phoneHref = siteContent.contact.mobileHref;
+  const phoneDisplay = siteContent.contact.mobile;
+  const hasPhone = Boolean(phoneHref && phoneDisplay);
+
   return (
     <>
       {/* Desktop / tablet — full pill, always-expanded */}
@@ -48,15 +52,19 @@ export function StickyContact({ listingKey, tourHref }: StickyContactProps) {
         role="region"
         aria-label="Contact Yong about this listing"
       >
-        <a
-          href={siteContent.contact.mobileHref}
-          onClick={() => track('cta_call_click', { listingKey, surface: 'sticky' })}
-          className="caps inline-flex items-center gap-2 px-5 py-3 text-stone hover:text-gold transition-colors"
-          aria-label={`Call Yong at ${siteContent.contact.mobile}`}
-        >
-          <PhoneIcon /> <span>{siteContent.contact.mobile}</span>
-        </a>
-        <span aria-hidden="true" className="w-px h-6 bg-white/15" />
+        {hasPhone ? (
+          <>
+            <a
+              href={phoneHref!}
+              onClick={() => track('cta_call_click', { listingKey, surface: 'sticky' })}
+              className="caps inline-flex items-center gap-2 px-5 py-3 text-stone hover:text-gold transition-colors"
+              aria-label={`Call Yong at ${phoneDisplay}`}
+            >
+              <PhoneIcon /> <span>{phoneDisplay}</span>
+            </a>
+            <span aria-hidden="true" className="w-px h-6 bg-white/15" />
+          </>
+        ) : null}
         <Link
           href={tourHref}
           onClick={() => track('cta_request_tour_click', { listingKey, surface: 'sticky' })}
@@ -67,48 +75,62 @@ export function StickyContact({ listingKey, tourHref }: StickyContactProps) {
         </Link>
       </div>
 
-      {/* Mobile — circular pill (phone) that expands on tap */}
-      {!mobileExpanded ? (
-        <button
-          type="button"
-          onClick={() => setMobileExpanded(true)}
-          aria-label="Contact Yong about this listing"
-          className="md:hidden fixed bottom-4 right-4 z-40 w-14 h-14 rounded-full bg-gold text-ink flex items-center justify-center shadow-2xl hover:bg-gold-muted transition-colors"
-        >
-          <PhoneIcon />
-        </button>
-      ) : (
-        <div
-          className="md:hidden fixed bottom-4 right-4 left-4 z-40 bg-ink/95 backdrop-blur-md border border-gold/30 shadow-2xl"
-          role="region"
-          aria-label="Contact Yong about this listing"
-        >
-          <div className="flex flex-col">
-            <a
-              href={siteContent.contact.mobileHref}
-              onClick={() => track('cta_call_click', { listingKey, surface: 'sticky-mobile' })}
-              className="caps inline-flex items-center gap-3 px-5 py-4 text-stone hover:text-gold transition-colors border-b border-white/10"
-            >
-              <PhoneIcon /> <span>{siteContent.contact.mobile}</span>
-            </a>
-            <Link
-              href={tourHref}
-              onClick={() => track('cta_request_tour_click', { listingKey, surface: 'sticky-mobile' })}
-              className="caps inline-flex items-center justify-center gap-2 px-5 py-4 bg-gold text-ink hover:bg-gold-muted transition-colors"
-            >
-              <span>Request Tour</span>
-              <span aria-hidden="true">→</span>
-            </Link>
-            <button
-              type="button"
-              onClick={() => setMobileExpanded(false)}
-              aria-label="Close contact actions"
-              className="caps text-stone/60 text-[10px] py-2 hover:text-gold transition-colors"
-            >
-              Close
-            </button>
+      {/* Mobile — when a phone is configured: circular phone pill that
+       *  expands on tap. When no phone is configured: single tour pill
+       *  (no expansion needed since there's only one action). */}
+      {hasPhone ? (
+        !mobileExpanded ? (
+          <button
+            type="button"
+            onClick={() => setMobileExpanded(true)}
+            aria-label="Contact Yong about this listing"
+            className="md:hidden fixed bottom-4 right-4 z-40 w-14 h-14 rounded-full bg-gold text-ink flex items-center justify-center shadow-2xl hover:bg-gold-muted transition-colors"
+          >
+            <PhoneIcon />
+          </button>
+        ) : (
+          <div
+            className="md:hidden fixed bottom-4 right-4 left-4 z-40 bg-ink/95 backdrop-blur-md border border-gold/30 shadow-2xl"
+            role="region"
+            aria-label="Contact Yong about this listing"
+          >
+            <div className="flex flex-col">
+              <a
+                href={phoneHref!}
+                onClick={() => track('cta_call_click', { listingKey, surface: 'sticky-mobile' })}
+                className="caps inline-flex items-center gap-3 px-5 py-4 text-stone hover:text-gold transition-colors border-b border-white/10"
+              >
+                <PhoneIcon /> <span>{phoneDisplay}</span>
+              </a>
+              <Link
+                href={tourHref}
+                onClick={() => track('cta_request_tour_click', { listingKey, surface: 'sticky-mobile' })}
+                className="caps inline-flex items-center justify-center gap-2 px-5 py-4 bg-gold text-ink hover:bg-gold-muted transition-colors"
+              >
+                <span>Request Tour</span>
+                <span aria-hidden="true">→</span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => setMobileExpanded(false)}
+                aria-label="Close contact actions"
+                className="caps text-stone/60 text-[10px] py-2 hover:text-gold transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
-        </div>
+        )
+      ) : (
+        <Link
+          href={tourHref}
+          onClick={() => track('cta_request_tour_click', { listingKey, surface: 'sticky-mobile' })}
+          aria-label="Request a private tour of this listing"
+          className="md:hidden fixed bottom-4 right-4 z-40 caps inline-flex items-center gap-2 px-5 py-3 bg-gold text-ink shadow-2xl hover:bg-gold-muted transition-colors"
+        >
+          <span>Request Tour</span>
+          <span aria-hidden="true">→</span>
+        </Link>
       )}
     </>
   );

@@ -29,7 +29,13 @@ export function Footer() {
         <div>
           <div className="caps mb-4">Contact</div>
           <ul className="space-y-2.5 text-sm">
-            <li><a href={siteContent.contact.mobileHref} className="hover:text-gold">{siteContent.contact.mobile}</a></li>
+            {siteContent.contact.primaryPhoneHref && siteContent.contact.primaryPhone ? (
+              <li>
+                <a href={siteContent.contact.primaryPhoneHref} className="hover:text-gold">
+                  {siteContent.contact.primaryPhone}
+                </a>
+              </li>
+            ) : null}
             <li><a href={`mailto:${siteContent.contact.email}`} className="hover:text-gold">{siteContent.contact.email}</a></li>
             <li className="text-mute">{siteContent.contact.office}</li>
             <li><a href={siteContent.contact.instagramHref} className="hover:text-gold">{siteContent.contact.instagram}</a></li>

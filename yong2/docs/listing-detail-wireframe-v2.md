@@ -431,7 +431,7 @@ Precise address shared with qualified buyers following inquiry.
   │                             │                              │
   └─────────────────────────────┴──────────────────────────────┘
 
-  Or call Yong direct:  (480) 555-1234
+  Or call Yong direct:  (XXX) XXX-XXXX
 ═══════════════════════════════════════════════════════════════
 ```
 

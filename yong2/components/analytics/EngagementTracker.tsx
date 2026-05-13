@@ -80,8 +80,12 @@ export function EngagementTracker() {
   // including ones rendered deep in MDX, dynamic islands, or 3rd-party widgets
   // — fires the right tracking event without per-component instrumentation.
   useEffect(() => {
-    const officeNumberCondensed = siteContent.contact.mobileHref
-      .replace(/[^0-9+]/g, '');
+    // Disambiguate which configured number was clicked. Mobile is the
+    // advisor-direct line; everything else (including the office line)
+    // falls through to `value: 'office'`. Empty string when neither env
+    // is set — the equality check below then never matches and every
+    // tel: click logs as `value: 'office'`.
+    const mobileCondensed = (siteContent.contact.mobileHref ?? '').replace(/[^0-9+]/g, '');
 
     const onClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
@@ -93,7 +97,7 @@ export function EngagementTracker() {
       if (anchor.protocol === 'tel:') {
         const condensed = anchor.href.replace(/[^0-9+]/g, '');
         const value: 'mobile' | 'office' =
-          condensed === officeNumberCondensed ? 'mobile' : 'office';
+          mobileCondensed !== '' && condensed === mobileCondensed ? 'mobile' : 'office';
         track('cta_phone_click', { value });
         return;
       }

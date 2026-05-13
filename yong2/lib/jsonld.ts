@@ -33,12 +33,17 @@ export function websiteSchema() {
 }
 
 export function realEstateAgentSchema() {
-  return {
+  // Telephone is optional in Schema.org's RealEstateAgent. Emit only
+  // when a phone is actually configured so an unset env doesn't leave
+  // a literal "null" in the JSON-LD payload (which trips Google's Rich
+  // Results validator).
+  const telephone = siteContent.contact.primaryPhone ?? undefined;
+  return clean({
     '@context': 'https://schema.org',
     '@type': 'RealEstateAgent',
     name: yongBio.name,
     image: `${SITE_URL}${yongBio.photoUrl}`,
-    telephone: siteContent.contact.mobile,
+    telephone,
     email: siteContent.contact.email,
     url: SITE_URL,
     address: {
@@ -52,7 +57,7 @@ export function realEstateAgentSchema() {
       name: yongBio.brokerage,
     },
     areaServed: ['Scottsdale', 'Paradise Valley', 'Desert Mountain', 'Carefree', 'Cave Creek'],
-  };
+  });
 }
 
 export function realEstateListingSchema(listing: Listing) {

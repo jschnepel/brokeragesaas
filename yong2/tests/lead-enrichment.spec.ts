@@ -73,7 +73,7 @@ test('contact form POST returns server-computed score + band', async ({ page }) 
       body: JSON.stringify({
         name: 'Jane Buyer',
         email: 'jane@somecompany.com',
-        phone: '4805551234',
+        phone: '6025550100',
         interest: 'Buying',
         message:
           'Looking for a home in Silverleaf or Estancia around $5M; references MLS #1234567.',
