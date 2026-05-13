@@ -97,8 +97,26 @@ export type SortKey =
   | 'year-desc'
   | 'dom-asc';
 
+/**
+ * Field the text query targets. Defaults to 'any' which OR-unions
+ * UnparsedAddress, SubdivisionName, City, and PostalCode — the
+ * widest casting net for a visitor who isn't sure where their
+ * search term lives. Specific values narrow the OData `contains()`
+ * to a single field so noisy unrelated matches drop out:
+ *   - 'address'   → UnparsedAddress only ("10293 Chiricahua")
+ *   - 'community' → SubdivisionName only ("Silverleaf")
+ *   - 'city'      → City only ("Scottsdale")
+ *   - 'zip'       → PostalCode only ("85262")
+ *
+ * Keep aligned with `QField` in components/listings/SearchBar.tsx
+ * and the `qField` enum in app/api/listings/search/route.ts.
+ */
+export type QField = 'any' | 'address' | 'community' | 'city' | 'zip';
+
 export interface SearchOpts {
   q?: string;
+  /** Field that the text query is matched against. Defaults to 'any'. */
+  qField?: QField;
   bbox?: BBox;
   polygonGeoJSON?: PolygonGeoJSON;
   status?: StatusFilter[];

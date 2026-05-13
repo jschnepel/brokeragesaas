@@ -21,6 +21,7 @@ import type {
   BBox,
   HomeType,
   PolygonGeoJSON,
+  QField,
   SortKey,
   StatusFilter,
 } from './listings-search';
@@ -38,11 +39,14 @@ import {
 
 export interface ListingsUrlState {
   q: string;
+  qField: QField;
   filters: FilterState;
   sort: SortKey;
   bbox: BBox | null;
   polygon: PolygonGeoJSON | null;
 }
+
+const VALID_QFIELD: QField[] = ['any', 'address', 'community', 'city', 'zip'];
 
 const VALID_STATUS: StatusFilter[] = ['Active', 'Coming Soon', 'Pending'];
 const VALID_HOME: HomeType[] = ['house', 'condo', 'multi', 'land'];
@@ -149,6 +153,12 @@ export function serializeListingsState(state: ListingsUrlState): URLSearchParams
   const sp = new URLSearchParams();
 
   if (state.q.trim()) sp.set('q', state.q.trim());
+  // qField — omit when default 'any' so clean URLs stay clean.
+  // Without a `q` we don't bother serializing it either; the field
+  // selector only matters in the presence of a text query.
+  if (state.q.trim() && state.qField && state.qField !== 'any') {
+    sp.set('qf', state.qField);
+  }
 
   if (state.filters.status.length > 0) {
     sp.set('status', state.filters.status.map((s) => STATUS_TO_PARAM[s]).join(','));
@@ -205,6 +215,11 @@ export function parseListingsUrl(sp: URLSearchParams): Partial<ListingsUrlState>
 
   const q = sp.get('q');
   if (q) out.q = q.slice(0, 200);
+
+  const qfRaw = sp.get('qf');
+  if (qfRaw && VALID_QFIELD.includes(qfRaw as QField)) {
+    out.qField = qfRaw as QField;
+  }
 
   const statusParam = sp.get('status');
   const homeParam = sp.get('home');
@@ -307,7 +322,7 @@ export function parseListingsUrl(sp: URLSearchParams): Partial<ListingsUrlState>
  */
 export function urlHasUserState(sp: URLSearchParams): boolean {
   for (const key of [
-    'q', 'status', 'home', 'price', 'beds', 'baths',
+    'q', 'qf', 'status', 'home', 'price', 'beds', 'baths',
     'sqft', 'lot', 'year', 'garage',
     'pool', 'spa', 'water', 'horse', 'story1', 'new', 'reduced',
     'sort', 'bbox', 'poly',

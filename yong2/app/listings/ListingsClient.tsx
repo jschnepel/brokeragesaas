@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { Listing } from '@/lib/types';
-import type { BBox, PinPoint, PolygonGeoJSON, StatusFilter } from '@/lib/listings-search';
+import type { BBox, PinPoint, PolygonGeoJSON, QField, StatusFilter } from '@/lib/listings-search';
 import { SearchBar, type SortKey } from '@/components/listings/SearchBar';
 import {
   DEFAULT_ADVANCED_FILTERS,
@@ -117,6 +117,7 @@ export function ListingsClient({
   const [scrollToKey, setScrollToKey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('split'); // for mobile
   const [sort, setSort] = useState<SortKey>(initialUrlState.sort ?? 'price-desc');
+  const [qField, setQField] = useState<QField>(initialUrlState.qField ?? 'any');
   // Cursor for the next Load More request — surfaced by the API on
   // every response. Null when there's no next page. Replaces the
   // offset-based paginator: cursors stay valid even if pool ordering
@@ -174,13 +175,27 @@ export function ListingsClient({
 
   // Compose the SearchOpts payload — memoized so an effect can depend on it
   // without triggering churn from object identity alone.
+  //
+  // bbox is intentionally omitted from `opts` whenever a text query OR a
+  // user-drawn polygon is active. Server-side these clauses fully define
+  // the search universe (text via Spark `contains()`, polygon via the
+  // post-fetch spatial filter), so sending bbox would be a no-op at
+  // best — and at worst would churn the lib-internal search cache when
+  // the auto-fit-to-results camera move (see search-effect below) shifts
+  // bbox state and the memo re-runs.
   const searchOpts = useMemo(() => {
     const { priceMin, priceMax } = priceRangeToBounds(filters.priceRange);
     const opts: Record<string, unknown> = {};
-    if (q.trim()) opts.q = q.trim();
+    const hasTextQuery = q.trim().length > 0;
+    if (hasTextQuery) {
+      opts.q = q.trim();
+      // Only include qField when it narrows from the default 'any'
+      // OR-union so the API request stays minimal for the common case.
+      if (qField !== 'any') opts.qField = qField;
+    }
     if (polygon) {
       opts.polygonGeoJSON = polygon;
-    } else if (bbox) {
+    } else if (bbox && !hasTextQuery) {
       opts.bbox = bbox;
     }
     if (filters.status.length > 0) opts.status = filters.status as StatusFilter[];
@@ -218,7 +233,7 @@ export function ListingsClient({
     opts.sort = sort;
     opts.limit = PAGE_LIMIT;
     return opts;
-  }, [q, polygon, bbox, filters, sort]);
+  }, [q, qField, polygon, bbox, filters, sort]);
 
   // Push every user-visible state change into the URL. Refresh, back/
   // forward, and shared links all preserve filter intent. router.replace
@@ -234,6 +249,7 @@ export function ListingsClient({
     // fresh URL and clutter shareable links.
     const sp = serializeListingsState({
       q,
+      qField,
       filters,
       sort,
       bbox: userMovedMapRef.current ? bbox : null,
@@ -247,7 +263,7 @@ export function ListingsClient({
     // pathname/router/searchParams identities are stable from Next's
     // routing context; including them in deps keeps the linter happy
     // without causing extra runs.
-  }, [q, filters, sort, bbox, polygon, pathname, router, searchParams]);
+  }, [q, qField, filters, sort, bbox, polygon, pathname, router, searchParams]);
 
   // Skip the initial render's fetch (server gave us hydration data already).
   // EXCEPT:
@@ -296,6 +312,23 @@ export function ListingsClient({
         setHasMore(Boolean(json.hasMore));
         setNextCursor(json.nextCursor ?? null);
         if (json.fetchedAt) setFetchedAt(json.fetchedAt);
+        // Auto-fit the map to the result pins when the search was driven
+        // by a text query (the visitor typed something) and the response
+        // brought back pins. Without this, typing "Carefree" while the
+        // map is on Scottsdale leaves the user staring at an empty
+        // viewport while the matches sit off-screen in the result panel.
+        // Skipped for polygon searches — the polygon already framed the
+        // area (see the freehand `finish` handler in MapPanel) and
+        // re-fitting would over-zoom on a sparse pin set.
+        const fitOpts = searchOpts as { q?: string; polygonGeoJSON?: unknown };
+        if (
+          fitOpts.q
+          && !fitOpts.polygonGeoJSON
+          && Array.isArray(json.pins)
+          && json.pins.length > 0
+        ) {
+          mapRef.current?.fitToPins(json.pins);
+        }
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
         // eslint-disable-next-line no-console
@@ -342,6 +375,7 @@ export function ListingsClient({
 
   const handleResetFilters = useCallback(() => {
     setQ('');
+    setQField('any');
     setPolygon(null);
     setFilters(INITIAL_FILTER);
     setDrawingActive(false);
@@ -522,6 +556,7 @@ export function ListingsClient({
             ref={mapRef}
             pins={pins}
             drawingActive={drawingActive}
+            polygon={polygon}
             onPolygonComplete={handlePolygonComplete}
             onClearShape={handleClearShape}
             onPinClick={handlePinClick}
@@ -541,6 +576,8 @@ export function ListingsClient({
           <SearchBar
             initialValue={q}
             onChange={handleQChange}
+            qField={qField}
+            onQFieldChange={setQField}
             drawingActive={drawingActive}
             onToggleDrawing={handleToggleDrawing}
             onClearShape={polygon ? handleClearShape : undefined}

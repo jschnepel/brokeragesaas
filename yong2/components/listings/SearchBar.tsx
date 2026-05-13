@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { SortKey } from '@/lib/listings-search';
+import type { QField, SortKey } from '@/lib/listings-search';
 
-export type { SortKey };
+export type { QField, SortKey };
 
 const SORT_LABELS: Record<SortKey, string> = {
   newest: 'Newest',
@@ -15,9 +15,33 @@ const SORT_LABELS: Record<SortKey, string> = {
   'dom-asc': 'Days on market · Fewest',
 };
 
+// Field-selector dropdown — visitor picks which column the text
+// query is matched against. 'any' is the default (current behavior
+// preserved). Each label is short enough to fit in the leading
+// slot of the search row without crowding the input.
+const Q_FIELD_LABELS: Record<QField, string> = {
+  any: 'All',
+  address: 'Address',
+  community: 'Community',
+  city: 'City',
+  zip: 'Zip',
+};
+
+// Placeholder copy follows the active field selection so the
+// visitor knows what shape of term to type ("85262" vs "Silverleaf").
+const Q_FIELD_PLACEHOLDERS: Record<QField, string> = {
+  any: 'Address, community, city, or zip',
+  address: 'Search by street address',
+  community: 'Search by community or subdivision',
+  city: 'Search by city',
+  zip: 'Search by zip code',
+};
+
 type SearchBarProps = {
   initialValue?: string;
   onChange: (value: string) => void;
+  qField?: QField;
+  onQFieldChange?: (next: QField) => void;
   drawingActive: boolean;
   onToggleDrawing: () => void;
   onClearShape?: () => void;
@@ -38,6 +62,8 @@ type SearchBarProps = {
 export function SearchBar({
   initialValue = '',
   onChange,
+  qField = 'any',
+  onQFieldChange,
   drawingActive,
   onToggleDrawing,
   onClearShape,
@@ -67,6 +93,23 @@ export function SearchBar({
   return (
     <div className="border-b border-white/10 bg-ink-elevated/95 backdrop-blur-sm">
       <div className="px-4 md:px-6 py-3 flex items-center gap-3">
+        {onQFieldChange ? (
+          <label className="flex items-center gap-1 text-mute shrink-0">
+            <span className="sr-only">Search field</span>
+            <select
+              value={qField}
+              onChange={(e) => onQFieldChange(e.target.value as QField)}
+              aria-label="Search field"
+              className="bg-transparent border-b border-white/15 focus:border-gold focus:outline-none text-stone text-sm py-2 pr-5 pl-1 cursor-pointer"
+            >
+              {(Object.keys(Q_FIELD_LABELS) as QField[]).map((f) => (
+                <option key={f} value={f} className="bg-ink text-stone">
+                  {Q_FIELD_LABELS[f]}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <div className="relative flex-1">
           <svg
             aria-hidden
@@ -80,8 +123,9 @@ export function SearchBar({
             type="search"
             value={value}
             onChange={(e) => handleChange(e.target.value)}
-            placeholder="Address, city, or community"
-            aria-label="Search listings"
+            placeholder={Q_FIELD_PLACEHOLDERS[qField] ?? Q_FIELD_PLACEHOLDERS.any}
+            aria-label={`Search listings by ${Q_FIELD_LABELS[qField] ?? 'all fields'}`}
+            inputMode={qField === 'zip' ? 'numeric' : undefined}
             className="w-full bg-transparent border-b border-white/15 focus:border-gold focus:outline-none pl-8 pr-8 py-2 text-stone placeholder:text-mute"
           />
           {value ? (

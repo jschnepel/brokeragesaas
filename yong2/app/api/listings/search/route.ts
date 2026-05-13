@@ -36,6 +36,7 @@ const polygonSchema = z.object({
 
 const bodySchema = z.object({
   q: z.string().max(200).optional(),
+  qField: z.enum(['any', 'address', 'community', 'city', 'zip']).optional(),
   bbox: bboxSchema.optional(),
   polygonGeoJSON: polygonSchema.optional(),
   status: z.array(z.enum(['Active', 'Coming Soon', 'Pending'])).optional(),

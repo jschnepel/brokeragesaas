@@ -33,11 +33,28 @@ export interface MapPanelHandle {
   flyToListing: (key: string) => void;
   /** Apply a "highlight" feature-state to a single pin and ring. */
   setHighlight: (key: string | null) => void;
+  /**
+   * Fit the camera to the bounding box of a pin set. Used after a
+   * text search returns matches that may be outside the current
+   * viewport — without this the result panel shows hits but the
+   * map keeps its old framing and the user can't see the pins.
+   * No-ops when the array is empty or all coords are invalid.
+   */
+  fitToPins: (pinsToFit: PinPoint[]) => void;
 }
 
 interface MapPanelProps {
   pins: PinPoint[];
   drawingActive: boolean;
+  /**
+   * Currently-active polygon (or null when none). Watched by the
+   * shape-sync effect: when this transitions to null the terra-draw
+   * feature is cleared from the map. A non-null value left in place
+   * after a successful draw is the signal to KEEP the polygon
+   * rendered — without this the `drawingActive=false` transition
+   * after `finish` would wipe the shape the user just drew.
+   */
+  polygon: PolygonGeoJSON | null;
   onPolygonComplete: (poly: PolygonGeoJSON) => void;
   onClearShape: () => void;
   onPinClick: (key: string, slug: string) => void;
@@ -70,6 +87,7 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
   {
     pins,
     drawingActive,
+    polygon,
     onPolygonComplete,
     onClearShape,
     onPinClick,
@@ -535,6 +553,24 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
           drawStartedRef.current = false;
           callbacksRef.current.onPolygonComplete({ type: 'Polygon', coordinates: geom.coordinates });
           draw.setMode('static');
+          // Fit the map to the freshly-drawn polygon so the visitor's
+          // selection is centered + framed. Without this, a polygon
+          // drawn near the edge of the viewport (or on a different
+          // zoom level than where the results land) leaves the user
+          // looking at empty basemap while the pin set is elsewhere.
+          // padding=60 keeps the polygon clear of the search-panel
+          // gutter on the right; maxZoom=15 prevents over-zooming on
+          // tiny shapes that would otherwise jump past street level.
+          const b = polygonBounds(geom.coordinates);
+          if (Number.isFinite(b.minLng) && Number.isFinite(b.minLat)) {
+            m.fitBounds(
+              [
+                [b.minLng, b.minLat],
+                [b.maxLng, b.maxLat],
+              ],
+              { padding: 60, animate: true, duration: 600, maxZoom: 15 },
+            );
+          }
         });
       });
     })();
@@ -652,15 +688,51 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
       }
       highlightedKeyRef.current = key;
     },
+    fitToPins: (pinsToFit: PinPoint[]) => {
+      const m = mapRef.current;
+      if (!m || !pinsToFit || pinsToFit.length === 0) return;
+      let minLng = Infinity;
+      let minLat = Infinity;
+      let maxLng = -Infinity;
+      let maxLat = -Infinity;
+      for (const p of pinsToFit) {
+        if (!Number.isFinite(p.longitude) || !Number.isFinite(p.latitude)) continue;
+        if (p.longitude < minLng) minLng = p.longitude;
+        if (p.latitude < minLat) minLat = p.latitude;
+        if (p.longitude > maxLng) maxLng = p.longitude;
+        if (p.latitude > maxLat) maxLat = p.latitude;
+      }
+      if (!Number.isFinite(minLng) || !Number.isFinite(minLat)) return;
+      // maxZoom=14 is street-grid resolution — prevents over-zooming
+      // when the pin set is a single listing. padding=60 keeps the
+      // pin cluster clear of the right-panel gutter and the top
+      // search bar.
+      m.fitBounds(
+        [
+          [minLng, minLat],
+          [maxLng, maxLat],
+        ],
+        { padding: 60, animate: true, duration: 600, maxZoom: 14 },
+      );
+    },
   }), []);
 
-  // Wire a "Clear shape" callback when the parent toggles drawingActive off
-  // mid-draw — terra-draw must clear its in-progress polygon.
+  // Clear terra-draw's rendered polygon when the parent's polygon
+  // state goes null (e.g. user clicks "Clear shape"). Watching the
+  // polygon prop — rather than drawingActive — means a SUCCESSFUL
+  // draw (drawingActive flips false but polygon is set) keeps the
+  // visible shape on the map; only an explicit clear wipes it.
+  //
+  // Previous implementation watched drawingActive and called
+  // draw.clear() on every false transition, which silently erased
+  // the polygon the user had just finished drawing (the finish
+  // event sets drawingActive=false on the parent, which fired this
+  // effect and undid the draw).
   useEffect(() => {
-    if (!drawingActive && drawRef.current) {
+    if (polygon == null && drawRef.current) {
       try { drawRef.current.clear(); } catch { /* ignore */ }
     }
-  }, [drawingActive]);
+  }, [polygon]);
 
   return (
     <>
@@ -815,6 +887,33 @@ function buildPopupHtml(
  * over-counts area slightly. That's fine for a histogram; we'd revisit if
  * we ever started gating logic on the value.
  */
+/**
+ * Compute the axis-aligned lng/lat bounding box of a polygon. Used to
+ * fitBounds() the map after the user finishes drawing — without this,
+ * a polygon drawn near the edge of the viewport leaves the visitor
+ * looking at empty basemap while the narrowed pin set sits off-screen.
+ */
+function polygonBounds(
+  coords: number[][][],
+): { minLng: number; minLat: number; maxLng: number; maxLat: number } {
+  let minLng = Infinity;
+  let minLat = Infinity;
+  let maxLng = -Infinity;
+  let maxLat = -Infinity;
+  for (const ring of coords) {
+    for (const point of ring) {
+      const lng = point[0];
+      const lat = point[1];
+      if (typeof lng !== 'number' || typeof lat !== 'number') continue;
+      if (lng < minLng) minLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lng > maxLng) maxLng = lng;
+      if (lat > maxLat) maxLat = lat;
+    }
+  }
+  return { minLng, minLat, maxLng, maxLat };
+}
+
 function polygonAreaKm2(coords: number[][][]): number {
   if (!coords || coords.length === 0 || coords[0].length < 4) return 0;
   const ring = coords[0];

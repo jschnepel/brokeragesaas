@@ -284,7 +284,33 @@ function buildSearchFilter(opts: SearchOpts): string {
   // window that post-fetch filtering would have to over-fetch from.
   if (opts.q && opts.q.trim().length > 0) {
     const escaped = escapeLiteral(opts.q.trim());
-    const textClause = `(contains(UnparsedAddress,'${escaped}') or contains(City,'${escaped}') or contains(SubdivisionName,'${escaped}'))`;
+    // Narrow `contains()` to the field the visitor explicitly chose.
+    // Default ('any') OR-unions every searchable field so the user
+    // doesn't have to know which field their term lives in.
+    const field = opts.qField ?? 'any';
+    let textClause: string;
+    switch (field) {
+      case 'address':
+        textClause = `contains(UnparsedAddress,'${escaped}')`;
+        break;
+      case 'community':
+        textClause = `contains(SubdivisionName,'${escaped}')`;
+        break;
+      case 'city':
+        textClause = `contains(City,'${escaped}')`;
+        break;
+      case 'zip':
+        textClause = `contains(PostalCode,'${escaped}')`;
+        break;
+      case 'any':
+      default:
+        textClause =
+          `(contains(UnparsedAddress,'${escaped}')` +
+          ` or contains(City,'${escaped}')` +
+          ` or contains(SubdivisionName,'${escaped}')` +
+          ` or contains(PostalCode,'${escaped}'))`;
+        break;
+    }
     clauses.push(textClause);
   }
 
@@ -407,6 +433,19 @@ function buildSearchFilter(opts: SearchOpts): string {
 function applyClientFilters(records: SparkProperty[], opts: SearchOpts): SparkProperty[] {
   let out = records;
 
+  // Spatial narrow precedence:
+  //   polygon (explicit user-drawn shape)  → always respected
+  //   bbox (current map viewport)          → respected UNLESS a text query is set
+  //   text query active                    → bbox is intentionally ignored so the
+  //                                          search finds matches anywhere in the
+  //                                          feed, not just inside the visible
+  //                                          map area. Typing "Carefree" while
+  //                                          the map is on Scottsdale should
+  //                                          return Carefree results; the
+  //                                          earlier behavior silently dropped
+  //                                          every match outside the viewport.
+  const hasTextQuery = typeof opts.q === 'string' && opts.q.trim().length > 0;
+
   if (opts.polygonGeoJSON) {
     const ring = opts.polygonGeoJSON.coordinates[0];
     if (ring && ring.length >= 4) {
@@ -417,7 +456,7 @@ function applyClientFilters(records: SparkProperty[], opts: SearchOpts): SparkPr
         return pointInPolygon(lng, lat, ring);
       });
     }
-  } else if (opts.bbox) {
+  } else if (opts.bbox && !hasTextQuery) {
     const b = opts.bbox;
     out = out.filter((r) => {
       const lat = asNumber(r['Latitude']);
