@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { Navigation } from '@/components/chrome/Navigation';
 import { ListingsClient } from './ListingsClient';
 import { ListingsSeoList } from '@/components/listings/ListingsSeoList';
@@ -83,15 +84,27 @@ export default async function ListingsPage() {
          *  search surface.
          */}
         <ListingsSeoList listings={initial.listings} total={initial.total} />
-        <ListingsClient
-          initialListings={initial.listings}
-          initialPins={initial.pins}
-          initialTotal={initial.total}
-          initialHasMore={initial.hasMore}
-          initialFetchedAt={initial.fetchedAt}
-          initialNextCursor={initial.nextCursor ?? null}
-          initialBbox={DEFAULT_BBOX}
-        />
+        {/*
+         * Suspense wraps ListingsClient (not the data fetch) because
+         * the client component reads `useSearchParams()` and Next's
+         * build refuses to prerender a client subtree that does
+         * unless its parent has a Suspense boundary. The fallback is
+         * `null` — the SeoList above already renders the SSR'd
+         * inventory as HTML for crawlers, and JS users see hydration
+         * complete fast enough that no visible loading state is
+         * desirable here.
+         */}
+        <Suspense fallback={null}>
+          <ListingsClient
+            initialListings={initial.listings}
+            initialPins={initial.pins}
+            initialTotal={initial.total}
+            initialHasMore={initial.hasMore}
+            initialFetchedAt={initial.fetchedAt}
+            initialNextCursor={initial.nextCursor ?? null}
+            initialBbox={DEFAULT_BBOX}
+          />
+        </Suspense>
       </main>
     </>
   );
