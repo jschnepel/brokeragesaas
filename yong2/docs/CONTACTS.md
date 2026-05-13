@@ -5,8 +5,9 @@
 ## Production domain
 
 - **Canonical domain:** `yong-choi.com` (hyphenated)
-- **Hosting:** AWS Amplify (app id `d2tuygdje4mmy3`, branch `feature/yong2-amplify`)
-- **DNS:** GoDaddy (`ns65.domaincontrol.com`)
+- **Hosting:** Vercel (project `joey-eps-projects/yong2`, since 2026-05-13). Replaces the prior AWS Amplify app `d2tuygdje4mmy3`, which is now serving residual cached-DNS traffic only and is scheduled for decommission once propagation completes.
+- **DNS:** GoDaddy. Apex A → `216.198.79.1` (Vercel anycast). `www` CNAME → `cname.vercel-dns.com`.
+- **SSL:** Let's Encrypt, auto-provisioned by Vercel.
 - **Mail (MX):** **NOT YET PROVISIONED.** See "Open items" below.
 
 ## ⚠ Do not use `yongchoi[.]com` (no hyphen)
@@ -43,3 +44,4 @@ These items must be completed before the site is announced or appears in search 
 | Date | Change | By |
 |---|---|---|
 | 2026-05-13 | Initial creation. Privacy pages migrated from `privacy@yongchoi[.]com (typo)` (third-party-owned) to `joey@echelonpoint.dev` (verified Google Workspace). All body-copy domain references changed from `yongchoi[.]com` to `yong-choi.com`. | Joey |
+| 2026-05-13 | Production hosting migrated from AWS Amplify to Vercel. DNS cutover at GoDaddy: apex `yong-choi.com` A → `216.198.79.1`, `www` CNAME → `cname.vercel-dns.com`. Vercel-issued SSL via Let's Encrypt. Amplify app `d2tuygdje4mmy3` pending decommission after DNS-cache decay (~48h). | Joey |
