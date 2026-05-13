@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { Navigation } from '@/components/chrome/Navigation';
 import { ListingsClient } from './ListingsClient';
+import { ListingsSeoList } from '@/components/listings/ListingsSeoList';
 // Listings search is now Spark-backed — full ARMLS Active+Pending
 // inventory, no RDS dependency. See lib/spark/search.ts.
 import { searchListings } from '@/lib/spark/search';
@@ -61,15 +62,24 @@ async function ListingsResults() {
     };
   });
   return (
-    <ListingsClient
-      initialListings={initial.listings}
-      initialPins={initial.pins}
-      initialTotal={initial.total}
-      initialHasMore={initial.hasMore}
-      initialFetchedAt={initial.fetchedAt}
-      initialNextCursor={initial.nextCursor ?? null}
-      initialBbox={DEFAULT_BBOX}
-    />
+    <>
+      {/* Crawler-readable inventory list — server-rendered, sr-only.
+       *  Lives inside the Suspense boundary so it gets the same data
+       *  as the interactive ListingsClient. Without this, non-JS
+       *  responses (curl, AI summarisers, older crawlers) see only
+       *  the skeleton fallback — audit item 2.1.
+       */}
+      <ListingsSeoList listings={initial.listings} total={initial.total} />
+      <ListingsClient
+        initialListings={initial.listings}
+        initialPins={initial.pins}
+        initialTotal={initial.total}
+        initialHasMore={initial.hasMore}
+        initialFetchedAt={initial.fetchedAt}
+        initialNextCursor={initial.nextCursor ?? null}
+        initialBbox={DEFAULT_BBOX}
+      />
+    </>
   );
 }
 

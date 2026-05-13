@@ -79,7 +79,22 @@ export function parsePeriodSlug(slug: string): Period | null {
 // AZ time + ISO week math (no DST observed in Phoenix)
 // ─────────────────────────────────────────────────────────────────
 
-/** Fixed AZ offset in milliseconds. Phoenix is MST year-round. */
+/**
+ * Fixed AZ offset in milliseconds. Phoenix is MST year-round —
+ * Arizona is the only US state outside Hawaii that does not observe
+ * daylight saving time, so UTC-7 holds 365 days a year.
+ *
+ * Guard rail: if Arizona ever adopts DST (the legislature has tried
+ * twice in the last decade and failed both times, but it's a live
+ * political question), this constant becomes wrong twice a year by
+ * one hour. The fallout is that the weekly Tuesday-00:00 AZ gate
+ * fires either 1h early or 1h late for the publish window — a
+ * 4%-of-a-day error that nobody downstream will notice for at least
+ * a build cycle. Switching to
+ * `Intl.DateTimeFormat({ timeZone: 'America/Phoenix' })` is the fix
+ * if DST adoption ever lands; the round-trip is more expensive than
+ * a fixed offset, which is why we don't pay it pre-emptively.
+ */
 const AZ_OFFSET_MS = -7 * 60 * 60 * 1000;
 
 /** Current wall-clock time as if the server were in Phoenix. */
