@@ -5,7 +5,7 @@ import { listAvailablePeriods } from '@/lib/market-reports';
 import { siteUrl } from '@/lib/seo';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const staticRoutes = ['', '/portfolio', '/communities', '/market-reports', '/about', '/contact'];
+  const staticRoutes = ['', '/portfolio', '/communities', '/market-reports', '/about', '/contact', '/private-inventory'];
   const entries: MetadataRoute.Sitemap = staticRoutes.map((p) => ({
     url: siteUrl(p),
     changeFrequency: p === '' ? 'weekly' : 'monthly',

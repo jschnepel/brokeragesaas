@@ -53,8 +53,14 @@ export default function PortfolioPage() {
             </p>
             <div className="mt-12 flex flex-col sm:flex-row gap-4 justify-center">
               <Link
-                href="/contact"
+                href="/private-inventory"
                 className="inline-flex items-center justify-center px-6 py-3.5 caps text-ink bg-gold hover:bg-[color:var(--gold-muted)] transition-colors text-center tracking-[0.32em]"
+              >
+                Subscribe to Off-Market
+              </Link>
+              <Link
+                href="/contact"
+                className="inline-flex items-center justify-center px-6 py-3.5 caps text-stone border border-stone/30 hover:border-gold hover:text-gold transition-colors text-center tracking-[0.32em]"
               >
                 Begin a Conversation
               </Link>

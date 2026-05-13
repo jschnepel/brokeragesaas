@@ -107,6 +107,10 @@ export type EventCatalog = {
   cta_email_click: Record<string, never>;
   cta_instagram_click: Record<string, never>;
   cta_market_intelligence_click: Record<string, never>;
+  /** Fires on successful submit of the /private-inventory off-market
+   *  signup form. Properties carry the qualifying fields so PostHog
+   *  can segment converted leads by intent depth. */
+  cta_private_inventory_submit: { budget: string; timeline: string; communityCount: number };
 
   // Engagement
   scroll_depth_25: { pathname: string };
