@@ -5,6 +5,7 @@ import './globals.css';
 import { websiteSchema } from '@/lib/jsonld';
 import { CookieBanner } from '@/components/consent/CookieBanner';
 import { ClarityScript } from '@/components/analytics/Clarity';
+import { GA4Script } from '@/components/analytics/GA4';
 import { PostHogScript } from '@/components/analytics/PostHog';
 import { PageviewTracker } from '@/components/analytics/PageviewTracker';
 import { EngagementTracker } from '@/components/analytics/EngagementTracker';
@@ -66,6 +67,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <CookieBanner />
         <ClarityScript />
         <PostHogScript />
+        {/* GA4 needs Suspense because it reads useSearchParams() for SPA
+            pageview tracking — same constraint as PageviewTracker below. */}
+        <Suspense fallback={null}>
+          <GA4Script />
+        </Suspense>
         {/* PageviewTracker uses useSearchParams() which Next requires inside a Suspense boundary. */}
         <Suspense fallback={null}>
           <PageviewTracker />
