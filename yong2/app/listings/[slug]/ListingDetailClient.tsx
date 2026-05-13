@@ -383,6 +383,7 @@ export function ListingDetailClient({
         agentCellPhone={listing.listAgentDirectPhone ?? null}
         listOfficePhone={listing.listOfficePhone ?? null}
         brokerage="Russ Lyon Sotheby's International Realty"
+        brokerageAddress={siteContent.contact.office}
       />
 
       <Footer />

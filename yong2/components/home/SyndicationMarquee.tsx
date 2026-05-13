@@ -11,10 +11,19 @@ export type SyndicationItem = {
 
 const DEFAULT_HEIGHT = 24;
 
+// Audit item 3.1: Mansion Global removed — the text-only fallback
+// read as a missing-asset bug in the otherwise-SVG marquee. Restore
+// when an asset is sourced (the publisher does syndicate Sotheby's
+// network listings, so the relationship is real; only the logo is
+// absent).
+//
+// Juwai stays as PNG. It's the one non-SVG in the strip — Yong's
+// $1.2B career carries international Chinese-buyer relationships
+// through the Sotheby's network and Juwai is the canonical surface
+// for that audience. Replace with SVG when one is sourced.
 const SYNDICATION_PARTNERS: ReadonlyArray<SyndicationItem> = [
   { name: "The Wall Street Journal", logo: '/logos/wsj.svg', logoWidth: 797, logoHeight: 68, displayHeight: 22 },
   { name: 'James Edition', logo: '/logos/james-edition.svg', logoWidth: 150, logoHeight: 27, displayHeight: 18 },
-  { name: 'Mansion Global' },
   { name: 'Robb Report', logo: '/logos/robb-report.svg', logoWidth: 2578, logoHeight: 481, displayHeight: 26 },
   { name: "Barron's", logo: '/logos/barrons.svg', logoWidth: 400, logoHeight: 100, displayHeight: 28 },
   { name: 'Luxury Estate', logo: '/logos/luxury-estate.svg', logoWidth: 250, logoHeight: 40, displayHeight: 20 },

@@ -266,6 +266,7 @@ export function PreviewListingClient() {
         agentCellPhone={siteContent.contact.mobile}
         listOfficePhone="(480) 287-5200"
         brokerage="Russ Lyon Sotheby's International Realty"
+        brokerageAddress={siteContent.contact.office}
       />
 
       <Footer />

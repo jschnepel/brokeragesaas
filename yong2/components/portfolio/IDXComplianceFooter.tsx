@@ -13,6 +13,11 @@ type IDXComplianceFooterProps = {
   listOfficePhone?: string | null;
   /** Yong's brokerage name — used in the reciprocity notice. */
   brokerage: string;
+  /** Yong's brokerage street address — rendered beneath the
+   *  broker-reciprocity paragraph per ARMLS audit F9 so the IDX
+   *  context carries the office location alongside the brokerage
+   *  name. Optional so the prop is non-breaking. */
+  brokerageAddress?: string;
 };
 
 /**
@@ -48,6 +53,7 @@ export function IDXComplianceFooter({
   agentCellPhone,
   listOfficePhone,
   brokerage,
+  brokerageAddress,
 }: IDXComplianceFooterProps) {
   const lastUpdatedLabel = lastUpdatedISO
     ? (() => {
@@ -83,19 +89,35 @@ export function IDXComplianceFooter({
           />
         </div>
         <div className="space-y-3 text-[13px] text-stone/75 leading-[1.6]">
-          {(listAgentName || listOfficeName) && (
+          {/*
+           * ARMLS audit F8 — phrasing rebuilt to the preferred
+           * "Listing courtesy of {Office}" form with the listing
+           * agent on a separate line. Both lines still satisfy the
+           * Section 23 ≥12px contact-info requirement via the parent
+           * .text-[13px] tracker.
+           */}
+          {listOfficeName && (
             <p>
-              <span className="text-stone font-medium">Listed by</span>{' '}
-              {listAgentName ?? 'Agent'}
-              {listOfficeName ? `, ${listOfficeName}` : ''}.
-              {(agentCellPhone || listOfficePhone) && (
+              <span className="text-stone font-medium">Listing courtesy of</span>{' '}
+              {listOfficeName}.
+              {listOfficePhone ? (
                 <>
                   {' '}
-                  {agentCellPhone && <span>Agent: {agentCellPhone}</span>}
-                  {agentCellPhone && listOfficePhone ? ' · ' : ''}
-                  {listOfficePhone && <span>Office: {listOfficePhone}</span>}
+                  <span>Office: {listOfficePhone}</span>
                 </>
-              )}
+              ) : null}
+            </p>
+          )}
+          {listAgentName && (
+            <p>
+              <span className="text-stone font-medium">Listing agent:</span>{' '}
+              {listAgentName}.
+              {agentCellPhone ? (
+                <>
+                  {' '}
+                  <span>Direct: {agentCellPhone}</span>
+                </>
+              ) : null}
             </p>
           )}
           <p>
@@ -112,6 +134,11 @@ export function IDXComplianceFooter({
             non-commercial use and may not be used for any purpose other than to identify
             prospective properties consumers may be interested in purchasing.
           </p>
+          {brokerageAddress ? (
+            <p className="text-stone/85">
+              <span className="text-stone font-medium">{brokerage}</span> · {brokerageAddress}
+            </p>
+          ) : null}
         </div>
       </div>
     </footer>
