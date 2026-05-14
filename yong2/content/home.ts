@@ -8,9 +8,19 @@ export const homeContent = {
       'A former advisor turned broker — with $1.2B in career sales across Silverleaf, Desert Mountain, Estancia, Paradise Valley and DC Ranch. Every representation is bespoke.',
   },
   portfolio: {
-    kicker: 'Current Portfolio',
-    headline: 'Now offering.',
-    cta: { label: 'View the Portfolio', href: '/portfolio' },
+    // ARMLS audit F1 reframing — section previously read
+    // "Current Portfolio · Now offering" alongside third-party IDX
+    // cards, implying the listings were Yong's representations. The
+    // pivot is to "Top of the Market · Currently for sale across
+    // the Valley" so the section is honest about what it surfaces:
+    // the active aggregator-fed inventory. Curated representations
+    // live at /portfolio (the CTA target). Each card carries the
+    // ARMLS IDX badge + "Courtesy of {Office}" attribution when the
+    // listing is third-party. Section footnote in the component
+    // names the data source.
+    kicker: 'Top of the Market',
+    headline: 'Currently for sale across the Valley.',
+    cta: { label: 'View Yong’s Portfolio', href: '/portfolio' },
   },
   communities: {
     kicker: 'The Communities',

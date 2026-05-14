@@ -6,6 +6,7 @@ import { homeContent } from '@/content/home';
 import { CapsLabel } from '@/components/shared/CapsLabel';
 import { SectionFrame } from '@/components/shared/SectionFrame';
 import { track } from '@/lib/analytics/events';
+import { requiresIdxMark } from '@/lib/idx';
 
 type FeaturedListing = {
   slug: string;
@@ -37,10 +38,6 @@ type FeaturedListing = {
 };
 
 type FeaturedPortfolioProps = { listings: FeaturedListing[] };
-
-// Substring fingerprint of the host brokerage — match ResultCard so
-// the IDX-mark gate behaves identically on home + search surfaces.
-const HOST_BROKERAGE_FINGERPRINT = 'russ lyon';
 
 /**
  * Home-page "Now offering" tiles. Made client so each tile can fire a
@@ -74,12 +71,9 @@ export function FeaturedPortfolio({ listings }: FeaturedPortfolioProps) {
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {listings.map((l, index) => {
-          // ARMLS audit F5 — IDX-mark gate. Same logic as ResultCard:
-          // in-house (RLSIR) listings don't need the mark; third-party
-          // IDX listings do. Substring match handles suffix variants
-          // in ARMLS office-name records.
-          const isThirdPartyIdx =
-            !!l.listOfficeName && !l.listOfficeName.toLowerCase().includes(HOST_BROKERAGE_FINGERPRINT);
+          // ARMLS audit F5 — IDX-mark gate. Shared with ResultCard
+          // via lib/idx.ts so home + search behave identically.
+          const isThirdPartyIdx = requiresIdxMark(l.listOfficeName);
           return (
             <Link
               key={l.slug}
@@ -138,6 +132,16 @@ export function FeaturedPortfolio({ listings }: FeaturedPortfolioProps) {
                     </span>
                   ) : null}
                 </div>
+                {/* ARMLS audit F1 attribution — "Courtesy of {Office}"
+                 *  line whenever the listing is third-party so the
+                 *  card doesn't visually-implicitly attribute the
+                 *  representation to Yong. Truncate via line-clamp
+                 *  so long office names don't overflow the card. */}
+                {isThirdPartyIdx && l.listOfficeName ? (
+                  <p className="mt-1 text-[10px] tracking-[0.18em] uppercase text-stone/55 line-clamp-1">
+                    Courtesy of {l.listOfficeName}
+                  </p>
+                ) : null}
               </div>
             </Link>
           );
@@ -152,6 +156,20 @@ export function FeaturedPortfolio({ listings }: FeaturedPortfolioProps) {
             {portfolio.cta.label} →
           </Link>
         </div>
+      )}
+      {/* ARMLS audit F1/F4 — IDX provenance footnote. Pairs with the
+       *  per-card IDX badge + "Courtesy of {office}" line so the
+       *  section is plainly an aggregator view of the active market,
+       *  not a misattribution of third-party inventory to Yong. The
+       *  full broker-reciprocity paragraph lives on every listing
+       *  detail page IDX footer; this single line is the homepage
+       *  signal-and-link. */}
+      {listings.length > 0 && (
+        <p className="mt-10 text-[11px] tracking-[0.18em] uppercase text-stone/40 max-w-3xl">
+          Listings courtesy of the Arizona Regional Multiple Listing Service. Each card carries its
+          brokerage attribution; the listing-detail page shows the full ARMLS broker reciprocity
+          notice.
+        </p>
       )}
     </SectionFrame>
   );

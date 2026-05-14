@@ -6,16 +6,7 @@ import type { Listing } from '@/lib/types';
 import { FadeImage } from '@/components/shared/FadeImage';
 import { formatPrice, formatSqft } from '@/components/shared/formatters';
 import { useSavedListing } from '@/components/portfolio/HeroTopBar';
-
-/**
- * Substring fingerprint of the host brokerage. Any listing whose
- * ListOfficeName contains this is FROM Russ Lyon and therefore does
- * NOT need the ARMLS IDX mark (ARMLS rules: only IDX listings from
- * OTHER brokerages require the IDX logo near the data). Substring
- * because ARMLS records the office name with various suffixes
- * ('Russ Lyon Sotheby's', 'Russ Lyon Sotheby's Intl Realty', etc.).
- */
-const HOST_BROKERAGE_FINGERPRINT = 'russ lyon';
+import { requiresIdxMark } from '@/lib/idx';
 
 type ResultCardProps = {
   listing: Listing;
@@ -79,10 +70,8 @@ export function ResultCard({ listing, highlighted, onHover, onCardClick }: Resul
   // IDX mark surfaces only on listings held by brokerages OTHER than
   // the host (Russ Lyon). Per ARMLS Rules § IDX display: in-house
   // listings don't require the IDX mark; third-party IDX listings do.
-  // Fingerprint match is intentionally permissive on suffix variants.
-  const isThirdPartyIdx = !(
-    listing.listOfficeName?.toLowerCase().includes(HOST_BROKERAGE_FINGERPRINT)
-  );
+  // See lib/idx.ts for the substring-match rationale.
+  const isThirdPartyIdx = requiresIdxMark(listing.listOfficeName);
 
   const { isSaved, toggle: toggleSaved } = useSavedListing(listing.listingKey, {
     slug: listing.slug,
