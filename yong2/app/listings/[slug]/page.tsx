@@ -17,6 +17,7 @@
  *   enforced at the search layer.
  */
 import type { Metadata } from 'next';
+import { cache } from 'react';
 import { notFound } from 'next/navigation';
 import { getListingBySlug } from '@/lib/spark/search';
 import { buildFeatureGroups } from '@/lib/spark/listing-features';
@@ -31,12 +32,68 @@ export const revalidate = 300;
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3200';
 
+// Audit item 2.10 — request-scoped dedupe. Next 13+ calls
+// generateMetadata and the page default export as TWO separate
+// function invocations within a single request. Without
+// `cache()` each invocation hit Spark independently, so an
+// intermittent Spark response (null on one call, listing on the
+// other) shipped a generic "Listing · Yong Choi" <title> on a
+// page whose body rendered fine. Wrapping the lookup in
+// `cache()` makes both invocations share the first result —
+// either both succeed with the listing data, or both fall back
+// (and the slug-derived title fallback below recovers from that
+// branch).
+const getCachedListing = cache(async (slug: string) => {
+  return getListingBySlug(slug).catch(() => null);
+});
+
+/**
+ * Slug-derived fallback title — only fires when Spark can't return
+ * the listing on the metadata pass. Parses
+ * "5531-e-mockingbird-lane-paradise-valley-az-85253-7018849" into
+ * "5531 E Mockingbird Lane · Paradise Valley · Yong Choi" so the
+ * rendered <title> is meaningful even on the failed branch.
+ */
+function fallbackTitleFromSlug(slug: string): string {
+  const m = slug.match(/^(.+?)-([a-z]{2})-(\d{5})-(\d+)$/i);
+  if (!m) return 'Listing';
+  const beforeState = m[1].replace(/-/g, ' ');
+  const tokens = beforeState.split(' ');
+  const state = m[2].toUpperCase();
+  // Heuristic: most addresses have the city after a multi-token
+  // street ("e mockingbird lane paradise valley"). Splitting on the
+  // last 2 tokens is a reasonable guess for the city — not perfect
+  // for one-word cities like Phoenix, but acceptable since this
+  // path only fires when the canonical metadata call has failed.
+  if (tokens.length >= 4) {
+    const city = tokens.slice(-2).map(titleCase).join(' ');
+    const street = tokens.slice(0, -2).map(titleCase).join(' ');
+    return `${street} · ${city}, ${state} · Yong Choi`;
+  }
+  return `${beforeState.split(' ').map(titleCase).join(' ')}, ${state} · Yong Choi`;
+}
+
+function titleCase(s: string): string {
+  if (s.length === 0) return s;
+  if (s.length <= 2) return s.toUpperCase(); // "E", "N", "AZ"
+  return s[0].toUpperCase() + s.slice(1).toLowerCase();
+}
+
 type PageProps = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const listing = await getListingBySlug(slug).catch(() => null);
-  if (!listing) return { title: 'Listing' };
+  const listing = await getCachedListing(slug);
+  if (!listing) {
+    // Audit 2.10 — meaningful title even when Spark misses on the
+    // metadata pass. Page body still renders correctly (via the
+    // dedup'd cache, the default export will reuse the same null
+    // and `notFound()`); this fallback only matters when the
+    // metadata call lost the race and the page-render call won
+    // (intermittent Spark response). Edge case but visible to
+    // crawlers when it happens.
+    return { title: { absolute: fallbackTitleFromSlug(slug) } };
+  }
   const address = listing.unparsedAddress;
   const community = listing.community ?? listing.city ?? 'Scottsdale';
   const titleFull = `${address} | ${community} | Yong Choi`;
@@ -71,7 +128,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ListingDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const listing = await getListingBySlug(slug).catch(() => null);
+  const listing = await getCachedListing(slug);
   if (!listing) notFound();
 
   const featureGroups = buildFeatureGroups(listing);
