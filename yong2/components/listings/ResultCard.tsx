@@ -59,6 +59,10 @@ export function ResultCard({ listing, highlighted, onHover, onCardClick }: Resul
   const beds = listing.bedrooms != null ? `${listing.bedrooms} bd` : null;
   const baths = listing.bathroomsTotal != null ? `${listing.bathroomsTotal} ba` : null;
   const sqft = listing.livingArea != null ? formatSqft(listing.livingArea) : null;
+  // Days on market — surfaces alongside beds/baths/sqft so the
+  // "fresh-listing" / "lingering" framing is visible up front
+  // (ARMLS audit F6). Null when ARMLS hasn't backfilled DOM yet.
+  const dom = listing.daysOnMarket != null ? `${listing.daysOnMarket}d on market` : null;
 
   const updated = formatUpdated(listing.modificationTimestamp);
   // ARMLS IDX rule § Attribution: "Listing Brokerage Name MANDATORY"
@@ -188,7 +192,7 @@ export function ResultCard({ listing, highlighted, onHover, onCardClick }: Resul
           ) : null}
         </div>
         <div className="text-xs text-mute">
-          {[beds, baths, sqft].filter(Boolean).join(' · ') || '—'}
+          {[beds, baths, sqft, dom].filter(Boolean).join(' · ') || '—'}
         </div>
         {(attribution || updated) && (
           <div className="mt-2 pt-2 border-t border-white/5 space-y-1">

@@ -54,6 +54,12 @@ export default async function Home() {
       price: l.listPrice,
       imageUrl: l.coverPhotoUrl,
       tag: l.status === 'Coming Soon' ? 'Coming Soon' : undefined,
+      // ARMLS audit F6 / F5 — DOM line + IDX-badge gate on each
+      // FeaturedPortfolio card. Both are no-ops when the field is
+      // null on the Spark side (DOM not backfilled, or office name
+      // absent), so the card still renders.
+      daysOnMarket: l.daysOnMarket,
+      listOfficeName: l.listOfficeName ?? null,
     }));
 
   return (

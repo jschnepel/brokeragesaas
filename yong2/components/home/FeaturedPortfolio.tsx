@@ -20,9 +20,27 @@ type FeaturedListing = {
    * is stitchable to the listing-level events.
    */
   listingKey?: string;
+  /**
+   * Days on market — surfaced on the card so the "Now offering" framing
+   * doesn't read as fresh inventory when the listing has been sitting
+   * (ARMLS audit F6). Optional because Spark may not have backfilled
+   * DOM on every record.
+   */
+  daysOnMarket?: number | null;
+  /**
+   * Listing office name — gates the ARMLS IDX badge below. When the
+   * office is RLSIR the listing is in-house and the IDX mark is not
+   * required; when it's a third-party brokerage the mark is mandatory
+   * near the listing data (ARMLS audit F5).
+   */
+  listOfficeName?: string | null;
 };
 
 type FeaturedPortfolioProps = { listings: FeaturedListing[] };
+
+// Substring fingerprint of the host brokerage — match ResultCard so
+// the IDX-mark gate behaves identically on home + search surfaces.
+const HOST_BROKERAGE_FINGERPRINT = 'russ lyon';
 
 /**
  * Home-page "Now offering" tiles. Made client so each tile can fire a
@@ -55,42 +73,75 @@ export function FeaturedPortfolio({ listings }: FeaturedPortfolioProps) {
         </div>
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {listings.map((l, index) => (
-          <Link
-            key={l.slug}
-            href={`/listings/${l.slug}`}
-            onClick={() =>
-              track('result_card_click', {
-                // Fall back to slug for analytics-only ID continuity if the
-                // upstream query hasn't been updated to surface listingKey yet.
-                listingKey: l.listingKey ?? l.slug,
-                position: index,
-              })
-            }
-            className="relative aspect-[4/5] overflow-hidden bg-ink-elevated group"
-          >
-            {l.imageUrl ? (
-              <Image
-                src={l.imageUrl}
-                alt={l.address}
-                fill
-                sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
-                className="object-cover transition-transform duration-[900ms] group-hover:scale-105"
-              />
-            ) : null}
-            <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/10 to-transparent" />
-            {l.tag ? (
-              <span className="absolute top-3 left-3 caps bg-ink/70 px-2 py-1">{l.tag}</span>
-            ) : null}
-            <div className="absolute bottom-4 left-4 right-4">
-              <div className="caps mb-1">{l.community}</div>
-              <div className="font-serif text-lg leading-tight">{l.address}</div>
-              <div className="caps text-stone/80 mt-1">
-                {l.price ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(l.price) : 'Price Upon Request'}
+        {listings.map((l, index) => {
+          // ARMLS audit F5 — IDX-mark gate. Same logic as ResultCard:
+          // in-house (RLSIR) listings don't need the mark; third-party
+          // IDX listings do. Substring match handles suffix variants
+          // in ARMLS office-name records.
+          const isThirdPartyIdx =
+            !!l.listOfficeName && !l.listOfficeName.toLowerCase().includes(HOST_BROKERAGE_FINGERPRINT);
+          return (
+            <Link
+              key={l.slug}
+              href={`/listings/${l.slug}`}
+              onClick={() =>
+                track('result_card_click', {
+                  // Fall back to slug for analytics-only ID continuity if the
+                  // upstream query hasn't been updated to surface listingKey yet.
+                  listingKey: l.listingKey ?? l.slug,
+                  position: index,
+                })
+              }
+              className="relative aspect-[4/5] overflow-hidden bg-ink-elevated group"
+            >
+              {l.imageUrl ? (
+                <Image
+                  src={l.imageUrl}
+                  alt={l.address}
+                  fill
+                  sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                  className="object-cover transition-transform duration-[900ms] group-hover:scale-105"
+                />
+              ) : null}
+              <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/10 to-transparent" />
+              {l.tag ? (
+                <span className="absolute top-3 left-3 caps bg-ink/70 px-2 py-1">{l.tag}</span>
+              ) : null}
+              {/* ARMLS IDX badge — top-right of the photo. Light-mode
+               *  pill preserves the trademark color against the dark
+               *  card without competing with the price row. */}
+              {isThirdPartyIdx ? (
+                <span
+                  className="absolute top-3 right-3 inline-flex items-center bg-stone/95 rounded-sm px-1.5 py-0.5"
+                  aria-label="ARMLS IDX listing"
+                  title="Listing courtesy of ARMLS"
+                >
+                  <Image src="/images/armls-idx-logo.png" alt="" width={44} height={11} unoptimized />
+                </span>
+              ) : null}
+              <div className="absolute bottom-4 left-4 right-4">
+                <div className="caps mb-1">{l.community}</div>
+                <div className="font-serif text-lg leading-tight">{l.address}</div>
+                <div className="caps text-stone/80 mt-1 flex flex-wrap items-baseline gap-x-3">
+                  <span>
+                    {l.price
+                      ? new Intl.NumberFormat('en-US', {
+                          style: 'currency',
+                          currency: 'USD',
+                          maximumFractionDigits: 0,
+                        }).format(l.price)
+                      : 'Price Upon Request'}
+                  </span>
+                  {l.daysOnMarket != null ? (
+                    <span className="text-stone/55 text-[10px] tracking-[0.25em]">
+                      · {l.daysOnMarket}d on market
+                    </span>
+                  ) : null}
+                </div>
               </div>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
       </div>
       )}
       {/* Mobile-only trailing CTA — desktop pattern hides it (the header
