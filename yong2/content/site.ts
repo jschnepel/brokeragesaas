@@ -24,8 +24,21 @@ export function formatPhoneDisplay(raw: string | null | undefined): string | nul
 
 // Read raw env at module load — NEXT_PUBLIC_* values are inlined into
 // the client bundle at build time, so this evaluates once per build.
-const advisorMobileRaw = process.env.NEXT_PUBLIC_ADVISOR_MOBILE || null;
-const officePhoneRaw = process.env.NEXT_PUBLIC_OFFICE_PHONE || null;
+//
+// Hard-coded fallbacks: when this site moved from Amplify to Vercel,
+// only NEXT_PUBLIC_SITE_URL + NEXT_PUBLIC_GOOGLE_MAPS_API_KEY +
+// NEXT_PUBLIC_GA_MEASUREMENT_ID survived the migration. The four
+// brokerage-contact NEXT_PUBLIC_* vars were not copied over, which
+// removed every phone CTA on the site overnight. Hardcoding Yong's
+// public RLSIR contact info as the fallback restores the surface
+// without waiting on a Vercel env-var sync; env still wins when it
+// flows through. Yong's mobile + work email + brokerage address are
+// all public information (rendered on his RLSIR.com profile, on
+// RateMyAgent, and in MLS records), so committing them to repo is
+// not a leak. Update both these constants + the Vercel env if any
+// of them change.
+const advisorMobileRaw = process.env.NEXT_PUBLIC_ADVISOR_MOBILE || '9093765494';
+const officePhoneRaw = process.env.NEXT_PUBLIC_OFFICE_PHONE || '4804882400';
 const advisorEmail = process.env.NEXT_PUBLIC_ADVISOR_EMAIL || 'yong.choi@russlyon.com';
 // Hard-coded fallback — the brokerage address is essentially static
 // regardless of who deploys. Diagnostics across jobs 156/158/159
