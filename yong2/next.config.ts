@@ -81,6 +81,16 @@ const nextConfig: NextConfig = {
         source: '/ingest/:path*',
         destination: 'https://us.i.posthog.com/:path*',
       },
+      // Legacy icon / manifest paths. Browsers auto-request these
+      // from the root regardless of any <link rel="icon"> we emit in
+      // <head>, so without these rewrites the user's DevTools console
+      // logs a 404 per navigation. Map them to the corresponding
+      // Next.js metadata routes (app/icon.tsx, app/apple-icon.tsx,
+      // app/manifest.ts) so the request resolves silently.
+      { source: '/favicon.ico', destination: '/icon' },
+      { source: '/apple-touch-icon.png', destination: '/apple-icon' },
+      { source: '/apple-touch-icon-precomposed.png', destination: '/apple-icon' },
+      { source: '/manifest.json', destination: '/manifest.webmanifest' },
     ];
   },
   // 301 redirects — preserve link equity from the retired quarterly
