@@ -425,9 +425,16 @@ export interface CityOption {
 
 /**
  * Distinct cities currently represented in the active IDX universe with
- * per-city counts. Hits RDS' mv_active_listings — the cities list is
- * stable enough that page.tsx wraps this in a 5-minute ISR cache so the
- * /listings page only pays for it a handful of times per hour.
+ * per-city counts. Queried against the source `listing_records` mirror
+ * (NOT `mv_active_listings` — that MV was dropped in the dbt cutover).
+ * The new partial index `idx_listing_records_active_city` on
+ * (city) WHERE …active-IDX… keeps this aggregation under ~30 ms even
+ * at the full 50K+ active-row scale.
+ *
+ * Column names match `listing_records`'s schema:
+ *   - `internet_entire_listing_display_yn` (not `internet_display_yn`)
+ *   - `is_deleted` (matches both tables)
+ *   - `property_type` text comparison rather than the MV's pre-filtered set
  *
  * Page.tsx swallows errors and falls back to an empty list so the
  * autocomplete degrades gracefully if RDS is unavailable.
@@ -435,8 +442,11 @@ export interface CityOption {
 export async function getDistinctActiveCities(): Promise<CityOption[]> {
   const sql = `
     SELECT city, COUNT(*)::int AS count
-    FROM mv_active_listings
-    WHERE ${IDX_ACTIVE_WHERE}
+    FROM listing_records
+    WHERE is_deleted = FALSE
+      AND internet_entire_listing_display_yn = TRUE
+      AND standard_status IN ('Active', 'Active Under Contract', 'Coming Soon', 'Pending')
+      AND property_type <> 'Residential Lease'
       AND city IS NOT NULL
       AND city <> ''
     GROUP BY city
