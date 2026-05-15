@@ -83,24 +83,44 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: 'Invalid body', issues: parsed.error.flatten() }, { status: 400 });
   }
 
-  // Text-query override: when the visitor types in the search bar, the
-  // text match wins over every attribute filter (price, beds, sqft, lot,
-  // year, pool, etc.). Geographic scope (bbox / drawn polygon) and
-  // listing status are preserved because the visitor is implicitly
-  // saying "show me anything matching this within the area I'm looking
-  // at." Without the override, a query like `silverleaf` while a $5M
-  // price filter is active would return empty even though Silverleaf
-  // homes exist above $5M.
+  // Scoping-intent override: when the visitor expresses an explicit
+  // scope (text query OR a hand-drawn polygon), the scope wins over
+  // every attribute filter (price, beds, sqft, lot, year, pool,
+  // home-types, etc.). The intent in both cases is the same — "show
+  // me anything inside this scope" — so the API treats them
+  // identically.
+  //
+  // Bbox alone is NOT a scoping intent: bbox is the implicit "current
+  // viewport" that arrives with every map pan, so respecting filters
+  // inside bbox is the expected default. Listing status is always
+  // preserved because Active/Coming Soon/Pending is the inventory
+  // contract, not an attribute filter.
+  //
+  // Without the override, drawing a circle while default home-types
+  // = [house, condo] is active would silently exclude land and multi-
+  // family inside the shape; and typing `silverleaf` with a $5M price
+  // ceiling would return empty even though Silverleaf homes exist
+  // above $5M.
   const data = parsed.data;
   const qTrimmed = (data.q ?? '').trim();
-  const searchOpts = qTrimmed.length > 0
+  const hasTextQuery = qTrimmed.length > 0;
+  const hasPolygon = data.polygonGeoJSON != null;
+  const hasScopingIntent = hasTextQuery || hasPolygon;
+
+  // When scoping intent is present we also lift the default 60-row
+  // page cap to the schema max (200), because the visitor's
+  // expectation is "every match in this scope" — pagination cards
+  // truncating to 60 reads as missing inventory. Pins are already
+  // capped at 1000 inside searchListings, so the map experience
+  // stays honest.
+  const searchOpts = hasScopingIntent
     ? {
         q: data.q,
         qField: data.qField,
         bbox: data.bbox,
         polygonGeoJSON: data.polygonGeoJSON,
         status: data.status,
-        limit: data.limit,
+        limit: Math.max(data.limit ?? 60, 200),
         offset: data.offset,
         sort: data.sort,
         cursor: data.cursor,
@@ -112,13 +132,20 @@ export async function POST(req: Request): Promise<Response> {
     const result = await searchListings(searchOpts);
     const dbMs = Math.round(performance.now() - dbStart);
     const totalMs = Math.round(performance.now() - reqStart);
+    const overrideTag = hasTextQuery && hasPolygon
+      ? 'q+polygon'
+      : hasTextQuery
+        ? 'q-priority'
+        : hasPolygon
+          ? 'polygon-priority'
+          : 'none';
     return NextResponse.json(result, {
       headers: {
         'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=60',
         'Server-Timing': `db;dur=${dbMs}, total;dur=${totalMs}`,
         // Signal whether the override fired so the client can surface a
         // "filters bypassed by search" hint if it wants to.
-        'X-Search-Override': qTrimmed.length > 0 ? 'q-priority' : 'none',
+        'X-Search-Override': overrideTag,
       },
     });
   } catch (err) {
