@@ -16,8 +16,11 @@ export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: 'Private Inventory · Off-market access',
+  // Previous description was 205 chars and got truncated mid-sentence
+  // in the SERP. Trimmed to 145 chars to stay inside Google's display
+  // window while preserving the location + value-prop keywords.
   description:
-    'Off-market introductions across Scottsdale, Paradise Valley, Silverleaf, Desert Mountain, and the Valley’s pre-MLS pipeline. Private representation by Yong Choi of Russ Lyon Sotheby’s International Realty.',
+    'Off-market introductions across Scottsdale, Paradise Valley, Silverleaf, and Desert Mountain. Private representation by Yong Choi.',
   alternates: { canonical: siteUrl('/private-inventory') },
   openGraph: {
     type: 'website',

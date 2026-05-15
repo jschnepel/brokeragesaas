@@ -38,9 +38,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   if (!(slug in communitiesContent)) return { title: 'Community' };
   const c = communitiesContent[slug as CommunitySlug];
+  // Stack the community name + locality so the SERP shows
+  // "Desert Mountain · Scottsdale Luxury Community · Yong Choi"
+  // instead of the bare community name. Locality is already in the
+  // curated content; appending it costs nothing and clarifies the
+  // search context for visitors who don't recognise the community
+  // name (Estancia, Silverleaf, etc.).
+  const localityTag = c.locality ? `${c.locality} Luxury Community` : 'Luxury Community';
   return {
-    title: c.name,
-    description: c.narrative[0] ? truncateMetaDescription(c.narrative[0], 160) : undefined,
+    title: `${c.name} · ${localityTag}`,
+    description: c.narrative[0] ? truncateMetaDescription(c.narrative[0], 155) : undefined,
     alternates: { canonical: siteUrl(`/communities/${c.slug}`) },
   };
 }

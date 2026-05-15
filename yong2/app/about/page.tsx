@@ -15,8 +15,12 @@ import { siteUrl } from '@/lib/seo';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'About Yong Choi',
-  description: 'Over two decades representing clients from Paradise Valley to Desert Mountain.',
+  // Root layout's title template appends ' · Yong Choi'. Previous
+  // value 'About Yong Choi' double-stamped the brand. New page-level
+  // string renders as 'About · Scottsdale Luxury Advisor · Yong Choi'.
+  title: 'About · Scottsdale Luxury Advisor',
+  description:
+    'Two decades representing buyers and sellers in Paradise Valley, Desert Mountain, Silverleaf, and the Valley’s most coveted addresses.',
   alternates: { canonical: siteUrl('/about') },
 };
 

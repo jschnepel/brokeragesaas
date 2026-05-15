@@ -15,8 +15,9 @@ import { siteUrl } from '@/lib/seo';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Contact',
-  description: 'Begin a conversation with Yong Choi.',
+  title: 'Contact · Scottsdale Luxury Real Estate',
+  description:
+    'Reach Yong Choi for buyer or seller representation across Scottsdale, Paradise Valley, and the North Phoenix luxury market.',
   alternates: { canonical: siteUrl('/contact') },
 };
 

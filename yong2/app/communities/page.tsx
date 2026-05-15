@@ -13,8 +13,9 @@ import { siteUrl } from '@/lib/seo';
 // /market-reports/* which are all force-dynamic for the same reason.
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
-  title: 'The Communities',
-  description: "The enclaves Yong Choi represents across the Phoenix Metro.",
+  title: 'Luxury Communities of the North Valley',
+  description:
+    'Silverleaf, Desert Mountain, Estancia, Paradise Valley, and the North Phoenix enclaves Yong Choi represents across the Valley.',
   alternates: { canonical: siteUrl('/communities') },
 };
 

@@ -17,8 +17,9 @@ import { siteUrl } from '@/lib/seo';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'The Portfolio',
-  description: "Hand-curated current and recent representations from Yong Choi.",
+  title: 'The Portfolio · Recent Representations',
+  description:
+    "Hand-curated current and recent representations across Scottsdale, Paradise Valley, and the North Valley’s most coveted luxury enclaves.",
   alternates: { canonical: siteUrl('/portfolio') },
 };
 
