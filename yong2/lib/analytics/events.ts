@@ -64,6 +64,26 @@ export type EventCatalog = {
   // Search / discovery
   search_query: { query_length: number; results_count: number };
   search_query_clear: Record<string, never>;
+  /**
+   * Fires once per search-effect roundtrip with the actual result count.
+   * Pairs with `search_query` (intent without outcome) so a "queries
+   * that found nothing" dashboard can be built to surface inventory
+   * gaps. Captures filter context to disambiguate "0 results because
+   * Yong is too narrow" vs "0 results because the query string is bad."
+   */
+  search_results_landed: {
+    query_length: number;
+    qField: string;
+    result_count: number;
+    has_active_filters: boolean;
+    has_city_filter: boolean;
+    has_bbox: boolean;
+    has_polygon: boolean;
+  };
+  /** Surfaces when the visitor hits the API rate limit. */
+  search_rate_limited: Record<string, never>;
+  /** Search failed for a reason other than 429 (timeout, 5xx, network). */
+  search_failed: { status: number };
   filter_chip_toggle: { chip: string; on: boolean };
   map_pan: Record<string, never>;
   map_zoom: { direction: 'in' | 'out'; level: number };

@@ -25,16 +25,18 @@ const Q_FIELD_LABELS: Record<QField, string> = {
   community: 'Community',
   city: 'City',
   zip: 'Zip',
+  mls: 'MLS #',
 };
 
 // Placeholder copy follows the active field selection so the
 // visitor knows what shape of term to type ("85262" vs "Silverleaf").
 const Q_FIELD_PLACEHOLDERS: Record<QField, string> = {
-  any: 'Address, community, city, or zip',
+  any: 'Address, community, city, zip, or MLS #',
   address: 'Search by street address',
   community: 'Search by community or subdivision',
   city: 'Search by city',
   zip: 'Search by zip code',
+  mls: 'Paste an MLS number',
 };
 
 type SearchBarProps = {

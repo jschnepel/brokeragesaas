@@ -91,29 +91,49 @@ export function ResultsList({
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [scrollToKey]);
 
-  // Single empty branch: always show the skeleton when there are no
-  // results — covers both the "data layer in flight" loading window
-  // (real users hitting search) and today's pre-data state where the
-  // S3 listings pipeline isn't wired yet. When data flows, the
-  // skeleton appears only briefly during the loading round-trip.
-  // The 'Reset filters' affordance still surfaces if the user has
-  // applied filters that cause the empty result.
+  // Two-branch empty state:
+  //   1. listings empty + loading=true  → SkeletonGrid + "Searching…"
+  //      The visitor's in-flight search hasn't resolved yet. Render the
+  //      shimmer with a status caption.
+  //   2. listings empty + loading=false → "No matches" empty state with
+  //      a Reset filters CTA. The search came back with zero hits;
+  //      showing a perpetual shimmer here is misleading.
   if (listings.length === 0) {
-    return (
-      <div className="p-3 md:p-4">
-        <SkeletonGrid />
-        <p className="caps text-stone/50 text-[10px] text-center mt-6 tracking-widest">
-          {loading ? 'Searching…' : 'Loading curated inventory…'}
-        </p>
-        <div className="flex justify-center mt-3">
-          <button
-            type="button"
-            onClick={onResetFilters}
-            className="caps text-stone/40 hover:text-gold transition-colors text-[10px]"
-          >
-            Reset filters
-          </button>
+    if (loading) {
+      return (
+        <div className="p-3 md:p-4">
+          <SkeletonGrid />
+          <p className="caps text-stone/50 text-[10px] text-center mt-6 tracking-widest">
+            Searching…
+          </p>
         </div>
+      );
+    }
+    return (
+      <div className="p-6 md:p-10 flex flex-col items-center text-center">
+        <svg
+          aria-hidden
+          className="h-10 w-10 text-stone/30 mb-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.25"
+          viewBox="0 0 24 24"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path strokeLinecap="round" d="m20 20-3.5-3.5" />
+        </svg>
+        <h3 className="caps text-[0.7rem] tracking-[0.32em] text-stone mb-2">No matches</h3>
+        <p className="text-sm text-mute max-w-xs mb-5 leading-relaxed">
+          Nothing in the active inventory matches the current filters. Widen the area on the map,
+          clear a city, or remove a price/bed constraint.
+        </p>
+        <button
+          type="button"
+          onClick={onResetFilters}
+          className="caps text-[10px] tracking-[0.32em] px-5 py-3 bg-ink-elevated border border-stone/20 text-stone hover:border-gold hover:text-gold transition-colors"
+        >
+          Reset filters
+        </button>
       </div>
     );
   }
@@ -164,14 +184,13 @@ export function ResultsList({
 }
 
 /**
- * Total is sourced from the pin universe (Spark search caps at 2 pages
- * x 1000 = 2000). When the count reaches that ceiling, suffix a "+"
- * since the true count may be higher than what we sampled in-viewport.
- * Below the cap the value is exact.
+ * Total comes from `@odata.count` on the Spark response — it's the true
+ * matching-pool size, not the pin-universe cap. So we render the exact
+ * value and trust the upstream. Pinning to a 2,000 ceiling here would
+ * mislead users into thinking inventory tops out below the actual feed
+ * (we routinely see 28K+ active listings in the Phoenix metro).
  */
-const PIN_UNIVERSE_CAP = 2000;
 function formatTotal(n: number): string {
-  if (n >= PIN_UNIVERSE_CAP) return `${PIN_UNIVERSE_CAP.toLocaleString('en-US')}+`;
   return n.toLocaleString('en-US');
 }
 

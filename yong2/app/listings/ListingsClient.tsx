@@ -3,7 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { Listing } from '@/lib/types';
-import type { BBox, CityOption, PinPoint, PolygonGeoJSON, QField, StatusFilter } from '@/lib/listings-search';
+import type {
+  BBox,
+  CityOption,
+  HomeType,
+  PinPoint,
+  PolygonGeoJSON,
+  QField,
+  SearchOpts,
+  StatusFilter,
+} from '@/lib/listings-search';
 import { SearchBar, type SortKey } from '@/components/listings/SearchBar';
 import { CityAutocomplete } from '@/components/listings/CityAutocomplete';
 import {
@@ -104,6 +113,11 @@ export function ListingsClient({
   const [fetchedAt, setFetchedAt] = useState<string>(initialFetchedAt);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  // Surfaces structured feedback for failed searches. Distinct values
+  // let the UI render different copy ("Slow down — too many searches"
+  // vs "Search is taking longer than usual, try again"). Cleared on
+  // the next successful response.
+  const [searchError, setSearchError] = useState<null | 'rate_limited' | 'unavailable'>(null);
   const [q, setQ] = useState(initialUrlState.q ?? '');
   // Bbox seeding precedence: URL → SSR default. The client's bbox
   // state must reflect a real viewport from the first render so the
@@ -128,8 +142,9 @@ export function ListingsClient({
   const [qField, setQField] = useState<QField>(initialUrlState.qField ?? 'any');
   // Cities the visitor has picked via the autocomplete dropdown. Empty
   // = no city narrowing (default). Multi-select; values are the
-  // canonical city strings from cityOptions.
-  const [cities, setCities] = useState<string[]>([]);
+  // canonical city strings from cityOptions. Seeded from URL on mount so
+  // deep links and refreshes preserve the selection.
+  const [cities, setCities] = useState<string[]>(initialUrlState.cities ?? []);
   // Cursor for the next Load More request — surfaced by the API on
   // every response. Null when there's no next page. Replaces the
   // offset-based paginator: cursors stay valid even if pool ordering
@@ -137,6 +152,15 @@ export function ListingsClient({
   const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor);
 
   const mapRef = useRef<MapPanelHandle | null>(null);
+
+  // Set true the moment we kick off a programmatic camera move
+  // (fit-to-pins after a text-query search) so the resulting
+  // `viewportchange` event from MapLibre doesn't get interpreted as
+  // a user pan — which would write the new bbox into state and
+  // re-fire the search effect for the same query a second time.
+  // Cleared on the next macrotask, by which point the map's
+  // settle-after-fit events have all fired.
+  const autoFitInProgressRef = useRef<boolean>(false);
 
   // Index loaded listings by listingKey so the map's hover popup can
   // look up the cover photo + spec strip without any extra fetch.
@@ -260,7 +284,11 @@ export function ListingsClient({
   // bbox state and the memo re-runs.
   const searchOpts = useMemo(() => {
     const { priceMin, priceMax } = priceRangeToBounds(filters.priceRange);
-    const opts: Record<string, unknown> = {};
+    // Typed `Partial<SearchOpts>` instead of `Record<string, unknown>` —
+    // matches the API schema and catches drift at compile time when
+    // either side adds a field. Each branch only assigns the matching
+    // field, so undefined-narrowing keeps the wire payload minimal.
+    const opts: Partial<SearchOpts> = {};
     const hasTextQuery = q.trim().length > 0;
     if (hasTextQuery) {
       opts.q = q.trim();
@@ -274,7 +302,7 @@ export function ListingsClient({
       opts.bbox = bbox;
     }
     if (filters.status.length > 0) opts.status = filters.status as StatusFilter[];
-    if (filters.homeTypes.length > 0) opts.homeTypes = filters.homeTypes;
+    if (filters.homeTypes.length > 0) opts.homeTypes = filters.homeTypes as HomeType[];
     if (priceMin != null) opts.priceMin = priceMin;
     if (priceMax != null) opts.priceMax = priceMax;
     if (filters.bedsMin > 0) opts.bedsMin = filters.bedsMin;
@@ -330,6 +358,7 @@ export function ListingsClient({
       sort,
       bbox: userMovedMapRef.current ? bbox : null,
       polygon,
+      cities,
     });
     const next = sp.toString();
     const current = searchParams?.toString() ?? '';
@@ -339,7 +368,7 @@ export function ListingsClient({
     // pathname/router/searchParams identities are stable from Next's
     // routing context; including them in deps keeps the linter happy
     // without causing extra runs.
-  }, [q, qField, filters, sort, bbox, polygon, pathname, router, searchParams]);
+  }, [q, qField, filters, sort, bbox, polygon, cities, pathname, router, searchParams]);
 
   // Skip the initial render's fetch (server gave us hydration data already).
   // EXCEPT:
@@ -372,7 +401,22 @@ export function ListingsClient({
           body: JSON.stringify(searchOpts),
           signal: ctrl.signal,
         });
-        if (!res.ok) throw new Error(`Search failed: ${res.status}`);
+        if (!res.ok) {
+          // Distinguish rate-limit from server-side failures so the
+          // UI can render appropriate copy and we get clean telemetry.
+          if (res.status === 429) {
+            if (!cancelled) {
+              setSearchError('rate_limited');
+              track('search_rate_limited', {});
+            }
+          } else {
+            if (!cancelled) {
+              setSearchError('unavailable');
+              track('search_failed', { status: res.status });
+            }
+          }
+          return;
+        }
         const json = (await res.json()) as {
           listings: Listing[];
           pins: PinPoint[];
@@ -382,12 +426,32 @@ export function ListingsClient({
           nextCursor?: string | null;
         };
         if (cancelled) return;
+        setSearchError(null);
         setListings(json.listings);
         setPins(json.pins);
         setTotal(json.total);
         setHasMore(Boolean(json.hasMore));
         setNextCursor(json.nextCursor ?? null);
         if (json.fetchedAt) setFetchedAt(json.fetchedAt);
+
+        // Outcome telemetry — paired with the `search_query` intent
+        // event so a downstream dashboard can show conversion from
+        // intent to result and surface "queries that find nothing".
+        track('search_results_landed', {
+          query_length: searchOpts.q?.length ?? 0,
+          qField: searchOpts.qField ?? 'any',
+          result_count: json.total,
+          has_active_filters:
+            (searchOpts.status?.length ?? 0) > 0
+            || (searchOpts.homeTypes?.length ?? 0) > 0
+            || searchOpts.priceMin != null
+            || searchOpts.priceMax != null
+            || (searchOpts.bedsMin ?? 0) > 0
+            || (searchOpts.bathsMin ?? 0) > 0,
+          has_city_filter: (searchOpts.cities?.length ?? 0) > 0,
+          has_bbox: searchOpts.bbox != null,
+          has_polygon: searchOpts.polygonGeoJSON != null,
+        });
         // Auto-fit the map to the result pins when the search was driven
         // by a text query (the visitor typed something) and the response
         // brought back pins. Without this, typing "Carefree" while the
@@ -403,7 +467,15 @@ export function ListingsClient({
           && Array.isArray(json.pins)
           && json.pins.length > 0
         ) {
+          autoFitInProgressRef.current = true;
           mapRef.current?.fitToPins(json.pins);
+          // Release the gate after MapLibre's settle pass. The fit
+          // animation fires `viewportchange` once or twice during the
+          // ease; a single macrotask covers both without leaking the
+          // suppression into legitimate user pans.
+          setTimeout(() => {
+            autoFitInProgressRef.current = false;
+          }, 0);
         }
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
@@ -422,6 +494,11 @@ export function ListingsClient({
   const handleViewportChange = useCallback((next: BBox) => {
     // Polygon takes precedence — ignore viewport pans while a shape is set.
     if (polygon) return;
+    // Suppress the bbox write while a programmatic fit-to-pins is in
+    // flight. Without this gate, every text-query search would
+    // re-fetch twice: once for the query, then again with the
+    // post-fit bbox even though nothing relevant changed.
+    if (autoFitInProgressRef.current) return;
     userMovedMapRef.current = true;
     setBbox(next);
   }, [polygon]);
@@ -686,6 +763,17 @@ export function ListingsClient({
             />
           ) : null}
           <FilterChips value={filters} onChange={setFilters} />
+          {searchError ? (
+            <div
+              role="alert"
+              aria-live="polite"
+              className="px-4 md:px-6 py-2 text-xs border-b border-rose-500/30 bg-rose-500/10 text-rose-100"
+            >
+              {searchError === 'rate_limited'
+                ? 'Slow down — too many searches in a short window. Try again in a few seconds.'
+                : 'Search is taking longer than usual. Try again in a moment.'}
+            </div>
+          ) : null}
           <p className="px-4 md:px-6 py-2 text-[0.65rem] uppercase tracking-wider text-mute border-b border-white/5">
             Active &amp; pending listings across the full ARMLS
           </p>

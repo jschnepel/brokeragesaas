@@ -302,13 +302,31 @@ function buildSearchFilter(opts: SearchOpts): string {
       case 'zip':
         textClause = `contains(PostalCode,'${escaped}')`;
         break;
+      case 'mls':
+        // Direct MLS ID lookup — visitor pastes a listing-id from an
+        // email/text and finds that exact listing. ListingId is the
+        // RESO standard for the public-facing MLS number.
+        textClause = `contains(ListingId,'${escaped}')`;
+        break;
       case 'any':
       default:
-        textClause =
-          `(contains(UnparsedAddress,'${escaped}')` +
-          ` or contains(City,'${escaped}')` +
-          ` or contains(SubdivisionName,'${escaped}')` +
-          ` or contains(PostalCode,'${escaped}'))`;
+        // Numeric 6-9 char inputs are almost always MLS IDs; also let
+        // them match address (street numbers). Non-numeric inputs OR
+        // across the usual address-style fields. The MLS branch costs
+        // one extra `or` clause but means a visitor can paste an MLS
+        // number into the default-mode search without changing the
+        // qField selector.
+        if (/^[0-9]{5,9}$/.test(escaped)) {
+          textClause =
+            `(ListingId eq '${escaped}'` +
+            ` or contains(UnparsedAddress,'${escaped}'))`;
+        } else {
+          textClause =
+            `(contains(UnparsedAddress,'${escaped}')` +
+            ` or contains(City,'${escaped}')` +
+            ` or contains(SubdivisionName,'${escaped}')` +
+            ` or contains(PostalCode,'${escaped}'))`;
+        }
         break;
     }
     clauses.push(textClause);
@@ -500,6 +518,19 @@ function applyClientFilters(records: SparkProperty[], opts: SearchOpts): SparkPr
       const sqft = asNumber(r['LivingArea']);
       return (beds != null && beds > 0) || (sqft != null && sqft > 0);
     });
+  }
+
+  // Defensive lease-drop. The OData clause `PropertyType eq 'Residential'`
+  // is supposed to exclude `Residential Lease` (different exact string)
+  // but empirical probing against the live feed found lease listings
+  // surfacing alongside for-sale results when paired with a tight
+  // `contains(UnparsedAddress, ...)` clause — Spark's optimizer appears
+  // to collapse the AND in some shapes. Post-fetch drop is cheap (a few
+  // string compares per record), idempotent when Spark IS filtering
+  // correctly, and closes the gap end-to-end. Only triggered when the
+  // visitor's home_types selection is residential + non-lease.
+  if (residentialSelected) {
+    out = out.filter((r) => asString(r['PropertyType']) !== 'Residential Lease');
   }
 
   // Text-query filtering moved server-side via OData contains() in
@@ -899,6 +930,26 @@ const PIN_SELECT = [
   'Longitude',
   'ListPrice',
   'StandardStatus',
+  // Required by `pinFromRecord` for the map's hover-popup spec strip;
+  // without these every popup outside the loaded-listings window falls
+  // back to "Price-only" instead of bed/bath/sqft/community detail.
+  'BedroomsTotal',
+  'BathroomsTotalInteger',
+  'BathroomsTotalDecimal',
+  'LivingArea',
+  'SubdivisionName',
+  'CityRegion',
+  'City',
+  // PropertyType — needed by applyClientFilters' defensive lease-drop
+  // (without it, lease pins survive the post-fetch filter).
+  'PropertyType',
+  // @compliance ARMLS IDX — every listing display surface (including
+  // map hover popups) must show the listing brokerage. Without this
+  // field in $select, popups outside the listings-window render
+  // attribution-less, which violates the redistribution rules.
+  'ListOfficeName',
+  // First photo for the popup cover image.
+  'Media',
 ];
 
 function pinFromRecord(r: SparkProperty): PinPoint | null {

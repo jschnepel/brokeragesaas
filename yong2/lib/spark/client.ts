@@ -53,6 +53,22 @@ export class SparkApiError extends Error {
   }
 }
 
+export class SparkTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SparkTimeoutError';
+  }
+}
+
+/**
+ * Per-page fetch timeout. Spark normally responds in 200-800ms; anything
+ * over 10s means it's hung (we've seen this on its dedupe rate-limit,
+ * which holds the connection open instead of failing fast). Failing the
+ * route here is preferable to letting Vercel's function timeout chew the
+ * full budget while the visitor stares at a spinner.
+ */
+const SPARK_FETCH_TIMEOUT_MS = 10_000;
+
 export type SparkProperty = Record<string, unknown>;
 
 interface SparkPageResponse {
@@ -82,12 +98,24 @@ async function fetchPage(pageUrl: string): Promise<{
 
   let res: Response | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
-    res = await fetch(pageUrl, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-      },
-    });
+    try {
+      res = await fetch(pageUrl, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+        signal: AbortSignal.timeout(SPARK_FETCH_TIMEOUT_MS),
+      });
+    } catch (err) {
+      // AbortError from timeout → fail fast (no retries on a hung
+      // connection; the next attempt would just hang again).
+      if (err instanceof DOMException && err.name === 'TimeoutError') {
+        throw new SparkTimeoutError(
+          `Spark fetch timed out after ${SPARK_FETCH_TIMEOUT_MS}ms`,
+        );
+      }
+      throw err;
+    }
     if (res.ok) break;
     // 429 (rate limit) and 503 (Spark temporarily unavailable) → retry.
     if ((res.status === 429 || res.status === 503) && attempt < 2) {

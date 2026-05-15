@@ -17,6 +17,7 @@ import { z } from 'zod';
 // data source as the SSR initial fetch avoids divergent behavior on map
 // pans / Load More.
 import { searchListings } from '@/lib/spark/search';
+import { SparkApiError, SparkTimeoutError } from '@/lib/spark/client';
 import { checkRateLimit } from '@/lib/rate-limit';
 
 const bboxSchema = z.object({
@@ -36,7 +37,7 @@ const polygonSchema = z.object({
 
 const bodySchema = z.object({
   q: z.string().max(200).optional(),
-  qField: z.enum(['any', 'address', 'community', 'city', 'zip']).optional(),
+  qField: z.enum(['any', 'address', 'community', 'city', 'zip', 'mls']).optional(),
   bbox: bboxSchema.optional(),
   polygonGeoJSON: polygonSchema.optional(),
   status: z.array(z.enum(['Active', 'Coming Soon', 'Pending'])).optional(),
@@ -153,6 +154,27 @@ export async function POST(req: Request): Promise<Response> {
       },
     });
   } catch (err) {
+    // Distinguish Spark timeouts from generic failures. 503 lets the
+    // client render "Search is taking longer than usual" instead of a
+    // generic error — and tells caches not to memoize the failure.
+    if (err instanceof SparkTimeoutError) {
+      console.warn('listings.search.timeout', err.message);
+      return NextResponse.json(
+        { error: 'search_timeout' },
+        { status: 503, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+    if (err instanceof SparkApiError) {
+      console.warn('listings.search.spark_error', { status: err.status, message: err.message });
+      // Bubble Spark's 5xx/429 status to the caller untranslated; 4xx
+      // payload errors collapse to a 502 since they indicate a server-
+      // side bug, not a client problem.
+      const status = err.status >= 500 || err.status === 429 ? err.status : 502;
+      return NextResponse.json(
+        { error: 'spark_error', upstream_status: err.status },
+        { status, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
     console.error('listings.search.failed', err);
     return NextResponse.json({ error: 'Search failed' }, { status: 500 });
   }

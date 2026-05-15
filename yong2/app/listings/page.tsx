@@ -50,12 +50,18 @@ export default async function ListingsPage() {
   // Default home-type filter mirrors the client's INITIAL_FILTER and
   // sort default mirrors ListingsClient initial state so the
   // post-hydration re-fetch doesn't re-order the SSR result set.
+  // Fetch the maximum Spark-allowed page (200) for SSR so the crawler-readable
+  // `ListingsSeoList` renders 200 addresses inline — wider indexable surface
+  // for long-tail location queries. ListingsClient still bootstraps from the
+  // same 200, then uses cursor pagination from listing #200 onward via Load
+  // More. ISR caches the page for 5 minutes so the wider fetch amortises
+  // cheaply across hits.
   const [initial, cityOptions] = await Promise.all([
     searchListings({
       bbox: DEFAULT_BBOX,
       homeTypes: ['house', 'condo'],
       sort: 'price-desc',
-      limit: 60,
+      limit: 200,
     }).catch((err) => {
       // eslint-disable-next-line no-console
       console.warn('listings.page.initial_fetch_failed', err);

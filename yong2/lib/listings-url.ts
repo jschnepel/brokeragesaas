@@ -44,9 +44,15 @@ export interface ListingsUrlState {
   sort: SortKey;
   bbox: BBox | null;
   polygon: PolygonGeoJSON | null;
+  /** User-selected cities from the autocomplete dropdown. */
+  cities: string[];
 }
 
-const VALID_QFIELD: QField[] = ['any', 'address', 'community', 'city', 'zip'];
+const VALID_QFIELD: QField[] = ['any', 'address', 'community', 'city', 'zip', 'mls'];
+
+// Hard cap on cities the URL will encode — the API zod schema caps at 40,
+// so anything higher would just be dropped server-side anyway.
+const MAX_URL_CITIES = 40;
 
 const VALID_STATUS: StatusFilter[] = ['Active', 'Coming Soon', 'Pending'];
 const VALID_HOME: HomeType[] = ['house', 'condo', 'multi', 'land'];
@@ -197,6 +203,16 @@ export function serializeListingsState(state: ListingsUrlState): URLSearchParams
   // Sort — omit when default ('price-desc').
   if (state.sort && state.sort !== 'price-desc') sp.set('sort', state.sort);
 
+  // Cities — comma-joined. Each city is URL-encoded by URLSearchParams,
+  // so spaces in names like "Paradise Valley" survive the round-trip.
+  if (state.cities && state.cities.length > 0) {
+    const trimmed = state.cities
+      .map((c) => c.trim())
+      .filter((c) => c.length > 0 && c.length <= 80)
+      .slice(0, MAX_URL_CITIES);
+    if (trimmed.length > 0) sp.set('cities', trimmed.join(','));
+  }
+
   const bbox = serializeBbox(state.bbox);
   if (bbox) sp.set('bbox', bbox);
   const poly = serializePolygon(state.polygon);
@@ -306,6 +322,16 @@ export function parseListingsUrl(sp: URLSearchParams): Partial<ListingsUrlState>
 
   if (sort) out.sort = sort;
 
+  const citiesRaw = sp.get('cities');
+  if (citiesRaw) {
+    const parsed = citiesRaw
+      .split(',')
+      .map((c) => c.trim())
+      .filter((c) => c.length > 0 && c.length <= 80)
+      .slice(0, MAX_URL_CITIES);
+    if (parsed.length > 0) out.cities = parsed;
+  }
+
   const bbox = parseBbox(sp.get('bbox'));
   if (bbox) out.bbox = bbox;
   const poly = parsePolygon(sp.get('poly'));
@@ -325,7 +351,7 @@ export function urlHasUserState(sp: URLSearchParams): boolean {
     'q', 'qf', 'status', 'home', 'price', 'beds', 'baths',
     'sqft', 'lot', 'year', 'garage',
     'pool', 'spa', 'water', 'horse', 'story1', 'new', 'reduced',
-    'sort', 'bbox', 'poly',
+    'cities', 'sort', 'bbox', 'poly',
   ]) {
     if (sp.has(key)) return true;
   }
