@@ -74,6 +74,27 @@ type ListingsClientProps = {
 const PAGE_LIMIT = 60;
 
 /**
+ * Expand a bbox outward from its center by `pct` of each dimension on
+ * each side, then clamp to the WGS84 envelope. e.g. pct=0.125 grows
+ * each axis by 25% total, leaving the original visible bbox as the
+ * inner 4/5 (linear) of the returned rectangle. Used so the search
+ * payload covers slightly more than the visible map area — see the
+ * comment at the call site in `searchOpts`.
+ */
+function padBbox(b: BBox, pct: number): BBox {
+  const lngSpan = b.maxLng - b.minLng;
+  const latSpan = b.maxLat - b.minLat;
+  const padLng = lngSpan * pct;
+  const padLat = latSpan * pct;
+  return {
+    minLng: Math.max(-180, b.minLng - padLng),
+    minLat: Math.max(-90, b.minLat - padLat),
+    maxLng: Math.min(180, b.maxLng + padLng),
+    maxLat: Math.min(90, b.maxLat + padLat),
+  };
+}
+
+/**
  * Owns search/map state, interaction, and the fetch lifecycle. Server
  * pre-renders the default Yong-market viewport; this hydrates with that
  * data and re-fetches when the user pans, types, draws a polygon, or
@@ -323,7 +344,21 @@ export function ListingsClient({
     if (polygon) {
       opts.polygonGeoJSON = polygon;
     } else if (bbox) {
-      opts.bbox = bbox;
+      // Pad the searched bbox so the visible viewport sits as the
+      // INNER 4/5 of the search rectangle. Two reasons:
+      //   1. Listings just-off-screen show in the result panel — the
+      //      visitor's eye reads the visible map as "where I'm
+      //      looking", but pins immediately past the edge are still
+      //      part of "this neighborhood" and should be findable
+      //      without panning.
+      //   2. Small map jitter (touchpad inertia, marginal pan) stays
+      //      INSIDE the cached padded bbox so we don't re-fire a
+      //      Spark query for every pixel of movement.
+      //
+      // 4/5 in linear means each axis grows by 25% (1/0.8 - 1 = 0.25),
+      // i.e. 12.5% overhang on each side. URL bbox + map camera stay
+      // at the visible viewport — only the search payload expands.
+      opts.bbox = padBbox(bbox, 0.125);
     }
 
     const { priceMin, priceMax } = priceRangeToBounds(filters.priceRange);
