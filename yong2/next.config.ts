@@ -123,11 +123,20 @@ const nextConfig: NextConfig = {
   async headers() {
     const csp = [
       "default-src 'self' https:",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:",
+      // MapLibre GL JS spawns its tile-decoding Web Worker from a
+      // blob: URL. Without `worker-src` the browser walks
+      // worker-src → child-src → script-src; my prior CSP didn't
+      // include `blob:` on any of those, so workers were blocked
+      // and the map rendered as a blank canvas with zero tile
+      // requests fired. Explicit `worker-src 'self' blob:` resolves
+      // it directly and documents the requirement.
+      "worker-src 'self' blob:",
+      "child-src 'self' blob:",
       "style-src 'self' 'unsafe-inline' https:",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data: https:",
-      "connect-src 'self' https: wss:",
+      "connect-src 'self' https: wss: blob:",
       "frame-src 'self' https:",
       "frame-ancestors 'none'",
       "base-uri 'self'",
