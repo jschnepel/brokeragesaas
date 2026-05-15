@@ -1,6 +1,17 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
+
+// Override the root layout's `template: '%s · Yong Choi'` with an
+// absolute title so the 404 page surfaces as "404 — Page Not Found"
+// instead of inheriting the homepage title. `robots: noindex` keeps
+// the 404 out of search indices when crawlers hit unknown routes.
+export const metadata: Metadata = {
+  title: { absolute: '404 — Page Not Found · Yong Choi' },
+  description: 'The page you requested doesn’t exist or has been moved.',
+  robots: { index: false, follow: false },
+};
 
 /**
  * Minimal not-found that imports zero layout chrome. Next 16.2.4 +

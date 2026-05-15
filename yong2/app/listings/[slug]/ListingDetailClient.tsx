@@ -184,9 +184,14 @@ export function ListingDetailClient({
                 ? ` · ${listing.daysOnMarket} day${listing.daysOnMarket === 1 ? '' : 's'} on market`
                 : ''}
             </p>
-            <h1 className="font-serif text-3xl md:text-4xl text-stone leading-tight mt-3 tracking-[-0.005em]">
+            {/* h2 (not h1) — the primary h1 is rendered by
+                ListingHeroGallery at the top of the page. Two h1s on the
+                same document breaks heading hierarchy and is an a11y
+                + SEO defect. This block is a section header further
+                down the layout, so h2 is the right semantic level. */}
+            <h2 className="font-serif text-3xl md:text-4xl text-stone leading-tight mt-3 tracking-[-0.005em]">
               {listing.unparsedAddress}
-            </h1>
+            </h2>
             <div className="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-2">
               <p className="text-2xl md:text-3xl text-gold font-serif tabular-nums">
                 {listing.listPrice ? DOLLAR(listing.listPrice) : 'Price upon request'}

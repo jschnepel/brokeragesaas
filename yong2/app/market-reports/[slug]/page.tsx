@@ -99,11 +99,45 @@ export default async function MarketReportDetailPage({ params }: PageProps) {
     { name: breadcrumbName, url: canonical },
   ]);
 
+  // Article JSON-LD — tells Google this is editorial content with a
+  // publication date, not a static landing page. Surfaces the report
+  // as fresh-content in the SERP and unlocks the AMP/Top-Stories
+  // adjacent ranking signals real-estate reports usually miss.
+  const articleHeadline =
+    period.kind === 'week'
+      ? `The Market Desk · ${weekRangeLabel(period)}`
+      : `${monthLabel(period)} Market Read`;
+  // The slug's ISO week / month gives a stable publication date
+  // anchor without relying on a per-report metadata field.
+  const articleDate = period.kind === 'week'
+    ? (weekBounds(period as Parameters<typeof weekBounds>[0])?.start ?? null)
+    : (period.iso ?? null);
+  const articleSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: articleHeadline,
+    url: canonical,
+    datePublished: articleDate ?? undefined,
+    dateModified: articleDate ?? undefined,
+    author: {
+      '@type': 'Person',
+      name: 'Yong Choi',
+      url: siteUrl('/about'),
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Yong Choi · Sotheby\'s International Realty',
+      url: siteUrl('/'),
+    },
+    mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },
+  };
+
   if (statsResult.kind === 'week') {
     const bounds = weekBounds(period as Parameters<typeof weekBounds>[0]);
     return (
       <>
         <JsonLdScript data={breadcrumbs} />
+        <JsonLdScript data={articleSchema} />
         <WeeklyReport
           stats={{
             ...statsResult.stats,

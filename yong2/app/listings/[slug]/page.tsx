@@ -140,6 +140,61 @@ export default async function ListingDetailPage({ params }: PageProps) {
   const distances = computeDistances(listing.latitude, listing.longitude);
   const listingUrl = `${SITE_URL}/listings/${listing.slug}`;
 
+  // RealEstateListing JSON-LD — emit a Product+Offer-shaped record so
+  // Google can build a rich result for the listing (price, beds, baths,
+  // sqft, address all available in the SERP card). Without this, the
+  // listing-detail page surfaces only as a plain blue-link result and
+  // misses the Real-Estate Vertical's enhanced presentation.
+  //
+  // Schema reference: schema.org/RealEstateListing (and the underlying
+  // Product/Offer mix Google's docs recommend for real-estate inventory).
+  const listingSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'RealEstateListing',
+    name: listing.unparsedAddress,
+    url: listingUrl,
+    description: listing.publicRemarks ?? `${listing.unparsedAddress}, ${listing.community ?? listing.city ?? 'Arizona'}`,
+    datePosted: listing.modificationTimestamp ?? undefined,
+    image: listing.coverPhotoUrl ? [listing.coverPhotoUrl] : undefined,
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: listing.unparsedAddress?.split(',')[0]?.trim(),
+      addressLocality: listing.city ?? undefined,
+      addressRegion: 'AZ',
+      postalCode: listing.postalCode ?? undefined,
+      addressCountry: 'US',
+    },
+    geo: listing.latitude != null && listing.longitude != null
+      ? {
+          '@type': 'GeoCoordinates',
+          latitude: listing.latitude,
+          longitude: listing.longitude,
+        }
+      : undefined,
+    offers: listing.listPrice != null
+      ? {
+          '@type': 'Offer',
+          price: listing.listPrice,
+          priceCurrency: 'USD',
+          availability: listing.status === 'Active'
+            ? 'https://schema.org/InStock'
+            : 'https://schema.org/LimitedAvailability',
+          url: listingUrl,
+        }
+      : undefined,
+    numberOfRooms: listing.bedrooms ?? undefined,
+    numberOfBedrooms: listing.bedrooms ?? undefined,
+    numberOfBathroomsTotal: listing.bathroomsTotal ?? undefined,
+    floorSize: listing.livingArea != null
+      ? { '@type': 'QuantitativeValue', value: listing.livingArea, unitCode: 'FTK' }
+      : undefined,
+    // @compliance ARMLS IDX — explicit broker attribution in schema so
+    // the SERP card shows the listing brokerage alongside the price.
+    broker: listing.listOfficeName
+      ? { '@type': 'RealEstateAgent', name: listing.listOfficeName }
+      : undefined,
+  };
+
   // Nearby listings + market read fetch were previously awaited here
   // and added ~1s to TTFB on every detail-page load. Both are
   // below-the-fold and non-essential to first paint — the hero,
@@ -152,13 +207,26 @@ export default async function ListingDetailPage({ params }: PageProps) {
   // the initial HTML. Acceptable for these sections — the primary
   // listing content (address, price, photos, attribution) is all
   // server-rendered.
+  // Serialize + defang any `<` characters so a malicious string in
+  // Spark data could never close the surrounding <script> tag. JSON-LD
+  // is the standard Next.js pattern; the body is server-rendered JSON,
+  // not user-supplied HTML. Same pattern as app/layout.tsx websiteSchema.
+  const listingSchemaJson = JSON.stringify(listingSchema).replace(/</g, '\\u003c');
+
   return (
-    <ListingDetailClient
-      listing={listing}
-      featureGroups={featureGroups}
-      curatedCommunity={curatedCommunity}
-      distances={distances}
-      listingUrl={listingUrl}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger -- server-rendered JSON-LD is the canonical Next.js pattern
+        dangerouslySetInnerHTML={{ __html: listingSchemaJson }}
+      />
+      <ListingDetailClient
+        listing={listing}
+        featureGroups={featureGroups}
+        curatedCommunity={curatedCommunity}
+        distances={distances}
+        listingUrl={listingUrl}
+      />
+    </>
   );
 }

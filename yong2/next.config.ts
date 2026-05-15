@@ -105,6 +105,55 @@ const nextConfig: NextConfig = {
     ];
   },
   skipTrailingSlashRedirect: true,
+  // Security headers — five-pack covering the OWASP-recommended baseline.
+  //
+  // CSP is intentionally permissive on `script-src` / `style-src` / `img-src`
+  // because the site loads PostHog, Microsoft Clarity, GA4, Vercel Analytics,
+  // MapTiler, Google Maps, Google Aerial View, Spark CDN, and Next.js Image
+  // optimizer — locking those down field-by-field is a multi-week migration.
+  // What CSP gives us TODAY without that work:
+  //   - frame-ancestors 'none'   → clickjacking protection (XFO equivalent + iframes)
+  //   - object-src 'none'        → blocks Flash/Java/plugins
+  //   - base-uri 'self'          → prevents <base> tag injection attacks
+  //   - form-action 'self'       → forms can't be hijacked to POST elsewhere
+  //   - upgrade-insecure-requests → auto-upgrade http to https
+  //
+  // Future tightening: nonce-based script-src after a CSP report-only audit
+  // confirms which inline scripts are first-party Next.js vs. third-party.
+  async headers() {
+    const csp = [
+      "default-src 'self' https:",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+      "style-src 'self' 'unsafe-inline' https:",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data: https:",
+      "connect-src 'self' https: wss:",
+      "frame-src 'self' https:",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+      "upgrade-insecure-requests",
+    ].join('; ');
+
+    const securityHeaders = [
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'X-Frame-Options', value: 'DENY' },
+      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      {
+        key: 'Permissions-Policy',
+        value: 'camera=(), microphone=(), geolocation=(self), interest-cohort=()',
+      },
+      { key: 'Content-Security-Policy', value: csp },
+    ];
+
+    return [
+      // Apply to all HTML routes. Static asset paths in /_next/* are
+      // immutable + already get long-cache headers; the security headers
+      // here ride along harmlessly.
+      { source: '/(.*)', headers: securityHeaders },
+    ];
+  },
   // Next 16.2.4 framework regression: prerendering the synthetic
   // `/_global-error` route hits `useContext(LayoutRouterContext)` returning
   // null and aborts the build. Reproduced on Jeane's site (identical

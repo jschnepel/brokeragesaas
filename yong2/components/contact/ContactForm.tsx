@@ -186,8 +186,9 @@ export function ContactForm({ initialValues }: ContactFormProps = {}) {
       <Field label="Email" name="email" type="email" required defaultValue={iv.email} onFocus={handleFocus} onBlur={handleBlur} />
       <Field label="Phone" name="phone" type="tel" required defaultValue={iv.phone} onFocus={handleFocus} onBlur={handleBlur} />
       <div>
-        <label className="caps block mb-2">Interest</label>
+        <label htmlFor="contact-interest" className="caps block mb-2">Interest</label>
         <select
+          id="contact-interest"
           name="interest"
           required
           defaultValue={iv.interest ?? ''}
@@ -202,8 +203,9 @@ export function ContactForm({ initialValues }: ContactFormProps = {}) {
         </select>
       </div>
       <div>
-        <label className="caps block mb-2">Message</label>
+        <label htmlFor="contact-message" className="caps block mb-2">Message</label>
         <textarea
+          id="contact-message"
           name="message"
           required
           rows={5}
