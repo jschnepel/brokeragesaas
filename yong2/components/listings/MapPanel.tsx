@@ -679,6 +679,22 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
     setHighlight: (key: string | null) => {
       const m = mapRef.current;
       if (!m) return;
+      // Race-guard: the parent (`ListingsClient`) calls `setHighlight`
+      // from onMouseEnter/onMouseLeave on result cards. Those events
+      // fire as soon as the React tree hydrates and the visitor moves
+      // the cursor — well before MapLibre's style.json has finished
+      // loading and the `listing-pins` source has been added (see
+      // line ~197 `m.addSource(SOURCE_ID, ...)` which runs inside the
+      // map's `load` event handler).
+      //
+      // Pre-source-add, `m.setFeatureState({ source: 'listing-pins' })`
+      // throws `Error: The source 'listing-pins' does not exist in the
+      // map's style.` Bail out until the source is registered; we'll
+      // pick up the highlight on the next hover.
+      if (!m.getSource(SOURCE_ID)) {
+        highlightedKeyRef.current = key;
+        return;
+      }
       const prev = highlightedKeyRef.current;
       if (prev && prev !== key) {
         m.setFeatureState({ source: SOURCE_ID, id: prev }, { [HIGHLIGHT_PROP]: false });
