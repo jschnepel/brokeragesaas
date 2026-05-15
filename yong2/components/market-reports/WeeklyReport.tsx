@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { SectionFrame } from '@/components/shared/SectionFrame';
 import { Navigation } from '@/components/chrome/Navigation';
@@ -19,6 +20,7 @@ import { MethodologyBlock } from './MethodologyBlock';
 import { NegotiationSection } from './NegotiationSection';
 import { PriceReductionSection } from './PriceReductionSection';
 import { MonthsOfSupplySection } from './MonthsOfSupplySection';
+import { EditorialBreaker } from './EditorialBreaker';
 
 export interface WeeklyReportProps {
   stats: WeeklyStats;
@@ -49,21 +51,46 @@ export function WeeklyReport({
   const summary = generateWeeklySummary(stats, breakdown, trend);
   return (
     <>
-      <Navigation />
-      <main className="bg-ink text-stone pt-24">
-        {/* Header */}
-        <SectionFrame className="pt-12 pb-16 md:pt-16 md:pb-20">
-          <p className="caps text-[10px] text-gold tracking-[0.32em]">The Market Desk</p>
-          <h1 className="display-xl mt-4 text-stone tracking-[-0.005em]">
-            {weekRangeLabel(stats.period)}
-          </h1>
-          <p className="mt-6 max-w-3xl text-base md:text-lg leading-relaxed text-stone/80">
-            {summary}
-          </p>
-          <p className="mt-5 caps text-[10px] tracking-[0.32em] text-stone/40">
-            Phoenix metro · Supply pulse · Auto-generated from ARMLS listing data
-          </p>
-        </SectionFrame>
+      <Navigation initialTransparent />
+      <main className="bg-ink text-stone">
+        {/* Cinematic hero — full-bleed photo with title + auto-summary
+            overlaid bottom-left. Replaces the old plain-text header so
+            the report opens like a magazine spread rather than a tile
+            dashboard. */}
+        <header
+          className="relative w-full overflow-hidden"
+          style={{ height: '70vh', minHeight: '520px' }}
+        >
+          <Image
+            src="/page-heroes/market.jpg"
+            alt=""
+            fill
+            priority
+            fetchPriority="high"
+            quality={75}
+            sizes="100vw"
+            className="object-cover"
+          />
+          {/* Atmospheric darken: radial wash + bottom gradient so the
+              caption stack reads against any photo content. */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(11,22,32,0.30),rgba(11,22,32,0.70))]" />
+          <div className="absolute inset-x-0 bottom-0 pt-24 pb-12 md:pb-16 bg-gradient-to-b from-transparent to-ink/90">
+            <div className="max-w-[1400px] mx-auto px-6 md:px-12 lg:px-16">
+              <p className="caps text-[10px] md:text-xs text-gold tracking-[0.32em]">
+                The Market Desk
+              </p>
+              <h1 className="display-xl mt-4 md:mt-5 text-stone text-balance tracking-[-0.005em]">
+                {weekRangeLabel(stats.period)}
+              </h1>
+              <p className="mt-5 max-w-2xl text-base md:text-lg leading-relaxed text-stone/85">
+                {summary}
+              </p>
+              <p className="mt-5 caps text-[10px] tracking-[0.32em] text-stone/55">
+                Phoenix metro · Supply pulse · Auto-generated from ARMLS listing data
+              </p>
+            </div>
+          </div>
+        </header>
 
         {/* Stat tiles — weekly is supply-pulse only */}
         <SectionFrame className="pb-16 md:pb-20 border-t border-[color:var(--hairline)] pt-12 md:pt-16">
@@ -125,6 +152,15 @@ export function WeeklyReport({
 
         {/* Months of supply gauge — buyer's vs seller's market */}
         <MonthsOfSupplySection data={monthsOfSupply} />
+
+        {/* Editorial breaker — pivot from the supply lens to the
+            deal-economics lens with an atmospheric image band. */}
+        <EditorialBreaker
+          imageSrc="/hero/silverleaf.jpg"
+          kicker="From supply to the deal"
+          headline="What sellers gave."
+          italic="What buyers paid."
+        />
 
         {/* Negotiation pulse — list-vs-sale gap, share over/under list */}
         <NegotiationSection data={negotiation} />

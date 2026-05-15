@@ -1,6 +1,7 @@
 import { SectionFrame } from '@/components/shared/SectionFrame';
 import type { MonthsOfSupply } from '@/lib/market-reports';
 import { StatTile } from './StatTile';
+import { SupplyGaugeBar } from './SupplyGaugeBar';
 
 export interface MonthsOfSupplySectionProps {
   data: MonthsOfSupply | null;
@@ -78,12 +79,15 @@ export function MonthsOfSupplySection({ data }: MonthsOfSupplySectionProps) {
         </div>
         {classification ? (
           <p
-            className={`caps text-xs tracking-[0.32em] mb-8 ${toneStyle}`}
+            className={`caps text-xs tracking-[0.32em] mb-6 ${toneStyle}`}
             aria-label={classification.label}
           >
             {classification.label}
           </p>
         ) : null}
+        {/* Visual gauge — bands + marker showing where this metro
+            currently sits on the buyer/seller spectrum. */}
+        <SupplyGaugeBar months={data.months3mo} classification={data.marketClassification} />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
           <StatTile
             label="3-month gauge"
