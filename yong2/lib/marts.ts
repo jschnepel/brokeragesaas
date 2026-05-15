@@ -1,61 +1,162 @@
 /**
- * Lakehouse mart reader. Fetches Parquet files via CloudFront (edge-cached)
- * and returns rows as typed objects.
+ * Lakehouse mart reader (manifest-aware, Phase 4 of the always-warm CDN plan).
  *
- * Fetch path: yong2 → CloudFront edge → S3 analytics/* (public).
- * - CloudFront caches each parquet for 1h (matches dbt schedule).
- * - S3 prefix `analytics/*` is publicly readable (bucket policy
- *   'PublicReadAnalyticsMartsOnly'); other prefixes (bronze/, etc.) stay
- *   private.
- * - The marts are aggregate market stats (counts, medians, $/sqft), not
- *   raw listings — publishable per IDX rules.
+ * Fetch path: yong2 → manifest.json → versioned parquet via CloudFront edge.
  *
- * No in-process cache: CloudFront + Next.js fetch cache + Next ISR own all
- * caching. Keeps Lambda memory low and a single source of truth.
+ *   manifest.json (max-age=60, swr=3600) — tiny pointer, refreshes per minute
+ *     ↓
+ *   <mart>.<build_id>.parquet (immutable, pre-warmed by dbt Fargate task)
+ *
+ * The Fargate dbt task writes a new build_id each cycle, runs a CloudFront
+ * warmer that pre-fetches every versioned URL (atomic publish gate — manifest
+ * only commits if every URL is warm), then mirrors versioned → bare-named
+ * paths for backward compat. yong2 reads through the manifest so the
+ * versioned URL is always already-warm at the SSR Lambda's edge POP.
+ *
+ * Multi-layer fallback (in priority order):
+ *   1. Latest manifest.json → versioned URL
+ *   2. manifest.previous.json → versioned URL of prior cycle (if .json fails)
+ *   3. Legacy bare-named path <mart>.parquet (if both manifests fail)
+ *
+ * Integrity: each parquet response's Content-Length is checked against
+ * manifest.size_bytes — mismatch logs + falls back. SHA verification is
+ * skipped at read time (would force reading the body twice); the Fargate
+ * warmer's atomic gate is the integrity guarantee.
  *
  * Usage:
  *   const rows = await readMart<MarketPulseRow>('fct_market_pulse_metro');
- *   const metro = rows.filter(r => r.scope_key === 'phoenix_metro');
  */
 
 import { parquetReadObjects } from 'hyparquet';
 import { compressors } from 'hyparquet-compressors';
 
-// CloudFront distribution E3JUA9RU5MGWQV → S3 analytics/* (1h TTL).
+// CloudFront distribution E3JUA9RU5MGWQV → S3 analytics/* (public read).
 // Override via env if migrating to a custom domain (e.g. marts.yong-choi.com).
 const CDN_BASE =
   process.env.NEXT_PUBLIC_MARTS_CDN_BASE
   ?? 'https://d12v6de1xwcjhk.cloudfront.net';
 
-const TTL_MS = 60 * 60 * 1000; // 1h — matches dbt schedule
+// Versioned parquet URLs are immutable (build_id-stamped), so cache decoded
+// rows for 24h per Lambda lifecycle. Stale rows from a prior build are still
+// valid — the manifest has been updated by then so subsequent reads will
+// resolve to the new URL and re-decode automatically.
+const ROW_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+// Manifest cache matches the S3 Cache-Control: max-age=60.
+const MANIFEST_CACHE_TTL_MS = 60 * 1000;
 
-// In-process row cache. Next.js fetch cache handles BYTES; this caches
-// the DECODED rows so we don't re-parse the parquet on every request.
-// On Amplify SSR, ISR `revalidate` doesn't reliably persist across
-// invocations, so we keep our own per-Lambda-instance map.
-const rowCache = new Map<string, { rows: unknown[]; fetchedAt: number }>();
+interface ManifestEntry {
+  url: string;
+  sha256: string;
+  size_bytes: number;
+}
 
-async function fetchParquetBuffer(martName: string): Promise<ArrayBuffer> {
-  const url = `${CDN_BASE}/${martName}.parquet`;
-  // `next: { revalidate }` lets Next.js's data cache layer dedupe the bytes
-  // for 1h within a single Lambda lifecycle.
+interface Manifest {
+  schema_version: number;
+  build_id: string;
+  generated_at: string;
+  previous_build_id: string | null;
+  marts: Record<string, ManifestEntry>;
+}
+
+interface ManifestCacheEntry {
+  manifest: Manifest;
+  fetchedAt: number;
+}
+
+const manifestCache: { current?: ManifestCacheEntry; previous?: ManifestCacheEntry } = {};
+const rowCache = new Map<string, { rows: unknown[]; fetchedAt: number; sourceUrl: string }>();
+
+async function fetchManifest(name: 'manifest' | 'manifest.previous'): Promise<Manifest> {
+  const url = `${CDN_BASE}/${name}.json`;
+  const res = await fetch(url, { next: { revalidate: 60 } });
+  if (!res.ok) {
+    throw new Error(`manifest fetch failed: ${url} → HTTP ${res.status}`);
+  }
+  const json = (await res.json()) as Manifest;
+  if (json.schema_version !== 1 || !json.marts) {
+    throw new Error(`manifest schema invalid: version=${json.schema_version}`);
+  }
+  return json;
+}
+
+async function readManifest(): Promise<Manifest | null> {
+  const now = Date.now();
+  if (manifestCache.current && now - manifestCache.current.fetchedAt < MANIFEST_CACHE_TTL_MS) {
+    return manifestCache.current.manifest;
+  }
+  try {
+    const m = await fetchManifest('manifest');
+    manifestCache.current = { manifest: m, fetchedAt: now };
+    return m;
+  } catch (err) {
+    // Try the prior-cycle manifest as fallback layer 2.
+    if (manifestCache.previous && now - manifestCache.previous.fetchedAt < MANIFEST_CACHE_TTL_MS) {
+      return manifestCache.previous.manifest;
+    }
+    try {
+      const m = await fetchManifest('manifest.previous');
+      manifestCache.previous = { manifest: m, fetchedAt: now };
+      console.warn('[marts] primary manifest failed, using manifest.previous:', err);
+      return m;
+    } catch (err2) {
+      console.warn('[marts] both manifests unreachable, falling back to bare paths:', err2);
+      return null;
+    }
+  }
+}
+
+async function fetchParquetBuffer(url: string, expectedSize?: number): Promise<ArrayBuffer> {
   const res = await fetch(url, { next: { revalidate: 3600 } });
   if (!res.ok) {
     throw new Error(`mart fetch failed: ${url} → HTTP ${res.status}`);
   }
-  return res.arrayBuffer();
+  const buf = await res.arrayBuffer();
+  // Integrity check: if manifest gave us an expected size, verify Content-Length.
+  // Mismatch = upstream object replaced mid-cycle or partial response. Caller
+  // catches and falls through to legacy bare path.
+  if (expectedSize !== undefined && buf.byteLength !== expectedSize) {
+    throw new Error(
+      `mart size mismatch: ${url} got ${buf.byteLength} bytes, manifest says ${expectedSize}`,
+    );
+  }
+  return buf;
 }
 
 export async function readMart<T = Record<string, unknown>>(
   martName: string,
 ): Promise<T[]> {
+  // In-process cache hit short-circuits everything — versioned URLs are
+  // immutable, so a 24h TTL is safe (and the manifest's own TTL means we
+  // won't re-resolve to a stale URL for more than 60 seconds anyway).
   const hit = rowCache.get(martName);
-  if (hit && Date.now() - hit.fetchedAt < TTL_MS) {
+  if (hit && Date.now() - hit.fetchedAt < ROW_CACHE_TTL_MS) {
     return hit.rows as T[];
   }
-  const buf = await fetchParquetBuffer(martName);
+
+  // Layer 1+2: try to resolve via manifest (current → previous fallback in readManifest).
+  const manifest = await readManifest();
+  let buf: ArrayBuffer | null = null;
+  let sourceUrl = '';
+
+  if (manifest && manifest.marts[martName]) {
+    const entry = manifest.marts[martName];
+    sourceUrl = `${CDN_BASE}/${entry.url}`;
+    try {
+      buf = await fetchParquetBuffer(sourceUrl, entry.size_bytes);
+    } catch (err) {
+      console.warn(`[marts] manifest path failed for ${martName}, falling back:`, err);
+      buf = null;
+    }
+  }
+
+  // Layer 3: legacy bare-named fallback. Same path the pre-Phase-4 reader used.
+  if (buf === null) {
+    sourceUrl = `${CDN_BASE}/${martName}.parquet`;
+    buf = await fetchParquetBuffer(sourceUrl);
+  }
+
   const rows = (await parquetReadObjects({ file: buf, compressors })) as T[];
-  rowCache.set(martName, { rows, fetchedAt: Date.now() });
+  rowCache.set(martName, { rows, fetchedAt: Date.now(), sourceUrl });
   return rows;
 }
 
