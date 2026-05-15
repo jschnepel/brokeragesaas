@@ -197,6 +197,7 @@ export function ListingsClient({
       community?: string | null;
       city?: string | null;
       postalCode?: string | null;
+      listingId?: string | null;
     }): boolean => {
       if (trimmedQ.length === 0) return true;
       // qField narrows which fields the substring match runs against,
@@ -207,6 +208,16 @@ export function ListingsClient({
       // server-driven result set is the canonical answer for those
       // fields, and pre-emptively hiding records would briefly flash
       // an empty list before the server response landed.
+      //
+      // MLS search routing: the server-side filter auto-routes a
+      // numeric 5-9 char query in 'any' mode to a ListingId lookup
+      // (see lib/spark/search.ts). The client filter has to mirror
+      // that or it would hide the very record the server just
+      // returned ("7013595" obviously isn't a substring of
+      // "741 E RANCH Road, Gilbert, AZ 85296").
+      const isNumericMls =
+        qField === 'mls'
+        || (qField === 'any' && /^[0-9]{5,9}$/.test(trimmedQ));
       const fields: Array<string | null | undefined> =
         qField === 'address'
           ? [rec.unparsedAddress]
@@ -216,7 +227,9 @@ export function ListingsClient({
               ? [rec.city ?? rec.unparsedAddress]
               : qField === 'zip'
                 ? [rec.postalCode ?? rec.unparsedAddress]
-                : [rec.unparsedAddress, rec.community, rec.city, rec.postalCode];
+                : isNumericMls
+                  ? [rec.listingId, rec.unparsedAddress]
+                  : [rec.unparsedAddress, rec.community, rec.city, rec.postalCode, rec.listingId];
       const hasAnyField = fields.some((f) => typeof f === 'string' && f.length > 0);
       if (!hasAnyField) return true;
       for (const f of fields) {
