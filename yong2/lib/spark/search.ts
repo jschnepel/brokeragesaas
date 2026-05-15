@@ -324,6 +324,18 @@ function buildSearchFilter(opts: SearchOpts): string {
     clauses.push(`BedroomsTotal ge ${opts.bedsMin}`);
   }
 
+  // City allowlist — driven by the autocomplete dropdown. OR-joined so
+  // a multi-pick visitor sees the union of inventory across the chosen
+  // cities. Each value is OData-escaped to defend against ' in names
+  // like "O'Brien" (defensive — ARMLS city names don't currently use
+  // apostrophes, but the escape is free).
+  if (opts.cities && opts.cities.length > 0) {
+    const cityClause = opts.cities
+      .map((c) => `City eq '${escapeLiteral(c)}'`)
+      .join(' or ');
+    clauses.push(`(${cityClause})`);
+  }
+
   if (typeof opts.bathsMin === 'number') {
     clauses.push(`BathroomsTotalInteger ge ${opts.bathsMin}`);
   }

@@ -45,6 +45,10 @@ const bodySchema = z.object({
   priceMax: z.number().nonnegative().optional(),
   bedsMin: z.number().int().nonnegative().optional(),
   bathsMin: z.number().int().nonnegative().optional(),
+  // City allowlist from the autocomplete dropdown. Up to 40 — the
+  // picker UI multi-selects against ~200 known cities; >40 is a clear
+  // no-op, cap to stay defensive.
+  cities: z.array(z.string().min(1).max(80)).max(40).optional(),
   sqftMin: z.number().nonnegative().optional(),
   sqftMax: z.number().nonnegative().optional(),
   lotAcresMin: z.number().nonnegative().optional(),

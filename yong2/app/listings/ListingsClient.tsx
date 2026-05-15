@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { Listing } from '@/lib/types';
-import type { BBox, PinPoint, PolygonGeoJSON, QField, StatusFilter } from '@/lib/listings-search';
+import type { BBox, CityOption, PinPoint, PolygonGeoJSON, QField, StatusFilter } from '@/lib/listings-search';
 import { SearchBar, type SortKey } from '@/components/listings/SearchBar';
+import { CityAutocomplete } from '@/components/listings/CityAutocomplete';
 import {
   DEFAULT_ADVANCED_FILTERS,
   DEFAULT_HOME_TYPES,
@@ -49,6 +50,12 @@ type ListingsClientProps = {
    * is centered on a smaller area.
    */
   initialBbox: BBox;
+  /**
+   * Full city list with per-city counts, sourced from RDS at SSR time.
+   * Drives the type-ahead City dropdown so the visitor can pick a city
+   * without scrolling through 200+ options.
+   */
+  cityOptions: CityOption[];
 };
 
 // Page size for both initial fetch and each Load More click. Kept
@@ -71,6 +78,7 @@ export function ListingsClient({
   initialFetchedAt,
   initialNextCursor,
   initialBbox,
+  cityOptions,
 }: ListingsClientProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -118,6 +126,10 @@ export function ListingsClient({
   const [viewMode, setViewMode] = useState<ViewMode>('split'); // for mobile
   const [sort, setSort] = useState<SortKey>(initialUrlState.sort ?? 'price-desc');
   const [qField, setQField] = useState<QField>(initialUrlState.qField ?? 'any');
+  // Cities the visitor has picked via the autocomplete dropdown. Empty
+  // = no city narrowing (default). Multi-select; values are the
+  // canonical city strings from cityOptions.
+  const [cities, setCities] = useState<string[]>([]);
   // Cursor for the next Load More request — surfaced by the API on
   // every response. Null when there's no next page. Replaces the
   // offset-based paginator: cursors stay valid even if pool ordering
@@ -267,6 +279,7 @@ export function ListingsClient({
     if (priceMax != null) opts.priceMax = priceMax;
     if (filters.bedsMin > 0) opts.bedsMin = filters.bedsMin;
     if (filters.bathsMin > 0) opts.bathsMin = filters.bathsMin;
+    if (cities.length > 0) opts.cities = cities;
 
     // Advanced filters — translate string-form input to numbers, drop
     // empties so the API doesn't see NaN. Booleans pass through only
@@ -296,7 +309,7 @@ export function ListingsClient({
     opts.sort = sort;
     opts.limit = PAGE_LIMIT;
     return opts;
-  }, [q, qField, polygon, bbox, filters, sort]);
+  }, [q, qField, polygon, bbox, filters, sort, cities]);
 
   // Push every user-visible state change into the URL. Refresh, back/
   // forward, and shared links all preserve filter intent. router.replace
@@ -439,9 +452,24 @@ export function ListingsClient({
   const handleResetFilters = useCallback(() => {
     setQ('');
     setQField('any');
+    setCities([]);
     setPolygon(null);
     setFilters(INITIAL_FILTER);
     setDrawingActive(false);
+  }, []);
+
+  // Mirror the filter_chip_toggle event surface other filters use so
+  // the dropdown shows up in the same analytics stream — one event per
+  // city add/remove, regardless of whether the commit came from a
+  // click or the optimistic auto-apply.
+  const handleCitiesChange = useCallback((next: string[]) => {
+    setCities((prev) => {
+      const added = next.filter((c) => !prev.includes(c));
+      const removed = prev.filter((c) => !next.includes(c));
+      for (const c of added) track('filter_chip_toggle', { chip: `city:${c}`, on: true });
+      for (const c of removed) track('filter_chip_toggle', { chip: `city:${c}`, on: false });
+      return next;
+    });
   }, []);
 
   const handlePinHover = useCallback((key: string | null) => {
@@ -650,6 +678,13 @@ export function ListingsClient({
             sort={sort}
             onSortChange={setSort}
           />
+          {cityOptions.length > 0 ? (
+            <CityAutocomplete
+              cityOptions={cityOptions}
+              value={cities}
+              onChange={handleCitiesChange}
+            />
+          ) : null}
           <FilterChips value={filters} onChange={setFilters} />
           <p className="px-4 md:px-6 py-2 text-[0.65rem] uppercase tracking-wider text-mute border-b border-white/5">
             Active &amp; pending listings across the full ARMLS

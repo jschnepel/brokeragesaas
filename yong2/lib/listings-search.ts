@@ -131,6 +131,12 @@ export interface SearchOpts {
   priceMax?: number;
   bedsMin?: number;
   bathsMin?: number;
+  /**
+   * Case-insensitive city allowlist. Empty / omitted = no city
+   * narrowing — every IDX-active listing in the Spark feed is
+   * searchable. Used by the city autocomplete in the search panel.
+   */
+  cities?: string[];
   /** Living area (interior heated sqft) min/max. */
   sqftMin?: number;
   sqftMax?: number;
@@ -410,4 +416,35 @@ function derivePinSlug(unparsedAddress: string | null, listingId: string): strin
     .replace(/^-+|-+$/g, '');
   const tail = listingId.toLowerCase().replace(/[^a-z0-9]/g, '');
   return base ? `${base}-${tail}` : `listing-${tail}`;
+}
+
+export interface CityOption {
+  city: string;
+  count: number;
+}
+
+/**
+ * Distinct cities currently represented in the active IDX universe with
+ * per-city counts. Hits RDS' mv_active_listings — the cities list is
+ * stable enough that page.tsx wraps this in a 5-minute ISR cache so the
+ * /listings page only pays for it a handful of times per hour.
+ *
+ * Page.tsx swallows errors and falls back to an empty list so the
+ * autocomplete degrades gracefully if RDS is unavailable.
+ */
+export async function getDistinctActiveCities(): Promise<CityOption[]> {
+  const sql = `
+    SELECT city, COUNT(*)::int AS count
+    FROM mv_active_listings
+    WHERE ${IDX_ACTIVE_WHERE}
+      AND city IS NOT NULL
+      AND city <> ''
+    GROUP BY city
+    ORDER BY COUNT(*) DESC, city ASC
+  `;
+  const { rows } = await query<{ city: string; count: number | string }>(sql);
+  return rows.map((r) => ({
+    city: r.city,
+    count: typeof r.count === 'string' ? parseInt(r.count, 10) : r.count,
+  }));
 }

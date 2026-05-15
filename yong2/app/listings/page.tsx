@@ -6,6 +6,11 @@ import { ListingsSeoList } from '@/components/listings/ListingsSeoList';
 // Listings search is now Spark-backed — full ARMLS Active+Pending
 // inventory, no RDS dependency. See lib/spark/search.ts.
 import { searchListings } from '@/lib/spark/search';
+// The city-autocomplete options DO come from RDS (mv_active_listings) —
+// it's the cheapest source for a deduplicated city list with counts.
+// Wrapped in a Promise.allSettled so a transient RDS hiccup degrades
+// the dropdown to an empty list rather than failing the whole page.
+import { getDistinctActiveCities, type CityOption } from '@/lib/listings-search';
 import { siteUrl } from '@/lib/seo';
 
 // Default to a Phoenix-metro bbox centered on Yong's service area (zoom ~9).
@@ -45,23 +50,30 @@ export default async function ListingsPage() {
   // Default home-type filter mirrors the client's INITIAL_FILTER and
   // sort default mirrors ListingsClient initial state so the
   // post-hydration re-fetch doesn't re-order the SSR result set.
-  const initial = await searchListings({
-    bbox: DEFAULT_BBOX,
-    homeTypes: ['house', 'condo'],
-    sort: 'price-desc',
-    limit: 60,
-  }).catch((err) => {
-    // eslint-disable-next-line no-console
-    console.warn('listings.page.initial_fetch_failed', err);
-    return {
-      listings: [],
-      pins: [],
-      total: 0,
-      hasMore: false,
-      fetchedAt: new Date().toISOString(),
-      nextCursor: null,
-    };
-  });
+  const [initial, cityOptions] = await Promise.all([
+    searchListings({
+      bbox: DEFAULT_BBOX,
+      homeTypes: ['house', 'condo'],
+      sort: 'price-desc',
+      limit: 60,
+    }).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.warn('listings.page.initial_fetch_failed', err);
+      return {
+        listings: [],
+        pins: [],
+        total: 0,
+        hasMore: false,
+        fetchedAt: new Date().toISOString(),
+        nextCursor: null,
+      };
+    }),
+    getDistinctActiveCities().catch((err): CityOption[] => {
+      // eslint-disable-next-line no-console
+      console.warn('listings.page.city_options_failed', err);
+      return [];
+    }),
+  ]);
 
   return (
     <>
@@ -103,6 +115,7 @@ export default async function ListingsPage() {
             initialFetchedAt={initial.fetchedAt}
             initialNextCursor={initial.nextCursor ?? null}
             initialBbox={DEFAULT_BBOX}
+            cityOptions={cityOptions}
           />
         </Suspense>
       </main>
