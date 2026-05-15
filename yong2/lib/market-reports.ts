@@ -673,15 +673,32 @@ export interface TierBreakdown {
   tiers: TierRow[];
 }
 
-const LUXURY_BANDS: Array<{ key: string; label: string }> = [
-  { key: '3m_5m', label: '$3M – $5M' },
-  { key: '5m_plus', label: '$5M+' },
+// Display bands the UI surfaces. Source bands come from the dbt mart
+// `fct_active_by_pricetier` which currently emits the keys: 200K-400K,
+// 400K-600K, 600K-800K, 800K-1M, 1M-2M, 2M-5M, 5M-10M, 10M+. The
+// /listings audience cares about the luxury cuts only; the "$5M+"
+// tier is derived from the union of 5M-10M and 10M+.
+//
+// Previous code looked for synthetic keys ('3m_5m', '5m_plus') that
+// the mart has never emitted, so every detail page rendered "0
+// active · — · —" for both bands — verified empirically against the
+// live parquet (174 actives at 2M-5M, 48 at 5M-10M, 12 at 10M+).
+interface DisplayBand {
+  key: string;
+  label: string;
+  /** Source mart bands that roll up into this display band. */
+  sourceKeys: string[];
+}
+
+const LUXURY_BANDS: DisplayBand[] = [
+  { key: '2m_5m', label: '$2M – $5M', sourceKeys: ['2M-5M'] },
+  { key: '5m_plus', label: '$5M+', sourceKeys: ['5M-10M', '10M+'] },
 ];
 
-function tierCommentary(band: { key: string; label: string }, active: number, medianDom: number | null): string {
+function tierCommentary(band: DisplayBand, active: number, medianDom: number | null): string {
   const domTxt = medianDom != null ? `${Math.round(medianDom)} days` : '—';
-  if (band.key === '3m_5m') {
-    if (active === 0) return 'Empty inventory; no active $3-5M listings tracked.';
+  if (band.key === '2m_5m') {
+    if (active === 0) return 'Empty inventory; no active $2-5M listings tracked.';
     return `${active} active listings; median days on market ${domTxt}. The most actively transacting luxury band.`;
   }
   if (band.key === '5m_plus') {
@@ -689,6 +706,53 @@ function tierCommentary(band: { key: string; label: string }, active: number, me
     return `${active} active listings; median days on market ${domTxt}. Selective, representation-driven; off-market share is meaningful at this tier.`;
   }
   return `${active} active listings; median days on market ${domTxt}.`;
+}
+
+/**
+ * Roll a set of source-band rows into a single display band:
+ *  - active     → sum
+ *  - median PPSF/DOM → active-count-weighted average (medians don't
+ *    aggregate cleanly, but a count-weighted blend is the best
+ *    approximation without dropping back to listing-level data)
+ *
+ * When `rows` is empty, all three return null.
+ */
+function rollupBand(rows: PriceTierMartRow[]): {
+  active: number;
+  medianPpsf: number | null;
+  medianDom: number | null;
+} {
+  if (rows.length === 0) return { active: 0, medianPpsf: null, medianDom: null };
+
+  let active = 0;
+  let ppsfNum = 0;
+  let ppsfDen = 0;
+  let domNum = 0;
+  let domDen = 0;
+
+  for (const r of rows) {
+    const count =
+      typeof r.active_count === 'bigint'
+        ? Number(r.active_count)
+        : (asNumber(r.active_count) ?? 0);
+    active += count;
+    const ppsf = asNumber(r.median_ppsf);
+    if (ppsf != null && count > 0) {
+      ppsfNum += ppsf * count;
+      ppsfDen += count;
+    }
+    const dom = asNumber(r.median_dom);
+    if (dom != null && count > 0) {
+      domNum += dom * count;
+      domDen += count;
+    }
+  }
+
+  return {
+    active,
+    medianPpsf: ppsfDen > 0 ? ppsfNum / ppsfDen : null,
+    medianDom: domDen > 0 ? domNum / domDen : null,
+  };
 }
 
 export async function getTierBreakdown(period: Period): Promise<TierBreakdown | null> {
@@ -702,14 +766,8 @@ export async function getTierBreakdown(period: Period): Promise<TierBreakdown | 
   if (metroRows.length === 0) return null;
 
   const tiers: TierRow[] = LUXURY_BANDS.map((band) => {
-    const row = metroRows.find((r) => r.price_band === band.key);
-    const active = row
-      ? (typeof row.active_count === 'bigint'
-          ? Number(row.active_count)
-          : (asNumber(row.active_count) ?? 0))
-      : 0;
-    const medianPpsf = row ? asNumber(row.median_ppsf) : null;
-    const medianDom = row ? asNumber(row.median_dom) : null;
+    const sourceRows = metroRows.filter((r) => band.sourceKeys.includes(r.price_band));
+    const { active, medianPpsf, medianDom } = rollupBand(sourceRows);
     return {
       label: band.label,
       bandKey: band.key,
