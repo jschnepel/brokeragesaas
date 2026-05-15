@@ -88,42 +88,38 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: 'Invalid body', issues: parsed.error.flatten() }, { status: 400 });
   }
 
-  // Scoping-intent override: when the visitor expresses an explicit
-  // scope (text query OR a hand-drawn polygon), the scope wins over
-  // every attribute filter (price, beds, sqft, lot, year, pool,
-  // home-types, etc.). The intent in both cases is the same — "show
-  // me anything inside this scope" — so the API treats them
-  // identically.
+  // Scoping-intent override: a TEXT QUERY trumps every attribute filter
+  // and every spatial scope. When the visitor types something they
+  // want results matching that text anywhere in the IDX universe — not
+  // narrowed by their previously-set price/beds/cities/etc. or by
+  // wherever the map happened to be parked. The client mirrors this
+  // (see ListingsClient's searchOpts memo — search mode strips
+  // everything except q/qField/sort/limit) but we double-enforce
+  // here in case a non-browser caller hits the API directly.
   //
-  // Bbox alone is NOT a scoping intent: bbox is the implicit "current
-  // viewport" that arrives with every map pan, so respecting filters
-  // inside bbox is the expected default. Listing status is always
-  // preserved because Active/Coming Soon/Pending is the inventory
-  // contract, not an attribute filter.
+  // Polygon and bbox are SCOPES — substitutes for "the viewport".
+  // Filters apply within them; that's the entire point of drawing a
+  // polygon over a neighbourhood you care about. So polygon does NOT
+  // trigger the override.
   //
-  // Without the override, drawing a circle while default home-types
-  // = [house, condo] is active would silently exclude land and multi-
-  // family inside the shape; and typing `silverleaf` with a $5M price
-  // ceiling would return empty even though Silverleaf homes exist
-  // above $5M.
+  // Status defaults are still always preserved because Active/Pending/
+  // Coming Soon is the inventory contract, not an attribute filter.
   const data = parsed.data;
   const qTrimmed = (data.q ?? '').trim();
   const hasTextQuery = qTrimmed.length > 0;
   const hasPolygon = data.polygonGeoJSON != null;
-  const hasScopingIntent = hasTextQuery || hasPolygon;
 
-  // When scoping intent is present we also lift the default 60-row
-  // page cap to the schema max (200), because the visitor's
-  // expectation is "every match in this scope" — pagination cards
-  // truncating to 60 reads as missing inventory. Pins are already
-  // capped at 1000 inside searchListings, so the map experience
-  // stays honest.
-  const searchOpts = hasScopingIntent
+  // When the visitor has typed a query, we also lift the default 60-row
+  // page cap to the schema max (200) — the expectation is "every match
+  // for this term", not "first 60 by sort order". Pins are already
+  // capped at 1000 inside searchListings, so the map experience stays
+  // honest.
+  const searchOpts = hasTextQuery
     ? {
+        // Search mode — strip every filter + scope. The client already
+        // does this; reaffirm here for safety.
         q: data.q,
         qField: data.qField,
-        bbox: data.bbox,
-        polygonGeoJSON: data.polygonGeoJSON,
         status: data.status,
         limit: Math.max(data.limit ?? 60, 200),
         offset: data.offset,
@@ -137,13 +133,16 @@ export async function POST(req: Request): Promise<Response> {
     const result = await searchListings(searchOpts);
     const dbMs = Math.round(performance.now() - dbStart);
     const totalMs = Math.round(performance.now() - reqStart);
-    const overrideTag = hasTextQuery && hasPolygon
-      ? 'q+polygon'
-      : hasTextQuery
-        ? 'q-priority'
-        : hasPolygon
-          ? 'polygon-priority'
-          : 'none';
+    // Under the new search-vs-filter model, only a text query triggers
+    // the override; polygon and bbox are scopes that filters apply
+    // within. The tag still surfaces the polygon-vs-bbox distinction
+    // so the client can render appropriate "Drawn area" / "Map area"
+    // copy in the results header.
+    const overrideTag = hasTextQuery
+      ? 'q-priority'
+      : hasPolygon
+        ? 'polygon-scope'
+        : 'none';
     return NextResponse.json(result, {
       headers: {
         'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=60',

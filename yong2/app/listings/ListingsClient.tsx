@@ -285,35 +285,48 @@ export function ListingsClient({
   // after the latest one.
   const abortRef = useRef<AbortController | null>(null);
 
-  // Compose the SearchOpts payload — memoized so an effect can depend on it
-  // without triggering churn from object identity alone.
+  // Compose the SearchOpts payload. Two distinct modes:
   //
-  // bbox is intentionally omitted from `opts` whenever a text query OR a
-  // user-drawn polygon is active. Server-side these clauses fully define
-  // the search universe (text via Spark `contains()`, polygon via the
-  // post-fetch spatial filter), so sending bbox would be a no-op at
-  // best — and at worst would churn the lib-internal search cache when
-  // the auto-fit-to-results camera move (see search-effect below) shifts
-  // bbox state and the memo re-runs.
+  //  SEARCH MODE (q is set)
+  //    The visitor's intent is "find me listings matching this query
+  //    anywhere in the IDX universe — I'll go to them, not the other
+  //    way around." Strip every filter + the current viewport + any
+  //    drawn polygon. The post-fetch effect fits the map to the
+  //    result pins. Filter state in the React tree is RETAINED — the
+  //    visitor's chips don't get wiped — but they don't apply while a
+  //    search is active. Clearing the query restores them.
+  //
+  //  FILTER MODE (no q)
+  //    Filters constrain the current viewport. Polygon (if drawn) acts
+  //    as a tighter viewport; otherwise bbox = "what the user is
+  //    looking at right now". Every attribute filter (price, beds,
+  //    home types, cities, status, advanced toggles) applies within
+  //    that scope and the scope alone. Pan the map → filters re-run
+  //    in the new scope.
+  //
+  // This split eliminates the prior ambiguous "scoping intent override"
+  // where text + filters competed for which to honor.
   const searchOpts = useMemo(() => {
-    const { priceMin, priceMax } = priceRangeToBounds(filters.priceRange);
-    // Typed `Partial<SearchOpts>` instead of `Record<string, unknown>` —
-    // matches the API schema and catches drift at compile time when
-    // either side adds a field. Each branch only assigns the matching
-    // field, so undefined-narrowing keeps the wire payload minimal.
     const opts: Partial<SearchOpts> = {};
     const hasTextQuery = q.trim().length > 0;
+
     if (hasTextQuery) {
+      // SEARCH MODE — query + sort + pagination only. No filters, no scope.
       opts.q = q.trim();
-      // Only include qField when it narrows from the default 'any'
-      // OR-union so the API request stays minimal for the common case.
       if (qField !== 'any') opts.qField = qField;
+      opts.sort = sort;
+      opts.limit = PAGE_LIMIT;
+      return opts;
     }
+
+    // FILTER MODE — apply filters within the current viewport (or polygon).
     if (polygon) {
       opts.polygonGeoJSON = polygon;
-    } else if (bbox && !hasTextQuery) {
+    } else if (bbox) {
       opts.bbox = bbox;
     }
+
+    const { priceMin, priceMax } = priceRangeToBounds(filters.priceRange);
     if (filters.status.length > 0) opts.status = filters.status as StatusFilter[];
     if (filters.homeTypes.length > 0) opts.homeTypes = filters.homeTypes as HomeType[];
     if (priceMin != null) opts.priceMin = priceMin;
@@ -323,8 +336,7 @@ export function ListingsClient({
     if (cities.length > 0) opts.cities = cities;
 
     // Advanced filters — translate string-form input to numbers, drop
-    // empties so the API doesn't see NaN. Booleans pass through only
-    // when true.
+    // empties so the API doesn't see NaN.
     const adv = filters.advanced;
     const num = (v: string) => {
       const n = parseFloat(v);
@@ -345,8 +357,6 @@ export function ListingsClient({
     if (adv.newConstruction) opts.newConstruction = true;
     if (adv.priceReduced) opts.priceReduced = true;
 
-    // Sort is pushed server-side so "Price · Low → High" means the
-    // cheapest match in the entire pool, not the cheapest of 60.
     opts.sort = sort;
     opts.limit = PAGE_LIMIT;
     return opts;
