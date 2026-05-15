@@ -178,16 +178,23 @@
 }
 
 /* Infinite syndication marquee — duplicated track scrolls 0 → -50%.
- * Edge mask fades the row into the section background so logos enter
- * and exit without a hard cut. Logos collapse to a uniform stone
- * silhouette via brightness(0)+invert(1) so a mixed bag of asset
- * colors reads as one editorial row against the Midnight bg. */
+ * Wider edge mask (14%/86%) for a longer, softer fade-in/-out — reads
+ * more editorial than the punchier 8% cut. Logos collapse to a uniform
+ * stone silhouette via brightness(0)+invert(1) so a mixed bag of asset
+ * colors reads as one editorial row against the Midnight bg. Slowed to
+ * 110s so the eye has time to register each wordmark — a typical user
+ * dwell on this section is 2–4s, so the row reveals only a couple new
+ * partners per visit, which is the point of an "as-seen-on" strip.
+ *
+ * Opacity sits at 0.82 default (closer to Stone color tone than the
+ * earlier washed 0.7) and lifts to 0.96 on hover for a restrained
+ * luxury delta rather than a graphic pop. */
 .syndication-marquee {
-  mask-image: linear-gradient(to right, transparent 0, black 8%, black 92%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, transparent 0, black 8%, black 92%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, black 14%, black 86%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 14%, black 86%, transparent 100%);
 }
 .syndication-marquee-track {
-  animation: syndication-marquee 80s linear infinite;
+  animation: syndication-marquee 110s linear infinite;
   will-change: transform;
 }
 .syndication-marquee:hover .syndication-marquee-track {
@@ -195,11 +202,11 @@
 }
 .syndication-logo {
   filter: brightness(0) invert(1);
-  opacity: 0.7;
+  opacity: 0.82;
   transition: opacity 350ms ease;
 }
 .syndication-marquee:hover .syndication-logo {
-  opacity: 1;
+  opacity: 0.96;
 }
 @keyframes syndication-marquee {
   from { transform: translateX(0); }
