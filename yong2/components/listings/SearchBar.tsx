@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { QField, SortKey } from '@/lib/listings-search';
 
 export type { QField, SortKey };
@@ -53,11 +53,17 @@ type SearchBarProps = {
 };
 
 /**
- * Debounced text input + draw-toggle button. Owns its own input ref so
- * keystrokes feel local; it only fires `onChange` after a 250ms idle window.
+ * Text input + draw-toggle button. Fires `onChange` on every keystroke
+ * (no debounce) so the parent can apply an instant client-side filter
+ * to the currently-loaded results — the visible card list updates as
+ * the visitor types, before the server has been consulted.
  *
- * Uses `requestAnimationFrame`-friendly patterns — no synchronous DOM reads
- * — so typing remains 60fps even with the map repainting alongside.
+ * The parent (`ListingsClient`) handles request-coalescing for the
+ * downstream server fetch via AbortController, so dropping the debounce
+ * here does not hammer Spark; only the last keystroke's request
+ * actually resolves into state, and the in-flight network cost is
+ * trimmed by Spark's per-IP cache + the API route's `s-maxage=30`
+ * response caching.
  */
 export function SearchBar({
   initialValue = '',
@@ -74,19 +80,14 @@ export function SearchBar({
   onSortChange,
 }: SearchBarProps) {
   const [value, setValue] = useState(initialValue);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
   function handleChange(next: string) {
     setValue(next);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => onChange(next), 250);
+    onChange(next);
   }
 
   function handleClear() {
     setValue('');
-    if (timerRef.current) clearTimeout(timerRef.current);
     onChange('');
   }
 

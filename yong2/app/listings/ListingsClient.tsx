@@ -136,6 +136,69 @@ export function ListingsClient({
     return m;
   }, [listings]);
 
+  // ─────────────────────────────────────────────────────────────
+  // Instant client-side search filter — provides visual feedback the
+  // moment the visitor types a character, before the server-side fetch
+  // resolves. SearchBar now fires onChange on every keystroke (no
+  // debounce); the server fetch effect handles AbortController so
+  // only the last keystroke's request actually resolves into state.
+  // In the meantime, `displayListings` / `displayPins` narrow the
+  // currently-rendered set to records matching the typed term so the
+  // card list and map pins both reorder live.
+  //
+  // The filter is intentionally permissive — substring match against
+  // every searchable text field — so the visitor never sees an empty
+  // "loading…" state when their search term IS present in the loaded
+  // window. When the server returns the canonical match set, those
+  // results replace `listings` / `pins` and `displayListings` falls
+  // through to the full new set (since the filter then matches every
+  // record).
+  // ─────────────────────────────────────────────────────────────
+  const trimmedQ = q.trim().toLowerCase();
+  const matchesQuery = useCallback(
+    (rec: {
+      unparsedAddress?: string | null;
+      community?: string | null;
+      city?: string | null;
+      postalCode?: string | null;
+    }): boolean => {
+      if (trimmedQ.length === 0) return true;
+      // qField narrows which fields the substring match runs against,
+      // matching the server-side OData `contains()` logic in
+      // lib/spark/search.ts buildSearchFilter. When the chosen field
+      // is absent on the record (e.g. 'city' / 'zip' on PinPoint,
+      // which omits those), we DON'T filter the record out — the
+      // server-driven result set is the canonical answer for those
+      // fields, and pre-emptively hiding records would briefly flash
+      // an empty list before the server response landed.
+      const fields: Array<string | null | undefined> =
+        qField === 'address'
+          ? [rec.unparsedAddress]
+          : qField === 'community'
+            ? [rec.community]
+            : qField === 'city'
+              ? [rec.city ?? rec.unparsedAddress]
+              : qField === 'zip'
+                ? [rec.postalCode ?? rec.unparsedAddress]
+                : [rec.unparsedAddress, rec.community, rec.city, rec.postalCode];
+      const hasAnyField = fields.some((f) => typeof f === 'string' && f.length > 0);
+      if (!hasAnyField) return true;
+      for (const f of fields) {
+        if (f && f.toLowerCase().includes(trimmedQ)) return true;
+      }
+      return false;
+    },
+    [trimmedQ, qField],
+  );
+  const displayListings = useMemo(
+    () => (trimmedQ.length === 0 ? listings : listings.filter(matchesQuery)),
+    [trimmedQ, listings, matchesQuery],
+  );
+  const displayPins = useMemo(
+    () => (trimmedQ.length === 0 ? pins : pins.filter(matchesQuery)),
+    [trimmedQ, pins, matchesQuery],
+  );
+
   // Wrap setQ so we can fire `search_query` / `search_query_clear` events
   // as the visitor types. SearchBar already debounces — by the time we get
   // here, the input has stabilized for ~250ms, which is the window we want
@@ -554,7 +617,7 @@ export function ListingsClient({
         >
           <MapPanel
             ref={mapRef}
-            pins={pins}
+            pins={displayPins}
             drawingActive={drawingActive}
             polygon={polygon}
             onPolygonComplete={handlePolygonComplete}
@@ -593,7 +656,7 @@ export function ListingsClient({
           </p>
           <div className="flex-1 overflow-y-auto min-h-0">
             <ResultsList
-              listings={listings}
+              listings={displayListings}
               highlightedKey={highlightedKey}
               loading={loading}
               total={total}
