@@ -27,16 +27,22 @@ const CONTAINER_HEIGHT = 44;
 // for that audience. Replace with SVG when one is sourced.
 // displayHeight per logo is calibrated to roughly equalize the visible
 // CAP-HEIGHT of each wordmark — not the SVG bounding-box height. Tall,
-// thin wordmarks (Architectural Digest, Nikkei) get pushed up; chunky
-// serif marks (Barron's) get trimmed down. Target range 18–24px so the
-// strip reads as one editorial row rather than a ladder.
+// thin wordmarks (Nikkei) get pushed up; chunky serif marks (Barron's)
+// get trimmed down. Target range 20–24px so the strip reads as one
+// editorial row rather than a ladder.
+//
+// Architectural Digest is parked. The Commons SVG is exported at a
+// 219×15 viewBox; its thinnest strokes are 0.092 viewBox units, which
+// at any displayHeight under ~165px renders as sub-pixel and reads as
+// a fuzzy horizontal bar after the brightness(0)+invert(1) filter
+// flattens it to white. Restore it once a press-kit SVG with proper
+// stroke weight is sourced (Condé Nast brand assets).
 const SYNDICATION_PARTNERS: ReadonlyArray<SyndicationItem> = [
   { name: "The Wall Street Journal", logo: '/logos/wsj.svg', logoWidth: 797, logoHeight: 68, displayHeight: 22 },
   { name: 'James Edition', logo: '/logos/james-edition.svg', logoWidth: 150, logoHeight: 27, displayHeight: 20 },
   { name: 'Robb Report', logo: '/logos/robb-report.svg', logoWidth: 2578, logoHeight: 481, displayHeight: 24 },
   { name: "Barron's", logo: '/logos/barrons.svg', logoWidth: 400, logoHeight: 100, displayHeight: 24 },
   { name: 'Luxury Estate', logo: '/logos/luxury-estate.svg', logoWidth: 250, logoHeight: 40, displayHeight: 20 },
-  { name: 'Architectural Digest', logo: '/logos/architectural-digest.svg', logoWidth: 219, logoHeight: 15, displayHeight: 18 },
   { name: 'Juwai', logo: '/logos/juwai.png', logoWidth: 300, logoHeight: 90, displayHeight: 24 },
   { name: 'Nikkei', logo: '/logos/nikkei.svg', logoWidth: 1920, logoHeight: 410, displayHeight: 22 },
 ];
