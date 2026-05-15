@@ -1,7 +1,10 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import {
+  getMonthsOfSupply,
+  getNegotiation,
   getPeriodStats,
+  getPriceReductions,
   getTierBreakdown,
   getTrendSeries,
   listAvailablePeriods,
@@ -83,10 +86,13 @@ export default async function MarketReportDetailPage({ params }: PageProps) {
   const period = parsePeriodSlug(slug);
   if (!period) notFound();
 
-  const [statsResult, breakdown, trend] = await Promise.all([
+  const [statsResult, breakdown, trend, negotiation, priceReductions, monthsOfSupply] = await Promise.all([
     getPeriodStats(period),
     getTierBreakdown(period),
     getTrendSeries(period),
+    getNegotiation().catch(() => null),
+    getPriceReductions().catch(() => null),
+    getMonthsOfSupply().catch(() => null),
   ]);
   if (!statsResult) notFound();
 
@@ -146,6 +152,9 @@ export default async function MarketReportDetailPage({ params }: PageProps) {
           }}
           breakdown={breakdown}
           trend={trend}
+          negotiation={negotiation}
+          priceReductions={priceReductions}
+          monthsOfSupply={monthsOfSupply}
         />
       </>
     );
@@ -170,6 +179,9 @@ export default async function MarketReportDetailPage({ params }: PageProps) {
         trend={trend}
         prose={proseBody}
         proseHeadline={proseEntry?.headline ?? null}
+        negotiation={negotiation}
+        priceReductions={priceReductions}
+        monthsOfSupply={monthsOfSupply}
       />
     </>
   );

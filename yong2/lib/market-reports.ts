@@ -262,6 +262,7 @@ interface MonthsSupplyMartRow {
   scope_type?: string;
   scope_key?: string;
   property_segment?: string;
+  active_count: number | bigint | null;
   months_of_supply_3mo: number | null;
   months_of_supply_12mo: number | null;
   market_classification: string | null;
@@ -782,6 +783,216 @@ export async function getTierBreakdown(period: Period): Promise<TierBreakdown | 
     period,
     asOf: new Date().toISOString().slice(0, 10),
     tiers,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Negotiation — list-to-sale gap, share above/below ask
+// ─────────────────────────────────────────────────────────────────
+
+interface NegotiationMartRow {
+  scope_type?: string;
+  scope_key?: string;
+  property_segment?: string;
+  month: string | Date;
+  closing_count: number | bigint | null;
+  median_sale_to_list: number | null;
+  pct_above_list: number | null;
+  pct_below_list: number | null;
+  median_close_to_original: number | null;
+  median_sale_to_list_prior_year: number | null;
+  median_sale_to_list_t12_avg: number | null;
+  pct_change_sale_to_list_yoy: number | string | null;
+}
+
+export interface Negotiation {
+  /** The data is monthly — surface which month the numbers are from. */
+  asOfMonth: string;
+  /** Median sale ÷ list (e.g. 0.977 → buyers averaging 2.3% off list). */
+  medianSaleToList: number | null;
+  /** Share of closings above asking (percent, 0-100). */
+  pctAboveList: number | null;
+  /** Share of closings below asking. */
+  pctBelowList: number | null;
+  /** Median sale ÷ ORIGINAL list — captures full discount from first ask. */
+  medianCloseToOriginal: number | null;
+  /** YoY change in sale-to-list (decimal). Positive = closing closer to ask. */
+  yoyChangeSaleToList: number | null;
+  /** 12-month rolling average for visual context. */
+  saleToList12moAvg: number | null;
+}
+
+function asMonthDate(v: string | Date | null | undefined): Date | null {
+  if (!v) return null;
+  if (v instanceof Date) return v;
+  const d = new Date(v);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
+function asDecimal(v: unknown): number | null {
+  if (v == null) return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string') {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+export async function getNegotiation(): Promise<Negotiation | null> {
+  const rows = await readMart<NegotiationMartRow>('fct_negotiation_metro').catch(() => []);
+  const metro = rows.filter(
+    (r) =>
+      r.scope_type === 'metro' &&
+      r.scope_key === 'phoenix_metro' &&
+      r.property_segment === 'all',
+  );
+  if (metro.length === 0) return null;
+
+  // Pick the most recent month — mart goes back to 2011, latest is the
+  // one the visitor cares about.
+  metro.sort((a, b) => {
+    const da = asMonthDate(a.month)?.getTime() ?? 0;
+    const db = asMonthDate(b.month)?.getTime() ?? 0;
+    return db - da;
+  });
+  const latest = metro[0];
+  const monthDate = asMonthDate(latest.month);
+  const asOfMonth = monthDate
+    ? monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    : 'recent month';
+
+  return {
+    asOfMonth,
+    medianSaleToList: asNumber(latest.median_sale_to_list),
+    pctAboveList: asNumber(latest.pct_above_list),
+    pctBelowList: asNumber(latest.pct_below_list),
+    medianCloseToOriginal: asNumber(latest.median_close_to_original),
+    yoyChangeSaleToList: asDecimal(latest.pct_change_sale_to_list_yoy),
+    saleToList12moAvg: asNumber(latest.median_sale_to_list_t12_avg),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Price reductions — share of listings cutting price + cut depth
+// ─────────────────────────────────────────────────────────────────
+
+interface PriceReductionMartRow {
+  scope_type?: string;
+  scope_key?: string;
+  property_segment?: string;
+  price_band: string;
+  month: string | Date;
+  closing_count: number | bigint | null;
+  reduced_count: number | bigint | null;
+  pct_with_reduction: number | null;
+  median_net_change_pct: number | null;
+  pct_change_with_reduction_yoy: number | string | null;
+}
+
+export interface PriceReduction {
+  asOfMonth: string;
+  /** Share of recent closings that had a recorded price reduction (0-1). */
+  pctWithReduction: number | null;
+  /** Median total reduction as a percentage of original list (negative). */
+  medianNetChangePct: number | null;
+  /** YoY change in the share-with-reduction rate (decimal points). */
+  yoyChangePctReduction: number | null;
+  /** Sample size — closings sampled in the latest month. */
+  closingCount: number;
+}
+
+export async function getPriceReductions(): Promise<PriceReduction | null> {
+  const rows = await readMart<PriceReductionMartRow>('fct_pricereduction_metro').catch(() => []);
+  const filtered = rows.filter(
+    (r) =>
+      r.scope_type === 'metro' &&
+      r.scope_key === 'phoenix_metro' &&
+      r.property_segment === 'all',
+  );
+  if (filtered.length === 0) return null;
+
+  // The mart splits property_segment='all' across 8 price bands; roll up
+  // to a metro-wide picture by latest-month closing-count-weighted blend.
+  // First find the latest month present (any band).
+  let latestMonth = -Infinity;
+  for (const r of filtered) {
+    const t = asMonthDate(r.month)?.getTime() ?? -Infinity;
+    if (t > latestMonth) latestMonth = t;
+  }
+  if (latestMonth === -Infinity) return null;
+  const latestRows = filtered.filter((r) => asMonthDate(r.month)?.getTime() === latestMonth);
+  if (latestRows.length === 0) return null;
+
+  let totalClosings = 0;
+  let totalReduced = 0;
+  let cutPctNum = 0;
+  let cutPctDen = 0;
+  let yoyNum = 0;
+  let yoyDen = 0;
+  for (const r of latestRows) {
+    const closings =
+      typeof r.closing_count === 'bigint'
+        ? Number(r.closing_count)
+        : (asNumber(r.closing_count) ?? 0);
+    const reduced =
+      typeof r.reduced_count === 'bigint'
+        ? Number(r.reduced_count)
+        : (asNumber(r.reduced_count) ?? 0);
+    totalClosings += closings;
+    totalReduced += reduced;
+    const cut = asNumber(r.median_net_change_pct);
+    if (cut != null && reduced > 0) {
+      cutPctNum += cut * reduced;
+      cutPctDen += reduced;
+    }
+    const yoy = asDecimal(r.pct_change_with_reduction_yoy);
+    if (yoy != null && closings > 0) {
+      yoyNum += yoy * closings;
+      yoyDen += closings;
+    }
+  }
+
+  const monthDate = new Date(latestMonth);
+  return {
+    asOfMonth: monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    pctWithReduction: totalClosings > 0 ? totalReduced / totalClosings : null,
+    medianNetChangePct: cutPctDen > 0 ? cutPctNum / cutPctDen : null,
+    yoyChangePctReduction: yoyDen > 0 ? yoyNum / yoyDen : null,
+    closingCount: totalClosings,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Months of supply — buyer's vs seller's market gauge
+// ─────────────────────────────────────────────────────────────────
+
+export interface MonthsOfSupply {
+  activeCount: number;
+  /** Active ÷ trailing-12-month average monthly closings. */
+  months12mo: number | null;
+  /** Active ÷ trailing-3-month average monthly closings (more current). */
+  months3mo: number | null;
+  /** dbt's bucketed classification: strong_sellers, sellers, balanced, buyers, strong_buyers. */
+  marketClassification: string | null;
+}
+
+export async function getMonthsOfSupply(): Promise<MonthsOfSupply | null> {
+  const rows = await readMart<MonthsSupplyMartRow>('fct_months_of_supply').catch(() => []);
+  const row = rows.find(
+    (r) =>
+      r.scope_type === 'metro' &&
+      r.scope_key === 'phoenix_metro' &&
+      r.property_segment === 'all',
+  );
+  if (!row) return null;
+  const activeCount =
+    typeof row.active_count === 'bigint' ? Number(row.active_count) : (asNumber(row.active_count) ?? 0);
+  return {
+    activeCount,
+    months12mo: asNumber(row.months_of_supply_12mo),
+    months3mo: asNumber(row.months_of_supply_3mo),
+    marketClassification: row.market_classification ?? null,
   };
 }
 

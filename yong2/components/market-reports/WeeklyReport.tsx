@@ -6,6 +6,9 @@ import {
   type WeeklyStats,
   type TierBreakdown,
   type TrendSeries,
+  type Negotiation,
+  type PriceReduction,
+  type MonthsOfSupply,
   weekRangeLabel,
 } from '@/lib/market-reports';
 import { generateWeeklySummary } from '@/lib/market-reports/auto-summary';
@@ -13,11 +16,17 @@ import { StatTile } from './StatTile';
 import { TierBreakdownSection } from './TierBreakdown';
 import { TrendChart } from './TrendChart';
 import { MethodologyBlock } from './MethodologyBlock';
+import { NegotiationSection } from './NegotiationSection';
+import { PriceReductionSection } from './PriceReductionSection';
+import { MonthsOfSupplySection } from './MonthsOfSupplySection';
 
 export interface WeeklyReportProps {
   stats: WeeklyStats;
   breakdown: TierBreakdown | null;
   trend: TrendSeries | null;
+  negotiation: Negotiation | null;
+  priceReductions: PriceReduction | null;
+  monthsOfSupply: MonthsOfSupply | null;
 }
 
 /**
@@ -29,7 +38,14 @@ export interface WeeklyReportProps {
  * exposes only new-listings at weekly granularity, so we don't fake
  * medianPpsf/DOM/closed volume here.
  */
-export function WeeklyReport({ stats, breakdown, trend }: WeeklyReportProps) {
+export function WeeklyReport({
+  stats,
+  breakdown,
+  trend,
+  negotiation,
+  priceReductions,
+  monthsOfSupply,
+}: WeeklyReportProps) {
   const summary = generateWeeklySummary(stats, breakdown, trend);
   return (
     <>
@@ -106,6 +122,15 @@ export function WeeklyReport({ stats, breakdown, trend }: WeeklyReportProps) {
 
         {/* Tier breakdown */}
         <TierBreakdownSection breakdown={breakdown} />
+
+        {/* Months of supply gauge — buyer's vs seller's market */}
+        <MonthsOfSupplySection data={monthsOfSupply} />
+
+        {/* Negotiation pulse — list-vs-sale gap, share over/under list */}
+        <NegotiationSection data={negotiation} />
+
+        {/* Price reductions — share of closings cutting + cut depth */}
+        <PriceReductionSection data={priceReductions} />
 
         {/* Methodology */}
         <MethodologyBlock />

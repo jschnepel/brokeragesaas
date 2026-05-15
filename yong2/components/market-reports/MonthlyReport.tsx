@@ -9,11 +9,17 @@ import {
   type MonthlyStats,
   type TierBreakdown,
   type TrendSeries,
+  type Negotiation,
+  type PriceReduction,
+  type MonthsOfSupply,
 } from '@/lib/market-reports';
 import { StatTile } from './StatTile';
 import { TierBreakdownSection } from './TierBreakdown';
 import { TrendChart } from './TrendChart';
 import { MethodologyBlock } from './MethodologyBlock';
+import { NegotiationSection } from './NegotiationSection';
+import { PriceReductionSection } from './PriceReductionSection';
+import { MonthsOfSupplySection } from './MonthsOfSupplySection';
 
 export interface MonthlyMdxFrontmatter {
   /** Period this MDX corresponds to: "2026-04". */
@@ -33,6 +39,9 @@ export interface MonthlyReportProps {
   prose?: ReactNode;
   /** Optional headline from the MDX frontmatter. */
   proseHeadline?: string | null;
+  negotiation: Negotiation | null;
+  priceReductions: PriceReduction | null;
+  monthsOfSupply: MonthsOfSupply | null;
 }
 
 const DOLLAR = (n: number | null | undefined) =>
@@ -54,6 +63,9 @@ export function MonthlyReport({
   trend,
   prose,
   proseHeadline,
+  negotiation,
+  priceReductions,
+  monthsOfSupply,
 }: MonthlyReportProps) {
   return (
     <>
@@ -205,6 +217,15 @@ export function MonthlyReport({
 
         {/* Tier breakdown */}
         <TierBreakdownSection breakdown={breakdown} />
+
+        {/* Months of supply — buyer's vs seller's market gauge */}
+        <MonthsOfSupplySection data={monthsOfSupply} />
+
+        {/* Negotiation pulse — list-to-sale gap, share above/below ask */}
+        <NegotiationSection data={negotiation} />
+
+        {/* Price reductions — share + depth of seller cuts */}
+        <PriceReductionSection data={priceReductions} />
 
         {/* Methodology */}
         <MethodologyBlock />
