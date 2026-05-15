@@ -444,14 +444,87 @@ function buildSearchFilter(opts: SearchOpts): string {
     }
   }
 
-  // Spatial filtering (bbox/polygon) and text search (substringof) are
-  // applied post-fetch in applyClientFilters() — Spark's OData rejects
-  // `geo.intersects` and `substringof` (verified build #62 → 400 'field
-  // does not exist'). The platform's rlsir-active-snapshot Lambda hits
-  // the same constraint, which is why it doesn't filter spatially in
-  // OData either. We over-fetch, then narrow client-side.
+  // Spatial pushdown — Latitude/Longitude are scalar RESO numeric fields
+  // and ARE filterable with `ge`/`le` (this is distinct from geometry
+  // functions like `geo.intersects`, which Spark does reject). Pushing
+  // a bbox to OData is the difference between "1000 records inside the
+  // viewport" and "the 1000 most expensive listings in the entire
+  // ARMLS feed, then locally narrowed to the viewport" — under the
+  // latter, panning to Tempe / Gilbert / Mesa / west Phoenix returns
+  // ~zero results because none of those areas have listings inside the
+  // global top-1000-by-price slice, even though hundreds of listings
+  // exist there.
+  //
+  // For a polygon scope we push the polygon's axis-aligned bounding box
+  // as a loose narrow, then `applyClientFilters` runs the precise
+  // point-in-polygon test on the (much smaller) returned pool.
+  //
+  // `applyClientFilters` still runs its bbox/polygon narrow post-fetch
+  // as a defensive backstop — idempotent when Spark honored the
+  // pushdown, corrective if a future Spark change quietly drops the
+  // clause.
+  const spatial = computeSpatialBounds(opts);
+  if (spatial) {
+    // Order matters slightly for readability only — Spark accepts the
+    // four range clauses in any order.
+    clauses.push(`Latitude ge ${spatial.minLat}`);
+    clauses.push(`Latitude le ${spatial.maxLat}`);
+    clauses.push(`Longitude ge ${spatial.minLng}`);
+    clauses.push(`Longitude le ${spatial.maxLng}`);
+  }
+
+  // Substring text search (UnparsedAddress etc.) is ALREADY pushed to
+  // OData above via contains(). Nothing remaining to over-fetch for.
 
   return clauses.join(' and ');
+}
+
+/**
+ * Resolve the effective lat/lng bounding box for an OData spatial
+ * pushdown. Priority: explicit polygon's AABB → bbox → null. Returns
+ * null when no spatial scope is set so the search defaults to the
+ * full feed.
+ *
+ * For a polygon scope, the AABB is a SUPER-set of the polygon (every
+ * point inside the polygon is also inside the AABB). `applyClientFilters`
+ * still runs the precise point-in-polygon test post-fetch.
+ */
+function computeSpatialBounds(opts: SearchOpts):
+  | { minLng: number; minLat: number; maxLng: number; maxLat: number }
+  | null {
+  if (opts.polygonGeoJSON) {
+    const ring = opts.polygonGeoJSON.coordinates[0];
+    if (!ring || ring.length < 4) return null;
+    let minLng = Infinity;
+    let minLat = Infinity;
+    let maxLng = -Infinity;
+    let maxLat = -Infinity;
+    for (const pt of ring) {
+      const lng = pt[0];
+      const lat = pt[1];
+      if (typeof lng !== 'number' || typeof lat !== 'number') continue;
+      if (lng < minLng) minLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lng > maxLng) maxLng = lng;
+      if (lat > maxLat) maxLat = lat;
+    }
+    if (!Number.isFinite(minLng) || !Number.isFinite(minLat)) return null;
+    return { minLng, minLat, maxLng, maxLat };
+  }
+  if (opts.bbox) {
+    const b = opts.bbox;
+    // Defensive clamp — viewport bboxes near map edges occasionally
+    // overshoot the ±90 / ±180 envelope (MapLibre `getBounds()` can
+    // return -180.0001 etc. after a wraparound pan). Clamping prevents
+    // an OData "value out of range" 400.
+    return {
+      minLng: Math.max(-180, b.minLng),
+      minLat: Math.max(-90, b.minLat),
+      maxLng: Math.min(180, b.maxLng),
+      maxLat: Math.min(90, b.maxLat),
+    };
+  }
+  return null;
 }
 
 /**
