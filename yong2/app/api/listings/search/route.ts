@@ -83,15 +83,42 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: 'Invalid body', issues: parsed.error.flatten() }, { status: 400 });
   }
 
+  // Text-query override: when the visitor types in the search bar, the
+  // text match wins over every attribute filter (price, beds, sqft, lot,
+  // year, pool, etc.). Geographic scope (bbox / drawn polygon) and
+  // listing status are preserved because the visitor is implicitly
+  // saying "show me anything matching this within the area I'm looking
+  // at." Without the override, a query like `silverleaf` while a $5M
+  // price filter is active would return empty even though Silverleaf
+  // homes exist above $5M.
+  const data = parsed.data;
+  const qTrimmed = (data.q ?? '').trim();
+  const searchOpts = qTrimmed.length > 0
+    ? {
+        q: data.q,
+        qField: data.qField,
+        bbox: data.bbox,
+        polygonGeoJSON: data.polygonGeoJSON,
+        status: data.status,
+        limit: data.limit,
+        offset: data.offset,
+        sort: data.sort,
+        cursor: data.cursor,
+      }
+    : data;
+
   try {
     const dbStart = performance.now();
-    const result = await searchListings(parsed.data);
+    const result = await searchListings(searchOpts);
     const dbMs = Math.round(performance.now() - dbStart);
     const totalMs = Math.round(performance.now() - reqStart);
     return NextResponse.json(result, {
       headers: {
         'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=60',
         'Server-Timing': `db;dur=${dbMs}, total;dur=${totalMs}`,
+        // Signal whether the override fired so the client can surface a
+        // "filters bypassed by search" hint if it wants to.
+        'X-Search-Override': qTrimmed.length > 0 ? 'q-priority' : 'none',
       },
     });
   } catch (err) {
