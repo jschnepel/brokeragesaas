@@ -239,3 +239,42 @@ session with explicit Yong sign-off on which path to take. F4
 collapses into F1's resolution. F5/F6/F8/F9 are all 30-90min
 mechanical fixes that can batch into one commit once F1's path is
 settled.
+
+---
+
+## CAP IX.F — Aggregation / Analytics position (2026-05-14)
+
+**Status: noted, accepted, documented.** Recording surface area in
+case ARMLS asks. No code change required at this time.
+
+### Surfaces in scope under CAP IX.F
+
+1. **`/market-reports`** — publishes combined ARMLS + county + private-
+   registry analytics under "Three inputs" framing (ARMLS feed,
+   Maricopa County assessor data, Yong's private off-market registry).
+2. **`/market-reports`** — references "1.84M Valley records · refreshed
+   every 4 hours" as a data-volume credibility line.
+3. **`/communities/[slug]`** — per-community Median price, Active
+   inventory count, and Median Days on Market stat row.
+
+### Position taken
+
+These surfaces are operated as **derived aggregate analytics products**
+under CAP IX.F. ARMLS data is one of three inputs; outputs are
+aggregate statistics and editorial commentary, not raw listing
+republishing. Individual listing republication is governed by IDX
+rules (Section 9 + 23) and handled separately in F1/F4/F5/F8/F9.
+
+### Parked: defensive recharacterization
+
+If ARMLS ever questions the aggregate-analytics framing, the
+defensible move is **wording change, not architecture change**:
+recharacterize `/market-reports` and the per-community stat rows as
+**Yong's personal market commentary** rather than data products. This
+sidesteps CAP IX.F entirely by reframing the stats as editorial
+analysis a licensed agent is allowed to publish about their own
+market. No data-pipeline changes — copy edits to kickers, headlines,
+and methodology block only.
+
+Trigger: ARMLS inquiry, change in ARMLS CAP language, or counsel
+review. Parked until then.
