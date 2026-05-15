@@ -186,6 +186,19 @@ export const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(function MapPa
         );
       }
 
+      // MapTiler's streets-v2-dark basemap occasionally requests an
+      // icon-image whose feature property resolves to a space string
+      // (road-shield labels, POIs missing from the sprite at our
+      // zoom levels). MapLibre logs `Image " " could not be loaded`
+      // for every such feature, polluting the console. Standard fix
+      // per MapLibre docs: register a `styleimagemissing` listener
+      // that adds a 1×1 transparent placeholder, suppressing the
+      // warning without affecting render.
+      m.on('styleimagemissing', (e) => {
+        if (m.hasImage(e.id)) return;
+        m.addImage(e.id, { width: 1, height: 1, data: new Uint8Array(4) });
+      });
+
       m.on('load', () => {
         // Hydrate source with the latest pins available at load time.
         // The pins-update useEffect already fired (when pins prop first

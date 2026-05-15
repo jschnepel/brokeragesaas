@@ -57,6 +57,18 @@ export function ListingMap({ latitude, longitude, address }: ListingMapProps) {
       });
       m.addControl(new mod.NavigationControl({ showCompass: false }), 'top-right');
 
+      // Suppress MapLibre's `Image " " could not be loaded` console
+      // warning — MapTiler's basemap style emits a styleimagemissing
+      // event when a sprite icon's feature property resolves to a
+      // space string (road shields, POIs at certain zooms). Add a
+      // 1×1 transparent placeholder so MapLibre stops complaining
+      // without affecting render. Same listener pattern is wired
+      // in components/listings/MapPanel.tsx.
+      m.on('styleimagemissing', (e: { id: string }) => {
+        if (m.hasImage(e.id)) return;
+        m.addImage(e.id, { width: 1, height: 1, data: new Uint8Array(4) });
+      });
+
       const el = document.createElement('div');
       el.style.width = '18px';
       el.style.height = '18px';
