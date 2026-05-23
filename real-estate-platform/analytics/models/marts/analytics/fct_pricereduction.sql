@@ -8,11 +8,7 @@ WITH cal AS (
   SELECT * FROM {{ ref('int_calendar') }}
 ),
 
-segments AS (
-  SELECT 'residential' AS property_segment UNION ALL
-  SELECT 'land'        AS property_segment UNION ALL
-  SELECT 'all'         AS property_segment
-),
+segments AS ({{ property_segments() }}),
 
 base AS (
   SELECT
@@ -31,17 +27,23 @@ base AS (
   CROSS JOIN segments seg
   LEFT JOIN {{ ref('fct_closings') }} c
     ON c.close_month = cal.month
-   AND (seg.property_segment = 'all' OR c.property_segment = seg.property_segment)
+   AND {{ segment_includes('seg.property_segment', 'c.property_segment') }}
 ),
 
+{# Price-reduction metrics — switched from mean to median for currency/pct
+   columns (right-skewed; one $500K cut on a luxury listing swings the mean).
+   mean_reductions_per_listing kept (small integer range 0-10, mean is fine). #}
 {% set metrics %}
   COUNT(*) FILTER (WHERE had_price_reduction IS NOT NULL) AS closing_count,
   COUNT(*) FILTER (WHERE had_price_reduction)             AS reduced_count,
   COUNT(*) FILTER (WHERE had_price_reduction)::DOUBLE
     / NULLIF(COUNT(*) FILTER (WHERE had_price_reduction IS NOT NULL), 0) * 100 AS pct_with_reduction,
-  AVG(total_reduction_amount) FILTER (WHERE had_price_reduction) AS mean_reduction_amount,
-  AVG(net_price_change_pct)   FILTER (WHERE had_price_reduction) AS mean_net_change_pct,
-  AVG(reduction_count::DOUBLE) FILTER (WHERE had_price_reduction) AS mean_reductions_per_listing
+  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total_reduction_amount)
+    FILTER (WHERE had_price_reduction) AS median_reduction_amount,
+  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY net_price_change_pct)
+    FILTER (WHERE had_price_reduction) AS median_net_change_pct,
+  AVG(reduction_count::DOUBLE)
+    FILTER (WHERE had_price_reduction) AS mean_reductions_per_listing
 {% endset %}
 
 metro_agg AS (
@@ -75,18 +77,44 @@ zipcode_agg AS (
   FROM base WHERE postal_code IS NOT NULL GROUP BY 1, 2, 3, 4, 5
 )
 
-SELECT
-  {{ dbt_utils.generate_surrogate_key(['scope_type', 'scope_key', 'property_segment', 'month', 'price_band']) }} AS pricereduction_id,
-  scope_type, scope_key, property_segment, price_band, month,
-  closing_count, reduced_count, pct_with_reduction,
-  mean_reduction_amount, mean_net_change_pct, mean_reductions_per_listing,
-  {{ confidence_band('closing_count') }} AS confidence,
-  CURRENT_TIMESTAMP AS gold_built_at
-FROM (
+{# Time-window framing for pct_with_reduction — YoY + T12 only (no MoM since
+   price-reduction prevalence has weekly noise). #}
+,
+unioned AS (
   SELECT * FROM metro_agg
   UNION ALL SELECT * FROM region_agg
   UNION ALL SELECT * FROM community_agg
   UNION ALL SELECT * FROM subdivision_agg
   UNION ALL SELECT * FROM zipcode_agg
-) u
+),
+with_framing AS (
+  SELECT
+    *,
+    LAG(pct_with_reduction, 12) OVER w  AS pct_with_reduction_prior_year,
+    AVG(pct_with_reduction) OVER w_t12  AS pct_with_reduction_t12_avg
+  FROM unioned
+  WINDOW
+    w AS (PARTITION BY scope_type, scope_key, property_segment, price_band ORDER BY month),
+    w_t12 AS (PARTITION BY scope_type, scope_key, property_segment, price_band ORDER BY month
+              ROWS BETWEEN 11 PRECEDING AND CURRENT ROW)
+)
+
+SELECT
+  {{ dbt_utils.generate_surrogate_key(['scope_type', 'scope_key', 'property_segment', 'month', 'price_band']) }} AS pricereduction_id,
+  scope_type, scope_key, property_segment, price_band, month,
+  closing_count, reduced_count, pct_with_reduction,
+  median_reduction_amount, median_net_change_pct, mean_reductions_per_listing,
+  pct_with_reduction_prior_year,
+  pct_with_reduction_t12_avg,
+  CASE
+    WHEN pct_with_reduction_prior_year IS NOT NULL AND pct_with_reduction_prior_year > 0
+    THEN ROUND((pct_with_reduction - pct_with_reduction_prior_year)::NUMERIC, 1)
+  END AS pct_change_with_reduction_yoy,
+  {{ confidence_band('closing_count') }} AS confidence,
+  CURRENT_TIMESTAMP AS gold_built_at
+FROM with_framing
+-- Exclude the in-progress current calendar month — its closing pool is
+-- partial mid-month, so the % with reduction / mean reduction amount
+-- computed off it is skewed. Same fix as fct_market_pulse.
+WHERE month < DATE_TRUNC('month', CURRENT_DATE)
 ORDER BY scope_type, scope_key, property_segment, price_band, month
