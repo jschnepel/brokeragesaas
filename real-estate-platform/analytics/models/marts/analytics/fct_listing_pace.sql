@@ -31,12 +31,19 @@ weeks AS (
 -- on_market_date (preferred, but only 10-27% populated) →
 -- listing_contract_date (100% populated since 2022) →
 -- original_entry_timestamp (100% populated since 2011, ARMLS receipt time).
+--
+-- Closed side reads from int_listings_geographic_enriched (not the cleaned
+-- model directly) because that's where region_slug / community_unified_slug
+-- live for closed listings — the cleaned model only carries postal_code,
+-- with the polygon/canonical-map join in the geographic_enriched layer.
+-- Active side reads from int_listings_active_cleaned which already does
+-- the geographic enrichment inline.
 all_listings AS (
   SELECT
     listing_key,
     COALESCE(on_market_date, listing_contract_date, original_entry_timestamp::DATE) AS active_date,
     region_slug, community_unified_slug, subdivision_slug, postal_code, property_segment
-  FROM {{ ref('int_listings_closed_cleaned') }}
+  FROM {{ ref('int_listings_geographic_enriched') }}
   UNION ALL
   SELECT
     listing_key,
