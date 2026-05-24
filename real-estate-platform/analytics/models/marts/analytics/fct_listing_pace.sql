@@ -16,10 +16,16 @@
 
 WITH segments AS ({{ property_segments() }}),
 
+-- 3-year rolling window. Pace consumers only need the trailing 52-week
+-- comparison; longer history bloats the mart from ~5MB to ~600MB (cross-
+-- join of weeks × 7 segments × 5 scope grains × ~5,000 subdivisions),
+-- which OOMs Next.js's hyparquet reader at request time. The first 52
+-- weeks of the window are buffer so the trailing 52wk average is fully
+-- populated for every emitted row.
 weeks AS (
   SELECT DATE_TRUNC('week', d::DATE) AS week
   FROM range(
-    DATE '2011-01-03',
+    DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '3 years',
     DATE_TRUNC('week', CURRENT_DATE) + INTERVAL '1 week',
     INTERVAL '7 days'
   ) t(d)
@@ -58,7 +64,7 @@ new_listings AS (
     region_slug, community_unified_slug, subdivision_slug, postal_code, property_segment
   FROM all_listings
   WHERE active_date IS NOT NULL
-    AND active_date >= DATE '2011-01-01'
+    AND active_date >= DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '3 years'
     AND active_date <  DATE_TRUNC('week', CURRENT_DATE) + INTERVAL '1 week'
 ),
 
@@ -91,11 +97,11 @@ community_agg AS (
     COUNT(*) FILTER (WHERE {{ segment_includes('scope_segment', 'row_segment') }} AND row_segment IS NOT NULL) AS new_listings_count
   FROM base WHERE community_unified_slug IS NOT NULL GROUP BY 1, 2, 3, 4
 ),
-subdivision_agg AS (
-  SELECT 'subdivision' AS scope_type, subdivision_slug AS scope_key, scope_segment AS property_segment, week,
-    COUNT(*) FILTER (WHERE {{ segment_includes('scope_segment', 'row_segment') }} AND row_segment IS NOT NULL) AS new_listings_count
-  FROM base WHERE subdivision_slug IS NOT NULL GROUP BY 1, 2, 3, 4
-),
+-- subdivision grain intentionally dropped from pace mart — ~5,000 subdivision
+-- slugs × 156 weeks × 7 segments was the dominant row-count contributor
+-- (650K rows -> ~5M rows just for subdivision aggregates). No current
+-- consumer uses subdivision-grain pace; can be added back as a separate
+-- mart if needed without bloating the metro/region/community/zipcode rollup.
 zipcode_agg AS (
   SELECT 'zipcode' AS scope_type, postal_code AS scope_key, scope_segment AS property_segment, week,
     COUNT(*) FILTER (WHERE {{ segment_includes('scope_segment', 'row_segment') }} AND row_segment IS NOT NULL) AS new_listings_count
@@ -106,7 +112,6 @@ unioned AS (
   SELECT * FROM metro_agg
   UNION ALL SELECT * FROM region_agg
   UNION ALL SELECT * FROM community_agg
-  UNION ALL SELECT * FROM subdivision_agg
   UNION ALL SELECT * FROM zipcode_agg
 ),
 
