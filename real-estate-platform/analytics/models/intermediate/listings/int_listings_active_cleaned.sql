@@ -58,13 +58,12 @@ SELECT
   s.standard_status,
   s.property_type,
   s.property_sub_type,
-  CASE
-    WHEN s.property_type = 'Residential' THEN 'residential'
-    WHEN s.property_type = 'Land'        THEN 'land'
-    WHEN s.property_type IN ('Comm/Industry Sale', 'Business Opportunity', 'Multiple Dwellings') THEN 'commercial'
-    WHEN s.property_type IN ('Residential Lease', 'Comm/Industry Lease') THEN 'lease'
-    ELSE 'other'
-  END AS property_segment,
+  -- 7-bucket RESO-aligned segment (single source of truth in macros/calendar_spine.sql).
+  -- Aligned to int_listings_closed_cleaned.property_segment so both sides of
+  -- the lifecycle use identical vocabulary.
+  {{ property_type_to_segment('s.property_type') }} AS property_segment,
+  -- Price tier — universal luxury overlay (Compass/Coldwell/Christie's).
+  {{ price_tier('s.list_price') }} AS price_tier,
 
   -- Prices
   s.list_price,
@@ -75,11 +74,36 @@ SELECT
   -- Time / status semantics
   s.listing_contract_date,
   s.on_market_date,
+  -- Exposed so downstream pace model can fall back to the canonical
+  -- ARMLS receipt timestamp when on_market_date is missing.
+  s.original_entry_timestamp,
   s.pending_timestamp,
   s.status_change_timestamp,
   s.modification_timestamp,
-  -- Effective DOM: if days_on_market is populated use it, else compute from on_market_date
-  COALESCE(s.days_on_market, (CURRENT_DATE - s.on_market_date)::INT) AS days_on_market,
+  -- Effective DOM for currently-active listings.
+  --
+  -- Spark hides days_on_market on actives via Core.Permissions (staging
+  -- hard-codes NULL — verified 100% NULL across all 31,332 actives in the
+  -- 2026-05-23 snapshot), and on_market_date is only populated on ~30.5%
+  -- of actives. The honest derivation has to terminate somewhere
+  -- meaningful — using listing_contract_date as a fallback overestimates
+  -- DOM by the prep window (signed → photos → go-live, typically 3-14
+  -- days), which violates the literal definition of "days on market."
+  --
+  -- status_change_timestamp is the right fallback for currently-active
+  -- inventory: it's 100% populated AND it captures "when did this listing
+  -- enter its current status." For an Active listing that's the moment
+  -- it went Active. Cross-tab verification across the same snapshot: of
+  -- the 9,563 actives where both fields exist, 74.1% are on the exact
+  -- same day and 78.6% are within 3 days. The remaining ~21% are
+  -- listings that came back from Pending — for those, status_change_ts
+  -- correctly reflects the current Active spell rather than the original
+  -- listing date (industry convention: DOM resets on re-list).
+  COALESCE(
+    s.days_on_market,
+    (CURRENT_DATE - s.on_market_date)::INT,
+    (CURRENT_DATE - s.status_change_timestamp::DATE)::INT
+  ) AS days_on_market,
   -- Pipeline-stage flags
   CASE WHEN s.standard_status = 'Active' THEN TRUE ELSE FALSE END AS is_active,
   CASE WHEN s.standard_status = 'Pending' THEN TRUE ELSE FALSE END AS is_pending,
@@ -132,8 +156,9 @@ SELECT
     ELSE '10M+'
   END AS price_band,
 
-  -- DOM band (derived for histogram marts)
-  {{ dom_band('COALESCE(s.days_on_market, (CURRENT_DATE - s.on_market_date)::INT)') }} AS dom_band,
+  -- DOM band (derived for histogram marts) — mirrors the effective DOM
+  -- COALESCE chain above so a future column drift can't desync these two.
+  {{ dom_band('COALESCE(s.days_on_market, (CURRENT_DATE - s.on_market_date)::INT, (CURRENT_DATE - s.status_change_timestamp::DATE)::INT)') }} AS dom_band,
 
   -- Features
   s.has_pool,

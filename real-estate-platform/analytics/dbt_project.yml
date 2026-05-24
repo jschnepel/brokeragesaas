@@ -23,12 +23,16 @@ on-run-start:
   # lets dbt run on slightly stale bronze rather than blocking entirely.
   - "{{ check_bronze_freshness(warn_hours=8, error_hours=24) }}"
 
-# Elementary Data — captures dbt run + test results.
-# The hook macro name varies by Elementary version; disabled for v1 until we
-# verify the right entry point. Run `edr` CLI manually or via separate Lambda
-# to publish reports.
-# on-run-end:
-#   - "{{ elementary.on_run_end() }}"
+# Elementary Data — captures dbt run + test results into elementary.* tables
+# for historical trend + anomaly detection. Enabled 2026-05-11 as part of
+# best-practice DQ stack. Memory headroom validated on next build.
+on-run-end:
+  - "{{ elementary.on_run_end() }}"
+
+# Persist failing test rows to {schema}_dbt_test__audit for sub-second triage
+# (instead of full-table RDS scans). Standard prod config per dbt docs.
+data_tests:
+  +store_failures: true
 
 vars:
   # Calendar spine bounds — adjust if pre-2011 backfill is sourced
@@ -72,11 +76,12 @@ models:
       +tags: ["intermediate"]
 
     marts:
-      # prod: write Parquet to S3 (external_root in profile). dev: local DuckDB
-      # tables — external materialization on Windows has nested-dir issues.
-      # Without `external` in prod, marts die in /tmp/dbt-prod.duckdb and never
-      # reach yong2 — the whole purpose of the lakehouse cutover.
-      +materialized: "{{ 'external' if target.name == 'prod' else 'table' }}"
+      # prod/fargate-prod: write Parquet to S3 (external_root in profile).
+      # dev/ci: local DuckDB tables — external materialization on Windows has
+      # nested-dir issues. Without `external` in production targets, marts die
+      # in the local DuckDB file and never reach yong2 — the whole purpose of
+      # the lakehouse cutover.
+      +materialized: "{{ 'external' if target.name == 'prod' or target.name == 'fargate-prod' else 'table' }}"
       +tags: ["marts"]
       analytics:
         +tags: ["analytics", "public"]

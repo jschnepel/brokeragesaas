@@ -1,8 +1,8 @@
-{# Was incremental+merge — emitted a correlated UNNEST against the JSONB
-   array columns that DuckDB doesn't support. delete+insert had the same
-   issue (likely dbt-duckdb's column-detection codegen). Switched to table
-   for v0; full rebuild each run is fine at this scale. Revisit incremental
-   once dbt-duckdb correlated-UNNEST limitation is resolved. #}
+{# Materialized as table — on Fargate with 16GB+ memory, the full 1.84M-row
+   rebuild fits comfortably in RAM and downstream models can read it as a
+   DuckDB table (faster than parquet roundtrip). The earlier external-mode
+   change was a Lambda-memory workaround; reverted now that build runs on
+   Fargate. #}
 {{
   config(
     materialized='table',
@@ -32,23 +32,45 @@ valid AS (
   FROM source
   WHERE {{ is_valid_close('close_date', 'close_price', 'list_price') }}
     AND (living_area IS NULL OR living_area BETWEEN {{ var('min_living_area') }} AND {{ var('max_living_area') }})
-    AND (days_on_market IS NULL OR days_on_market BETWEEN 0 AND 5000)
+    -- Computed DOM (close_date - listing_contract_date) must be reasonable.
+    -- Bronze days_on_market is NULL from Spark, so we filter the computed value.
+    AND (
+      listing_contract_date IS NULL OR
+      (close_date - listing_contract_date)::INT BETWEEN 0 AND 5000
+    )
+    -- Drop typo/invalid year_built and ARMLS data-entry outliers so silver
+    -- stays audit-clean. Tests in _int_listings__models.yml enforce same bounds.
+    AND (year_built IS NULL OR year_built BETWEEN 1850 AND 2030)
+    AND (association_fee IS NULL OR association_fee BETWEEN 0 AND 50000)
+    AND (tax_annual_amount IS NULL OR tax_annual_amount BETWEEN 0 AND 1000000)
 )
 
 SELECT
   -- Identifiers
   listing_key,
   listing_id,
+  -- Same-property dedup signature per Realtor.com Sep-2022 methodology fix.
+  -- Re-listings of the same physical property within a calendar year inflate
+  -- new-listing + closing counts unless deduplicated. parcel_number is the
+  -- canonical APN; nullable signature handles missing APNs (graceful skip).
+  -- Cheaper-than-regex variant — REGEXP on 1.84M rows pushed DuckDB to OOM.
+  CASE
+    WHEN parcel_number IS NOT NULL AND TRIM(parcel_number) != ''
+    THEN TRIM(parcel_number) || '|' || EXTRACT(YEAR FROM close_date)::TEXT
+  END AS dedup_signature,
 
   -- Status (always 'Closed' here, but kept for downstream uniformity)
   standard_status,
   property_type,
   property_sub_type,
-  CASE
-    WHEN property_type = 'Residential' THEN 'residential'
-    WHEN property_type = 'Land'        THEN 'land'
-    ELSE 'other'
-  END AS property_segment,
+  -- 7-bucket RESO-aligned segment (single source of truth in macros/calendar_spine.sql).
+  -- Aligned to int_listings_active_cleaned.property_segment so both sides of
+  -- the lifecycle use identical vocabulary.
+  {{ property_type_to_segment('property_type') }} AS property_segment,
+  -- Price tier — universal luxury-cut overlay (Compass/Coldwell/Christie's).
+  -- Orthogonal to property_segment: a luxury condo and a luxury SFR both
+  -- fall in '1m_3m' even though they're both 'residential'.
+  {{ price_tier('close_price') }} AS price_tier,
 
   -- Prices
   list_price,
@@ -64,6 +86,10 @@ SELECT
   -- Time
   listing_contract_date,
   on_market_date,
+  -- Exposed so downstream pace/velocity models can fall back to the
+  -- canonical ARMLS receipt timestamp when on_market_date is missing
+  -- (on_market_date is only populated for 10-27% of records).
+  original_entry_timestamp,
   off_market_date,
   -- pending_timestamp not in Spark replication; recover from listing_change_log
   -- via int_listings_status_history downstream
@@ -75,8 +101,14 @@ SELECT
   status_change_timestamp,
   modification_timestamp,
 
-  -- Velocity / DOM (days_on_market is NULL from Spark; compute from dates)
+  -- Velocity / DOM.
+  -- ADOM (Active DOM): single-listing days from list contract to close.
+  -- CDOM (Cumulative DOM): includes prior re-listings of the same property
+  --   from listing_change_log (recovered downstream in int_listings_status_history).
+  -- Industry convention (Stellar MLS, ARMLS): publish both, default median = ADOM.
+  -- Bronze days_on_market is NULL from Spark; recompute ADOM from dates here.
   (close_date - listing_contract_date)::INT AS days_on_market,
+  (close_date - listing_contract_date)::INT AS adom,  -- alias for clarity downstream
   CASE
     WHEN listing_contract_date IS NOT NULL THEN (close_date - listing_contract_date)::INT
   END AS contract_to_close_days,

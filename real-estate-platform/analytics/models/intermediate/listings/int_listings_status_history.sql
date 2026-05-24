@@ -39,7 +39,17 @@ events_with_lag AS (
 per_listing AS (
   SELECT
     listing_key,
-    MIN(source_timestamp) FILTER (WHERE new_status = 'Active')                  AS first_active_at,
+    -- "First true Active" — exclude back-on-market blips. A listing going
+    -- Pending → Active → Pending in minutes (often an ARMLS data-entry
+    -- correction) was previously surfacing as first_active_at = the brief
+    -- re-Active event, making days_to_first_pending collapse to ~0.04 days
+    -- in fct_status_velocity. Only count Active events whose old_status is
+    -- a non-pipeline state (NULL / Coming Soon / Withdrawn / Cancelled /
+    -- Closed / Expired) — the listing actually entered the market here.
+    MIN(source_timestamp) FILTER (
+      WHERE new_status = 'Active'
+        AND (old_status IS NULL OR old_status NOT IN ('Pending', 'Active', 'Active Under Contract'))
+    )                                                                          AS first_active_at,
     MAX(source_timestamp) FILTER (WHERE new_status = 'Active')                  AS last_active_at,
     MIN(source_timestamp) FILTER (WHERE new_status = 'Pending')                 AS first_pending_at,
     MIN(source_timestamp) FILTER (WHERE new_status = 'Closed')                  AS closed_at,

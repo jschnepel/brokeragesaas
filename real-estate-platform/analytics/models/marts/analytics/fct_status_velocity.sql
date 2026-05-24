@@ -99,18 +99,44 @@ zipcode_agg AS (
   FROM base WHERE postal_code IS NOT NULL GROUP BY 1, 2, 3, 4
 )
 
+-- Closing-count joinback to compute coverage_pct so consumers can filter
+-- rows where the cohort is too sparse to trust. fct_market_pulse is the
+-- ground-truth count of closings per (scope_type, scope_key, property_segment,
+-- month) — derived from fct_closings, not from status_history. coverage_pct
+-- below ~80% usually means the change_log started mid-period and the
+-- velocity medians are biased toward whichever subset happened to be in
+-- the log.
+,
+with_coverage AS (
+  SELECT
+    u.scope_type, u.scope_key, u.property_segment, u.month,
+    u.cohort_size, u.median_days_to_pending, u.median_days_pending_to_closed,
+    u.median_days_active_to_closed, u.pct_back_on_market, u.mean_back_on_market_count,
+    mp.closing_count AS closings_total,
+    CASE WHEN mp.closing_count > 0
+      THEN ROUND((u.cohort_size::DOUBLE / mp.closing_count * 100)::NUMERIC, 1)
+    END AS coverage_pct
+  FROM (
+    SELECT * FROM metro_agg
+    UNION ALL SELECT * FROM region_agg
+    UNION ALL SELECT * FROM community_agg
+    UNION ALL SELECT * FROM subdivision_agg
+    UNION ALL SELECT * FROM zipcode_agg
+  ) u
+  LEFT JOIN {{ ref('fct_market_pulse') }} mp
+    ON mp.scope_type = u.scope_type
+   AND mp.scope_key  = u.scope_key
+   AND mp.property_segment = u.property_segment
+   AND mp.month      = u.month
+)
+
 SELECT
   {{ dbt_utils.generate_surrogate_key(['scope_type', 'scope_key', 'property_segment', 'month']) }} AS status_velocity_id,
   scope_type, scope_key, property_segment, month,
-  cohort_size, median_days_to_pending, median_days_pending_to_closed, median_days_active_to_closed,
+  cohort_size, closings_total, coverage_pct,
+  median_days_to_pending, median_days_pending_to_closed, median_days_active_to_closed,
   pct_back_on_market, mean_back_on_market_count,
   {{ confidence_band('cohort_size') }} AS confidence,
   CURRENT_TIMESTAMP AS gold_built_at
-FROM (
-  SELECT * FROM metro_agg
-  UNION ALL SELECT * FROM region_agg
-  UNION ALL SELECT * FROM community_agg
-  UNION ALL SELECT * FROM subdivision_agg
-  UNION ALL SELECT * FROM zipcode_agg
-) u
+FROM with_coverage
 ORDER BY scope_type, scope_key, property_segment, month

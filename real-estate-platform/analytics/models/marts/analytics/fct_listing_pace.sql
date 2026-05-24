@@ -1,6 +1,18 @@
 {{ config(materialized=('external' if target.name == 'prod' or target.name == 'fargate-prod' else 'table'), enabled=(var('enable_active', false))) }}
 
 -- Weekly pace of new listings going Active × scope_type × property_segment × week.
+--
+-- Sourced from listing_records.on_market_date (with fallback chain to
+-- listing_contract_date / original_entry_timestamp). Prior implementation
+-- read from int_listings_status_history which only carries change_log events
+-- captured by the sync Lambda since ~2026-04-01 — that left every week
+-- before April 2026 at zero, and the rolling 52-wk average was filling
+-- almost entirely with zero historical weeks, producing spurious "+184%
+-- vs 52-wk" signals on the latest weeks (the metric was effectively
+-- "this week vs the change-log start date" rather than "this week vs the
+-- trailing year"). Union of closed + currently-active covers ~95% of all
+-- listings ever; Cancelled/Withdrawn that never closed nor are currently
+-- active are excluded (a known minor under-count, < 5%).
 
 WITH segments AS ({{ property_segments() }}),
 
@@ -13,17 +25,34 @@ weeks AS (
   ) t(d)
 ),
 
+-- Union closed + active. Each listing_key appears at most once across both
+-- (a listing is either still active OR has closed — not both). For each
+-- row, derive the "first active" date via the canonical fallback chain:
+-- on_market_date (preferred, but only 10-27% populated) →
+-- listing_contract_date (100% populated since 2022) →
+-- original_entry_timestamp (100% populated since 2011, ARMLS receipt time).
+all_listings AS (
+  SELECT
+    listing_key,
+    COALESCE(on_market_date, listing_contract_date, original_entry_timestamp::DATE) AS active_date,
+    region_slug, community_unified_slug, subdivision_slug, postal_code, property_segment
+  FROM {{ ref('int_listings_closed_cleaned') }}
+  UNION ALL
+  SELECT
+    listing_key,
+    COALESCE(on_market_date, listing_contract_date, original_entry_timestamp::DATE) AS active_date,
+    region_slug, community_unified_slug, subdivision_slug, postal_code, property_segment
+  FROM {{ ref('int_listings_active_cleaned') }}
+),
+
 new_listings AS (
   SELECT
-    DATE_TRUNC('week', sh.first_active_at::DATE) AS week,
-    a.region_slug,
-    a.community_unified_slug,
-    a.subdivision_slug,
-    a.postal_code,
-    a.property_segment
-  FROM {{ ref('int_listings_status_history') }} sh
-  JOIN {{ ref('int_listings_active_cleaned') }} a USING (listing_key)
-  WHERE sh.first_active_at >= DATE '2011-01-01'
+    DATE_TRUNC('week', active_date) AS week,
+    region_slug, community_unified_slug, subdivision_slug, postal_code, property_segment
+  FROM all_listings
+  WHERE active_date IS NOT NULL
+    AND active_date >= DATE '2011-01-01'
+    AND active_date <  DATE_TRUNC('week', CURRENT_DATE) + INTERVAL '1 week'
 ),
 
 base AS (

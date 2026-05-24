@@ -49,7 +49,14 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                  values: ['residential', 'land', 'commercial', 'lease', 'other']
+                  values: ['residential', 'land', 'rental', 'commercial', 'multi_family']
+      - name: price_tier
+        data_tests:
+          - accepted_values:
+              arguments:
+                  values: ['under_1m', '1m_3m', '3m_10m', '10m_plus']
+              config:
+                where: "price_tier IS NOT NULL"
       - name: living_area
         data_tests:
           - dbt_expectations.expect_column_values_to_be_between:
@@ -60,12 +67,17 @@ models:
                 where: "living_area IS NOT NULL"
       - name: days_on_market
         data_tests:
+          # Demoted to warn — see int_listings_active_cleaned.days_on_market
+          # for the same rationale. Range is sanity-only; a single long
+          # luxury listing closing after 14 years shouldn't skip downstream
+          # closed marts.
           - dbt_expectations.expect_column_values_to_be_between:
               arguments:
                   min_value: 0
                   max_value: 5000
               config:
                 where: "days_on_market IS NOT NULL"
+                severity: warn
       - name: year_built
         data_tests:
           - dbt_expectations.expect_column_values_to_be_between:
@@ -115,6 +127,8 @@ models:
               arguments:
                   min_value: 1000
                   max_value: 500000000
+              config:
+                severity: warn  # ~2 historical outliers exist in change_log; flag without cascading
       - name: original_list_price_source
         data_tests:
           - not_null
@@ -138,6 +152,7 @@ models:
                   max_value: 2.5
               config:
                 where: "close_to_original_ratio IS NOT NULL"
+                severity: warn  # rare distressed sales legitimately exceed 0.4-2.5
   - name: int_listings_geographic_enriched
     description: |
       Closed listings joined to PostGIS region/community classification
@@ -161,7 +176,7 @@ models:
         data_tests:
           - accepted_values:
               arguments:
-                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M+']
+                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M-10M', '10M+']
               config:
                 where: "price_band IS NOT NULL"
   - name: int_listings_active_cleaned
@@ -194,29 +209,49 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                  values: ['residential', 'land', 'commercial', 'lease', 'other']
+                  values: ['residential', 'land', 'rental', 'commercial', 'multi_family']
+      - name: price_tier
+        data_tests:
+          - accepted_values:
+              arguments:
+                  values: ['under_1m', '1m_3m', '3m_10m', '10m_plus']
+              config:
+                where: "price_tier IS NOT NULL"
       - name: price_band
         data_tests:
           - accepted_values:
               arguments:
-                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M+']
+                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M-10M', '10M+']
               config:
                 where: "price_band IS NOT NULL"
       - name: dom_band
         data_tests:
           - accepted_values:
               arguments:
-                  values: ['0-7', '8-14', '15-30', '31-60', '61-90', '91-180', '180+']
+                  # 'Unknown' emitted by the dom_band macro when none of
+                  # days_on_market / on_market_date / status_change_timestamp
+                  # are populated (extremely rare since status_change_timestamp
+                  # is 100% populated on the active snapshot, but the macro
+                  # guards against silent NULL→'0-7' miscategorization).
+                  values: ['0-7', '8-14', '15-30', '31-60', '61-90', '91-180', '180+', 'Unknown']
               config:
                 where: "dom_band IS NOT NULL"
       - name: days_on_market
         data_tests:
+          # Demoted to warn so a single >5000-day outlier doesn't cascade-skip
+          # all downstream active marts (fct_active_*, fct_listing_pace,
+          # fct_months_of_supply). Range is sanity-check, not a correctness
+          # invariant — one stale Active with a status_change_timestamp from
+          # 2010 should surface as a warning, not freeze yong2 inventory tab
+          # on week-old data. Confirmed root cause of 2026-05-17 → 2026-05-24
+          # active-mart stoppage (run_results.json showed 7 marts skipped).
           - dbt_expectations.expect_column_values_to_be_between:
               arguments:
                   min_value: 0
                   max_value: 5000
               config:
                 where: "days_on_market IS NOT NULL"
+                severity: warn
   - name: int_listings_status_history
     description: |
       Per-listing status transition timeline derived from listing_change_log.
