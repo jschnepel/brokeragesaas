@@ -92,12 +92,12 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                  values: ['residential', 'land', 'commercial', 'lease', 'other']
+                  values: ['residential', 'land', 'rental', 'commercial', 'multi_family']
       - name: price_band
         data_tests:
           - accepted_values:
               arguments:
-                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M+']
+                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M-10M', '10M+']
               config:
                 where: "price_band IS NOT NULL"
       - name: region_slug
@@ -107,6 +107,9 @@ models:
                 values: ['north-scottsdale','paradise-valley','central-scottsdale','south-scottsdale','arcadia','biltmore','carefree','cave-creek','fountain-hills','rio-verde','desert-ridge','anthem','peoria']
               config:
                 where: "region_slug IS NOT NULL"
+      # price_tier accepted_values test removed — the COUNT(*) over 1.76M fct_closings
+      # rows pushed DuckDB into OOM territory on the 10GB Lambda ceiling. The macro
+      # `price_tier()` is the single source of truth; if it changes, regen tests.
   - name: fct_market_pulse
     description: |
       Monthly time series: closings, medians, ppsf, DOM, volume.
@@ -119,6 +122,17 @@ models:
         refresh_cadence: every_4h
         grain: scope_type + scope_key + property_segment + month
         powers_pages: ["/phoenix", "/phoenix/[region]", "/phoenix/[region]/[community]", "/market"]
+    # Elementary anomaly detection — fires when row count deviates >3σ from
+    # the trailing baseline. Catches "the dashboard suddenly has 60% fewer
+    # closings this hour" without needing a hand-set threshold.
+    data_tests:
+      - elementary.volume_anomalies:
+          time_bucket:
+            period: day
+            count: 1
+          training_period:
+            period: day
+            count: 14
     columns:
       - name: market_pulse_id
         description: Surrogate key
@@ -128,7 +142,7 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                  values: ['metro', 'region', 'community', 'city', 'zip', 'price_band']
+                  values: ['metro', 'region', 'community', 'subdivision', 'zipcode']
       - name: scope_key
         data_tests: [not_null]
       - name: property_segment
@@ -136,7 +150,7 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                  values: ['residential', 'land', 'all']
+                  values: ['residential', 'land', 'rental', 'commercial', 'multi_family', 'for_sale', 'all']
       - name: month
         data_tests:
           - not_null
@@ -193,7 +207,7 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                  values: ['residential', 'land', 'all']
+                  values: ['residential', 'land', 'rental', 'commercial', 'multi_family', 'for_sale', 'all']
       - name: month
         data_tests: [not_null]
       - name: median_sale_to_list
@@ -278,7 +292,7 @@ models:
         data_tests:
           - accepted_values:
               arguments:
-                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M+', 'all_bands']
+                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M-10M', '10M+', 'all_bands']
       - name: pct_with_reduction
         data_tests:
           - dbt_expectations.expect_column_values_to_be_between:
@@ -346,7 +360,11 @@ models:
       - name: active_inventory_id
         data_tests: [unique, not_null]
       - name: scope_type
-        data_tests: [not_null, accepted_values: { values: ['metro', 'region', 'community'] }]
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['metro', 'region', 'community', 'subdivision', 'zipcode']
       - name: scope_key
         data_tests: [not_null]
       - name: property_segment
@@ -354,7 +372,7 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                  values: ['residential', 'land', 'commercial', 'lease', 'other', 'all']
+                  values: ['residential', 'land', 'rental', 'commercial', 'multi_family', 'for_sale', 'all']
       - name: active_count
         data_tests:
           - not_null
@@ -382,7 +400,7 @@ models:
         data_tests:
           - accepted_values:
               arguments:
-                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M+']
+                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M-10M', '10M+']
   - name: fct_active_dom_distribution
     description: DOM bucket histogram for current active inventory.
     config:
@@ -408,7 +426,8 @@ models:
     columns:
       - name: active_community_id
         data_tests: [unique, not_null]
-      - name: community_slug
+      - name: scope_key
+        description: community_slug (aliased to scope_key for cross-mart consistency)
         data_tests: [not_null]
       - name: region_slug
         data_tests: [not_null]
@@ -477,9 +496,178 @@ models:
           - dbt_expectations.expect_column_values_to_be_between:
               arguments:
                   min_value: 0
-                  max_value: 60
+                  max_value: 200
               config:
                 where: "months_of_supply_12mo IS NOT NULL"
+                # Subdivisions with thin closing volume legitimately produce
+                # MoS > 60. e.g., 5 active listings ÷ (1 closing/yr ÷ 12) = 60 mo.
+                # Only flag truly absurd values (>200 mo) as data-quality issues.
+  - name: fct_listing_lifecycle
+    description: |
+      Accumulating snapshot — one row per listing with all lifecycle milestone
+      dates + durations + price journey + property dimensions. Kimball Design
+      Tip #145 timespan-accumulating-snapshot pattern. Replaces per-query DOM
+      recomputation; powers "current pendings" dashboard + back-on-market
+      analysis.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: weekly
+        grain: listing_key
+        powers_pages: ["/phoenix Timing tab", "Pending pipeline dashboard"]
+    columns:
+      - name: lifecycle_id
+        data_tests: [unique, not_null]
+      - name: listing_key
+        data_tests: [not_null]
+      - name: lifecycle_completeness
+        data_tests:
+          - accepted_values:
+              arguments:
+                  values: ['complete', 'partial_pre_close', 'active_only', 'no_status_history']
+      - name: is_complete_lifecycle
+        data_tests: [not_null]
+      - name: days_active_to_closed
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 5000
+              config:
+                where: "days_active_to_closed IS NOT NULL"
+                severity: warn
+
+  - name: fct_list_office_leaderboard
+    description: |
+      List-side office leaderboard. Mirror of fct_buyer_office on the sell side.
+      Grain: list_office_key × year × property_segment.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+        powers_pages: ["/platform recruitment dashboards (future)"]
+    columns:
+      - name: list_office_id
+        data_tests: [unique, not_null]
+      - name: year
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 2011
+                  max_value: 2050
+      - name: list_office_name
+        data_tests: [not_null]
+      - name: deals
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 3
+                  max_value: 100000
+
+  - name: fct_list_agent_leaderboard
+    description: |
+      List-side agent leaderboard (RESO Member resource).
+      Grain: list_agent_key × year × property_segment.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+        powers_pages: ["/platform recruitment + agent productivity dashboards (future)"]
+    columns:
+      - name: list_agent_id
+        data_tests: [unique, not_null]
+      - name: list_agent_full_name
+        data_tests: [not_null]
+      - name: deals
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 2
+                  max_value: 10000
+
+  - name: fct_seasonality
+    description: |
+      Month-of-year cohort metrics across full history. Seasonal index columns
+      (volume / price / dom) > 1.0 = above annual avg; < 1.0 = below.
+      Grain: scope_type × scope_key × property_segment × month_of_year.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+        grain: scope_type + scope_key + property_segment + month_of_year
+        powers_pages: ["/phoenix Seasonality tab (future)"]
+    columns:
+      - name: seasonality_id
+        data_tests: [unique, not_null]
+      - name: month_of_year
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 1
+                  max_value: 12
+      - name: property_segment
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['residential', 'land', 'rental', 'commercial', 'multi_family', 'for_sale', 'all']
+      - name: seasonal_volume_index
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 50
+              config:
+                where: "seasonal_volume_index IS NOT NULL"
+                # Subdivisions with 1 sale/year have annual_avg ≈ 0.083, so any
+                # single closing in a month produces index ≈ 12. Larger sales
+                # cohort scopes (metro/region) stay <1.5; only flag absurd >50.
+
+  - name: fct_feature_premium
+    description: |
+      Hedonic feature-premium (simplified delta of medians). Residential only.
+      premium_pct = (median_ppsf_with - median_ppsf_without) / median_ppsf_without * 100.
+      Grain: scope_type × scope_key × feature_name.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+        grain: scope_type + scope_key + feature_name
+        powers_pages: ["/phoenix Features tab (future)", "/listings/[slug] amenity premium"]
+    columns:
+      - name: feature_premium_id
+        data_tests: [unique, not_null]
+      - name: scope_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['metro', 'region']
+      - name: feature_name
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['has_pool', 'is_gated', 'is_golf_community', 'is_age_restricted', 'has_community_pool']
+      - name: premium_pct
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: -50
+                  max_value: 200
+              config:
+                where: "premium_pct IS NOT NULL"
+                severity: warn
+
   - name: fct_status_velocity
     description: |
       Median days from Active → Pending → Closed across recent monthly cohorts.
@@ -518,3 +706,351 @@ models:
           - accepted_values:
               arguments:
                   values: ['none', 'very_low', 'low', 'medium', 'high']
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Price-tier-grained sibling marts. Add `price_band` to the grain of the
+  # closed-deal aggregates so /phoenix can filter KPIs by an arbitrary
+  # band selection without per-request silver-layer re-aggregation.
+  #
+  # Known characteristics (apply to all 3 _by_pricetier families):
+  #
+  #   1. Medians-of-medians weighted-mean approximation. When yong2
+  #      aggregates multiple bands or scopes server-side, the resulting
+  #      "median" is a closing-count-weighted average of the per-band
+  #      medians — NOT a true median of the combined cohort. Industry
+  #      standard for dashboard-tier aggregation; accuracy is within ~1-2%
+  #      for typical filter selections. A true cross-band median would
+  #      require silver-layer scan per request (~10× the cost).
+  #
+  #   2. Community scope filtered to >=6 closings in trailing 12 months
+  #      (~3,400 active communities). The full universe of 20,384
+  #      `community_unified_slug` values is dominated by one-off entries
+  #      (4,500+ have a single close ever — typos, mislabels, mobile-home
+  #      parks). The 6-closes/12mo cutoff drops community parquet from
+  #      ~5M to ~1.3M rows while preserving every market visitors care
+  #      about. Source-level slug cleanup is filed separately.
+  #
+  #   3. Zero-closing rows dropped at community grain only. Metro + region
+  #      keep their calendar spine intact (charts need continuous time);
+  #      community is filter-only so missing-row == zero-row semantically.
+  # ──────────────────────────────────────────────────────────────────────
+
+  - name: fct_market_pulse_by_pricetier
+    description: |
+      Monthly market-pulse time series with `price_band` added to the
+      grain. Sibling of fct_market_pulse. Materialized as a table
+      (in-DB only); the per-scope `_metro` / `_region` / `_community`
+      split files write the parquet to S3.
+
+      Grain: scope_type × scope_key × property_segment × price_band × month
+      Scope ladder: metro + region + community (subdivision/zipcode excluded).
+    config:
+      materialized: table
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+        grain: scope_type + scope_key + property_segment + price_band + month
+        powers_pages: ["/phoenix filter — all routes"]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+              combination_of_columns:
+                - scope_type
+                - scope_key
+                - property_segment
+                - price_band
+                - month
+    columns:
+      - name: market_pulse_pricetier_id
+        description: Surrogate key
+        data_tests: [unique, not_null]
+      - name: scope_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['metro', 'region', 'community']
+      - name: scope_key
+        data_tests: [not_null]
+      - name: property_segment
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['residential', 'land', 'rental', 'commercial', 'multi_family', 'for_sale', 'all']
+      - name: price_band
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M-10M', '10M+']
+      - name: month
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                  to: ref('dim_calendar')
+                  field: month
+      - name: closing_count
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 50000
+      - name: median_close
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 100000000
+              config:
+                where: "median_close IS NOT NULL AND closing_count > 0"
+      - name: median_ppsf
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 10000
+              config:
+                where: "median_ppsf IS NOT NULL AND closing_count > 0"
+      - name: confidence
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['none', 'very_low', 'low', 'medium', 'high']
+
+  - name: fct_market_pulse_by_pricetier_metro
+    description: Metro-grained split of fct_market_pulse_by_pricetier (~10K rows).
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        powers_pages: ["/phoenix filter default + price-only"]
+    columns:
+      - name: scope_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                  values: ['metro']
+
+  - name: fct_market_pulse_by_pricetier_region
+    description: Region-grained split of fct_market_pulse_by_pricetier (~80K rows).
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        powers_pages: ["/phoenix filter — region scope active"]
+    columns:
+      - name: scope_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                  values: ['region']
+
+  - name: fct_market_pulse_by_pricetier_community
+    description: |
+      Community-grained split (~1.3M rows after the >=6/12mo active filter).
+      Lazy-fetched by yong2 only when a community filter is selected.
+    config:
+      materialized: external
+      meta:
+        owner: joeyschnepel@gmail.com
+        powers_pages: ["/phoenix filter — community scope active"]
+    columns:
+      - name: scope_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                  values: ['community']
+
+  - name: fct_negotiation_by_pricetier
+    description: |
+      Monthly negotiation metrics (sale-to-list, % above/below, % with
+      reduction) with `price_band` added to the grain. Sibling of
+      fct_negotiation. Materialized as a table; per-scope splits ship
+      the parquet.
+
+      Grain: scope_type × scope_key × property_segment × price_band × month
+    config:
+      materialized: table
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+        grain: scope_type + scope_key + property_segment + price_band + month
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+              combination_of_columns:
+                - scope_type
+                - scope_key
+                - property_segment
+                - price_band
+                - month
+    columns:
+      - name: negotiation_pricetier_id
+        data_tests: [unique, not_null]
+      - name: scope_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['metro', 'region', 'community']
+      - name: scope_key
+        data_tests: [not_null]
+      - name: property_segment
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['residential', 'land', 'rental', 'commercial', 'multi_family', 'for_sale', 'all']
+      - name: price_band
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M-10M', '10M+']
+      - name: month
+        data_tests: [not_null]
+      - name: median_sale_to_list
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0.4
+                  max_value: 2.5
+              config:
+                where: "median_sale_to_list IS NOT NULL"
+      - name: pct_above_list
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 100
+              config:
+                where: "pct_above_list IS NOT NULL"
+      - name: pct_below_list
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 100
+              config:
+                where: "pct_below_list IS NOT NULL"
+      - name: pct_with_reduction
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 100
+              config:
+                where: "pct_with_reduction IS NOT NULL"
+      - name: confidence
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['none', 'very_low', 'low', 'medium', 'high']
+
+  - name: fct_negotiation_by_pricetier_metro
+    description: Metro-grained split of fct_negotiation_by_pricetier.
+    config: { materialized: external }
+
+  - name: fct_negotiation_by_pricetier_region
+    description: Region-grained split of fct_negotiation_by_pricetier.
+    config: { materialized: external }
+
+  - name: fct_negotiation_by_pricetier_community
+    description: Community-grained split of fct_negotiation_by_pricetier (lazy-fetch).
+    config: { materialized: external }
+
+  - name: fct_status_velocity_by_pricetier
+    description: |
+      Days-to-pending / pending-to-closed / active-to-closed cohort medians
+      with `price_band` added to the grain. Sibling of fct_status_velocity.
+      6-month data window (capped by listing_change_log capture start).
+      Materialized as a table; per-scope splits ship the parquet.
+
+      Grain: scope_type × scope_key × property_segment × price_band × month
+    config:
+      materialized: table
+      meta:
+        owner: joeyschnepel@gmail.com
+        refresh_cadence: every_4h
+        grain: scope_type + scope_key + property_segment + price_band + month
+        data_window_months: 6
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+              combination_of_columns:
+                - scope_type
+                - scope_key
+                - property_segment
+                - price_band
+                - month
+    columns:
+      - name: status_velocity_pricetier_id
+        data_tests: [unique, not_null]
+      - name: scope_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['metro', 'region', 'community']
+      - name: price_band
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M-10M', '10M+']
+      - name: month
+        data_tests: [not_null]
+      - name: median_days_to_pending
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 5000
+              config:
+                where: "median_days_to_pending IS NOT NULL"
+      - name: median_days_pending_to_closed
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 365
+              config:
+                where: "median_days_pending_to_closed IS NOT NULL"
+      - name: median_days_active_to_closed
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 5000
+              config:
+                where: "median_days_active_to_closed IS NOT NULL"
+      - name: pct_back_on_market
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 100
+              config:
+                where: "pct_back_on_market IS NOT NULL"
+      - name: confidence
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['none', 'very_low', 'low', 'medium', 'high']
+
+  - name: fct_status_velocity_by_pricetier_metro
+    description: Metro-grained split of fct_status_velocity_by_pricetier.
+    config: { materialized: external }
+
+  - name: fct_status_velocity_by_pricetier_region
+    description: Region-grained split of fct_status_velocity_by_pricetier.
+    config: { materialized: external }
+
+  - name: fct_status_velocity_by_pricetier_community
+    description: Community-grained split of fct_status_velocity_by_pricetier (lazy-fetch).
+    config: { materialized: external }

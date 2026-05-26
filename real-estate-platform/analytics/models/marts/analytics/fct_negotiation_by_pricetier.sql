@@ -132,6 +132,9 @@ SELECT
   CURRENT_TIMESTAMP AS gold_built_at
 FROM with_framing
 WHERE month < DATE_TRUNC('month', CURRENT_DATE)
+  -- Drop synthetic CROSS JOIN artifacts (see fct_market_pulse_by_pricetier
+  -- for the rationale on NULL scope_keys at region/community grain).
+  AND scope_key IS NOT NULL
   -- Drop sparse zero-closing rows at community grain (see
   -- fct_market_pulse_by_pricetier for full rationale).
   AND NOT (scope_type = 'community' AND COALESCE(closing_count, 0) = 0)

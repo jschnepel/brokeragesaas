@@ -178,6 +178,12 @@ FROM with_changes
 -- Exclude the still-in-progress current calendar month (same convention
 -- as fct_market_pulse — see that model's footer for rationale).
 WHERE month < DATE_TRUNC('month', CURRENT_DATE)
+  -- Drop synthetic CROSS JOIN artifacts. When a (month, segment, band)
+  -- cell has zero closings, the LEFT JOIN produces NULL for the scope
+  -- columns at region/community grain — emit-it-as-NULL-row is wrong
+  -- for the filter use case (these rows can't match a user's scope
+  -- selection anyway). Metro grain uses a literal scope_key so never NULL.
+  AND scope_key IS NOT NULL
   -- Drop sparse zero-closing rows at the community grain — keeps the
   -- per-scope community parquet from ballooning to 5M rows when most
   -- of those rows are empty (20K distinct communities × 8 bands × 180+
