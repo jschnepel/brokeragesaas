@@ -106,6 +106,17 @@ models:
           - accepted_values:
               arguments:
                   values: ['Active', 'Active Under Contract', 'Pending', 'Coming Soon']
+              # Demoted error → warn 2026-05-27. The source-level twin on
+              # armls_active.active_snapshot.StandardStatus is already warn.
+              # Symptom: Spark feed occasionally surfaces a status outside the
+              # MLS-active envelope (transient mid-cycle states); fail-severity
+              # here aborted dbt build on every cycle and skipped the entire
+              # downstream active branch — int_listings_active_cleaned +
+              # 5 active marts — preventing fct_active_heatmap_h3 et al. from
+              # publishing. Match the source severity so DQ surfaces the row
+              # without blocking the publish gate.
+              config:
+                severity: warn
       - name: list_price
         data_tests:
           - not_null

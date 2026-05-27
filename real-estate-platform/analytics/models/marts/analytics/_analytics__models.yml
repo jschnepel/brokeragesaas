@@ -434,8 +434,13 @@ models:
 
   - name: fct_active_heatmap_h3
     description: |
-      H3 hex aggregation of currently-active listings for map visualization.
-      Resolution-8-equivalent lat/lng buckets.
+      Lat/lng bucket aggregation of currently-active listings for map
+      visualization. Bucket grain ≈ 0.005° (≈ 555 m, close to H3 res 8).
+      yong2 re-bins these buckets to true H3 res 7 hexes client-side via
+      h3-js to drive the Geographic Intelligence section on /phoenix.
+      Modal labels (`dominant_city`, `dominant_region`, `dominant_community`)
+      carry the most common value across listings in each bucket, used by
+      the heatmap side-panel rankings table.
     config:
       materialized: external
       meta:
@@ -451,6 +456,14 @@ models:
               arguments:
                   min_value: 1
                   max_value: 100000
+      - name: median_list_price_per_sqft
+        description: Median list-price-per-sqft across the bucket's listings (NULL when no listings carried living_area).
+      - name: dominant_city
+        description: Modal `city` across the bucket's listings (the city the most listings sit in).
+      - name: dominant_region
+        description: Modal `region_name` from the listings_geography enrichment.
+      - name: dominant_community
+        description: Modal `community_name` from the listings_geography enrichment.
   - name: fct_listing_pace
     description: |
       Weekly pace of new listings going Active. Calendar-spined; rolling
