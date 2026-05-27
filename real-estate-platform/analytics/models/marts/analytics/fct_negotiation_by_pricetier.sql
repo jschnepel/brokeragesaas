@@ -27,14 +27,14 @@ bands AS (
 ),
 
 active_communities AS (
-  -- See fct_market_pulse_by_pricetier for the rationale on this filter.
-  SELECT community_unified_slug
-  FROM {{ ref('fct_closings') }}
-  WHERE community_unified_slug IS NOT NULL
-    AND close_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '12 months'
-    AND close_date <  DATE_TRUNC('month', CURRENT_DATE)
-  GROUP BY 1
-  HAVING COUNT(*) >= 6
+  -- Source from fct_community_scorecard — see fct_market_pulse_by_pricetier
+  -- for the full rationale. Keeps this mart's community list in lockstep
+  -- with the FilterBar dropdown source.
+  SELECT scope_key AS community_unified_slug
+  FROM {{ ref('fct_community_scorecard') }}
+  WHERE scope_type = 'community'
+    AND property_segment = 'all'
+    AND closes_12mo >= 6
 ),
 
 {% set base_metrics %}

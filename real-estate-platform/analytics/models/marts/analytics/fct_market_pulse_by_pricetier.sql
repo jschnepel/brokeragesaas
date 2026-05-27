@@ -59,26 +59,24 @@ bands AS (
 ),
 
 active_communities AS (
-  -- Restrict the community scope to communities with meaningful recent
-  -- activity (>=6 closings in trailing 12 months). int_listings_closed_cleaned
-  -- emits a `community_unified_slug` per listing, but ~22% of those slugs
-  -- appear exactly once in 14 years — almost certainly noise (typos,
-  -- one-off luxury-condo mislabels, mobile-home park entries). Without
-  -- this filter the community grain hits 20,384 distinct slugs and the
-  -- price-tier cross-join explodes to ~5M rows, most of which the user
-  -- can't usefully filter against. The 6-closes/12mo threshold drops
-  -- the dropdown to ~3,400 active communities (matches "meaningful
-  -- market" filter convention used elsewhere in the analytics layer).
+  -- Restrict the community scope to communities that already appear
+  -- in fct_community_scorecard with >=6 closes in trailing 12 months.
   --
-  -- A proper source-level cleanup of community_unified_slug derivation
-  -- lives outside this mart — file separately.
-  SELECT community_unified_slug
-  FROM {{ ref('fct_closings') }}
-  WHERE community_unified_slug IS NOT NULL
-    AND close_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '12 months'
-    AND close_date <  DATE_TRUNC('month', CURRENT_DATE)
-  GROUP BY 1
-  HAVING COUNT(*) >= 6
+  -- Why source from scorecard (not raw fct_closings):
+  --   1. Single source of truth for "what is a notable community" —
+  --      the yong2 FilterBar dropdown reads scorecard too, so the
+  --      mart and the dropdown stay perfectly in sync (the user never
+  --      sees a dropdown option that returns empty rows here).
+  --   2. Drops the community grain from ~3,400 slugs (raw closings
+  --      filter) to whatever scorecard curates (~40-50 top markets).
+  --   3. Drops the resulting parquet from ~85MB to ~1-2MB so the
+  --      yong2 Vercel function can decode + cache it without
+  --      tripping the memory ceiling.
+  SELECT scope_key AS community_unified_slug
+  FROM {{ ref('fct_community_scorecard') }}
+  WHERE scope_type = 'community'
+    AND property_segment = 'all'
+    AND closes_12mo >= 6
 ),
 
 {%- for s in scopes %}
