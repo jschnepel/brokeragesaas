@@ -22,6 +22,11 @@
     "@commitlint/cli": "^20.5.3",
     "@commitlint/config-conventional": "^20.5.3",
     "@secretlint/secretlint-rule-preset-recommend": "^12.3.1",
+    "@turf/area": "^7.3.5",
+    "@turf/bbox": "^7.3.5",
+    "@turf/boolean-point-in-polygon": "^7.3.5",
+    "@turf/centroid": "^7.3.5",
+    "@turf/helpers": "^7.3.5",
     "@types/node": "^20.10.0",
     "eslint": "^8.55.0",
     "husky": "^9.1.7",
@@ -29,7 +34,8 @@
     "prettier": "^3.1.1",
     "secretlint": "^12.3.1",
     "turbo": "^1.11.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^4.1.7"
   },
   "engines": {
     "node": ">=20.0.0",
