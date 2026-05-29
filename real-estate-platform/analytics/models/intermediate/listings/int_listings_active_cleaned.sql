@@ -207,19 +207,15 @@ SELECT
   geo.community_name,
   geo.section_slug,
 
-  -- Unified community + subdivision slugs (mirror of int_listings_geographic_enriched
-  -- for closed). Polygon-canonical preferred, canonical-map fallback. Junk values
-  -- ('none', 'metes-bounds', etc.) filtered to NULL.
-  CASE
-    WHEN geo.community_slug IS NOT NULL THEN geo.community_slug
-    WHEN dc.canonical_community IS NULL THEN NULL
-    WHEN LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(dc.canonical_community), '[^A-Za-z0-9]+', '-', 'g'), '^-+|-+$', '', 'g')) IN (
-      'none', 'na', 'n-a', 'unknown', 'metes-bounds', 'metes-and-bounds',
-      'no-subdivision', 'no-subdivisions', 'no-sub', 'tbd', 'see-remarks',
-      'rural', 'farm', 'subdivision', ''
-    ) THEN NULL
-    ELSE LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(dc.canonical_community), '[^A-Za-z0-9]+', '-', 'g'), '^-+|-+$', '', 'g'))
-  END AS community_unified_slug,
+  -- Community via fresh point-in-polygon (authoritative), canonical-map slug as
+  -- the gap-filler. See macros/pip_community.sql. EPSG:4326; ST_Covers; smallest
+  -- polygon wins; NULL when no polygon covers the point.
+  {{ pip_community_slug('s.latitude', 's.longitude') }} AS community_pip_slug,
+  {{ pip_region_slug('s.latitude', 's.longitude') }}    AS region_pip_slug,
+  {{ community_unified_slug(
+       pip_community_slug('s.latitude', 's.longitude'),
+       "NULLIF(LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(dc.canonical_community), '[^A-Za-z0-9]+', '-', 'g'), '^-+|-+$', '', 'g')), '')"
+  ) }} AS community_unified_slug,
   COALESCE(
     NULLIF(LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(dc.canonical_community), '[^A-Za-z0-9]+', '-', 'g'), '^-+|-+$', '', 'g')), ''),
     NULLIF(LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(s.subdivision_name),     '[^A-Za-z0-9]+', '-', 'g'), '^-+|-+$', '', 'g')), '')
