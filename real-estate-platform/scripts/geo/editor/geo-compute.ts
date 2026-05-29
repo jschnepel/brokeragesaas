@@ -34,7 +34,11 @@ function countVertices(geom: Polygon | MultiPolygon): number {
 export function computeBoundaryRow(geom: Polygon | MultiPolygon): BoundaryRow {
   const feature: Feature<Polygon | MultiPolygon> = { type: 'Feature', properties: {}, geometry: geom };
   const [minLng, minLat, maxLng, maxLat] = bbox(feature);
-  const c = centroid(feature).geometry.coordinates;
+  const centroidGeom = centroid(feature).geometry;
+  if (!centroidGeom) {
+    throw new Error('Failed to compute centroid for geometry');
+  }
+  const c = centroidGeom.coordinates;
   return {
     geometry: JSON.stringify(geom),
     bbox: [minLng, minLat, maxLng, maxLat],
