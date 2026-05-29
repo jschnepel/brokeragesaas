@@ -15,6 +15,11 @@ const pool = new pg.Pool({
   max: 4,
 });
 
+if (!process.env.RDS_DATABASE_URL) {
+  process.stderr.write('RDS_DATABASE_URL is required\n');
+  process.exit(1);
+}
+
 const ACTIVE_STATUSES = ['Active', 'Active Under Contract', 'Pending', 'Coming Soon'];
 
 async function readBody(req: http.IncomingMessage): Promise<unknown> {
@@ -72,6 +77,8 @@ async function saveCommunity(payload: {
   const row = computeBoundaryRow(payload.geometry);
   const properties = JSON.stringify({ regionSlug: payload.regionSlug });
   await pool.query(
+    // geometry_simple intentionally stores the full-resolution geometry for now;
+    // vertex simplification (e.g. @turf/simplify) is deferred until a consumer needs it.
     `INSERT INTO geo_boundaries
        (name, slug, type, geometry, geometry_simple, bbox, centroid, properties, source, vertex_count, area_sq_mi)
      VALUES ($1, $2, 'community', $3, $3, $4, $5, $6::jsonb, 'editor', $7, $8)
@@ -118,7 +125,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/community') {
       const body = (await readBody(req)) as Parameters<typeof saveCommunity>[0];
-      if (!body.slug || !body.geometry) return json(res, 400, { error: 'slug and geometry required' });
+      if (!body.slug || !body.name || !body.geometry || !body.regionSlug)
+        return json(res, 400, { error: 'slug, name, regionSlug, and geometry required' });
       return json(res, 200, await saveCommunity(body));
     }
     json(res, 404, { error: 'not found' });
