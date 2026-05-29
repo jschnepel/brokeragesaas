@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RLSIR Community Boundary Editor</title>
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <link href="https://unpkg.com/@watergis/maplibre-gl-terradraw@1.13.1/dist/maplibre-gl-terradraw.css" rel="stylesheet" />
+  <style>
+    html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+    #map { position: absolute; inset: 0 320px 0 0; }
+    #panel { position: absolute; top: 0; right: 0; bottom: 0; width: 320px; padding: 16px; box-sizing: border-box; background: #0c1c2e; color: #f9f8f6; overflow: auto; }
+    label { display: block; margin: 8px 0 2px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #bfa67a; }
+    input, button { width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 8px; }
+    button { background: #bfa67a; border: 0; color: #0c1c2e; font-weight: 700; cursor: pointer; }
+    .count { font-size: 28px; font-weight: 700; }
+    .muted { color: #9fb0c0; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="panel">
+    <label>Community slug</label>
+    <input id="slug" placeholder="troon-north" />
+    <label>Display name</label>
+    <input id="name" placeholder="Troon North" />
+    <label>Region slug</label>
+    <input id="region" placeholder="north-scottsdale" />
+    <label>Listings inside polygon</label>
+    <div class="count" id="count">—</div>
+    <div class="muted" id="meta"></div>
+    <button id="save">Save community</button>
+    <div class="muted" id="status"></div>
+  </div>
+
+  <script type="module">
+    import maplibregl from 'https://esm.sh/maplibre-gl@4.7.1';
+    import { MaplibreTerradrawControl } from 'https://esm.sh/@watergis/maplibre-gl-terradraw@1.13.1';
+    import booleanPointInPolygon from 'https://esm.sh/@turf/boolean-point-in-polygon@7';
+    import { point } from 'https://esm.sh/@turf/helpers@7';
+
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://api.maptiler.com/maps/streets/style.json?key=6DagWlYgkxoFxL5RaX6S',
+      center: [-111.9, 33.7],
+      zoom: 10,
+    });
+
+    const draw = new MaplibreTerradrawControl({ modes: ['polygon', 'select', 'delete'], open: true });
+    map.addControl(draw, 'top-left');
+
+    // Expose for headless verification only — safe to keep as dev tool
+    window.__map = map;
+    window.__draw = draw;
+
+    let listings = []; // [{lng, lat, ...}]
+
+    async function loadListings() {
+      const b = map.getBounds();
+      const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',');
+      const res = await fetch(`/api/listings?bbox=${bbox}`);
+      listings = await res.json();
+      const fc = { type: 'FeatureCollection', features: listings.map((l) => ({
+        type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [l.lng, l.lat] },
+      })) };
+      const src = map.getSource('listings');
+      if (src) src.setData(fc);
+      else {
+        map.addSource('listings', { type: 'geojson', data: fc });
+        map.addLayer({ id: 'listings', type: 'circle', source: 'listings',
+          paint: { 'circle-radius': 3, 'circle-color': '#d4654b', 'circle-opacity': 0.7 } });
+      }
+    }
+
+    function currentPolygon() {
+      // draw.getFeatures() is the public API on MaplibreTerradrawControl ≥1.13.x.
+      // It returns a GeoJSON FeatureCollection, already filtered (mode==='select' excluded).
+      // Internally it calls this.terradraw.getSnapshot(), so semantics are identical.
+      const fc = draw.getFeatures();
+      if (!fc) return null;
+      const polys = fc.features.filter((f) => f.geometry.type === 'Polygon');
+      return polys.length ? polys[polys.length - 1] : null;
+    }
+
+    function updateCount() {
+      const poly = currentPolygon();
+      if (!poly) { document.getElementById('count').textContent = '—'; return; }
+      let n = 0;
+      for (const l of listings) if (booleanPointInPolygon(point([l.lng, l.lat]), poly)) n += 1;
+      document.getElementById('count').textContent = String(n);
+      document.getElementById('meta').textContent = `${poly.geometry.coordinates[0].length} vertices`;
+    }
+
+    map.on('load', loadListings);
+    map.on('moveend', loadListings);
+    map.on('idle', updateCount);
+
+    document.getElementById('save').addEventListener('click', async () => {
+      const poly = currentPolygon();
+      const slug = document.getElementById('slug').value.trim();
+      const name = document.getElementById('name').value.trim();
+      const region = document.getElementById('region').value.trim();
+      const status = document.getElementById('status');
+      if (!poly || !slug || !name || !region) { status.textContent = 'slug, name, region, and a polygon are required'; return; }
+      status.textContent = 'saving…';
+      const res = await fetch('/api/community', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ slug, name, regionSlug: region, geometry: poly.geometry }),
+      });
+      const body = await res.json();
+      status.textContent = res.ok ? `saved — ${body.areaSqMi.toFixed(2)} sq mi, ${body.vertexCount} verts` : `error: ${body.error}`;
+    });
+  </script>
+</body>
+</html>
