@@ -67,20 +67,14 @@ slug_helpers AS (
 
 SELECT
   *,
-  -- Unified community: polygon-canonical preferred, canonical-map slug as fallback.
-  -- Reaches ~95%+ of listings vs the 3% from polygons alone. Junk slugs (literal
-  -- "none", "metes & bounds" variants, etc.) filtered to NULL so they don't
-  -- pollute scope keys.
-  CASE
-    WHEN community_slug IS NOT NULL THEN community_slug
-    WHEN canonical_slug IS NULL OR canonical_slug = '' THEN NULL
-    WHEN canonical_slug IN (
-      'none', 'na', 'n-a', 'unknown', 'metes-bounds', 'metes-and-bounds',
-      'no-subdivision', 'no-subdivisions', 'no-sub', 'tbd', 'see-remarks',
-      'rural', 'farm', 'subdivision'
-    ) THEN NULL
-    ELSE canonical_slug
-  END AS community_unified_slug,
+  -- Community via fresh point-in-polygon (authoritative), canonical-map slug as
+  -- the gap-filler. Mirrors int_listings_active_cleaned via shared macros.
+  {{ pip_community_slug('latitude', 'longitude') }} AS community_pip_slug,
+  {{ pip_region_slug('latitude', 'longitude') }}    AS region_pip_slug,
+  {{ community_unified_slug(
+       pip_community_slug('latitude', 'longitude'),
+       'canonical_slug'
+  ) }} AS community_unified_slug,
   -- Subdivision (finest-grain): canonical-map preferred for naming consistency,
   -- else cleaned subdivision_name slug. Same junk-slug filter applied to both.
   CASE
