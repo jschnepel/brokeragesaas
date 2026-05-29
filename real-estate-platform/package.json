@@ -16,6 +16,7 @@
     "type-check": "turbo run type-check",
     "clean": "turbo run clean && rm -rf node_modules",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "geo:editor": "tsx scripts/geo/editor/server.ts",
     "prepare": "husky"
   },
   "devDependencies": {
