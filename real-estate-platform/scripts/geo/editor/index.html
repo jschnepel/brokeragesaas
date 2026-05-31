@@ -23,11 +23,13 @@
     label { display: block; margin: 8px 0 2px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #bfa67a; }
     input, button { width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 8px; }
     button { background: #bfa67a; border: 0; color: #0c1c2e; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
     .count { font-size: 28px; font-weight: 700; }
     .muted { color: #9fb0c0; font-size: 12px; }
     /* Side-panel community list rows */
     .shape-row { display: block; width: 100%; text-align: left; padding: 6px 4px; background: transparent; color: #f9f8f6; border: 0; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; font: inherit; }
     .shape-row:hover { background: rgba(191,166,122,0.12); }
+    .shape-row.selected { background: rgba(191,166,122,0.25); }
     .shape-row .name { display: block; font-weight: 600; }
     .shape-row .meta { display: block; font-size: 11px; color: #9fb0c0; }
     /* Snap indicator: thin gold ring around candidate listing dot */
@@ -40,6 +42,17 @@
     <!-- ── Communities list (top of panel) ── -->
     <div id="shape-list-header" class="muted" style="margin-bottom: 4px;">Communities</div>
     <div id="shape-list" style="max-height: 35vh; overflow-y: auto; margin-bottom: 16px; border-top: 1px solid rgba(255,255,255,0.08); border-bottom: 1px solid rgba(255,255,255,0.08);"></div>
+
+    <!-- ── Boolean Ops panel ── -->
+    <div id="boolops-panel" style="margin-bottom: 16px;">
+      <label>Boolean Ops <span class="muted" style="text-transform: none; letter-spacing: 0; font-size: 11px;">(Shift+click 2 shapes)</span></label>
+      <div id="boolops-status" class="muted" style="margin-bottom: 6px;">0 selected</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px;">
+        <button id="op-union" disabled>Union</button>
+        <button id="op-subtract" disabled>Subtract</button>
+        <button id="op-intersect" disabled>Intersect</button>
+      </div>
+    </div>
 
     <!-- ── Save form (unchanged from v1) ── -->
     <label>Community slug</label>
@@ -57,9 +70,34 @@
 
   <script type="module">
     import booleanPointInPolygon from 'https://esm.sh/@turf/boolean-point-in-polygon@7';
-    import { point }             from 'https://esm.sh/@turf/helpers@7';
+    import { point, featureCollection } from 'https://esm.sh/@turf/helpers@7';
     import centroid              from 'https://esm.sh/@turf/centroid@7';
     import bbox                  from 'https://esm.sh/@turf/bbox@7';
+    // Boolean-op helpers — inlined here because geo-compute.ts is Node/Vitest only
+    // and cannot be imported directly in the browser's ESM context.
+    // Implementations mirror geo-compute.ts exactly; esm.sh serves turf v7 ESM bundles.
+    import turfUnion       from 'https://esm.sh/@turf/union@7';
+    import turfDifference  from 'https://esm.sh/@turf/difference@7';
+    import turfIntersect   from 'https://esm.sh/@turf/intersect@7';
+
+    function _asFeature(geom) {
+      return { type: 'Feature', properties: {}, geometry: geom };
+    }
+    // unionPolygons — mirrors geo-compute.ts unionPolygons
+    function unionPolygons(a, b) {
+      var result = turfUnion(featureCollection([_asFeature(a), _asFeature(b)]));
+      return result ? result.geometry : null;
+    }
+    // differencePolygons — mirrors geo-compute.ts differencePolygons (A minus B)
+    function differencePolygons(a, b) {
+      var result = turfDifference(featureCollection([_asFeature(a), _asFeature(b)]));
+      return result ? result.geometry : null;
+    }
+    // intersectPolygons — mirrors geo-compute.ts intersectPolygons
+    function intersectPolygons(a, b) {
+      var result = turfIntersect(featureCollection([_asFeature(a), _asFeature(b)]));
+      return result ? result.geometry : null;
+    }
 
     // UMD globals set by the <script> tags in <head>.
     // geoman UMD assigns its namespace to window.Geoman; the constructor is at .Geoman.
@@ -463,6 +501,236 @@
       }
     }
 
+    // ── Boolean Ops — selection state ──────────────────────────────────────────
+    //
+    // `selected` holds up to two geoman feature IDs in tap/click order.
+    // Order matters: Subtract = selected[0] minus selected[1].
+    //
+    // Delete API (verified from @geoman-io/maplibre-geoman-free@0.2.10 type defs):
+    //   gm.features.get('gm_main', featureId) → FeatureData | null
+    //   gm.features.delete(featureData, keepMarkers?)
+    // 'gm_main' is the primary drawn-feature source (featureSourceNames = ['main',
+    // 'temporary', 'standby']; the library prepends the 'gm' prefix automatically
+    // so the key is 'gm_main').
+
+    var selected = []; // string[], geoman feature IDs in selection order
+
+    function updateBoolopsUI() {
+      var statusEl = document.getElementById('boolops-status');
+      var btnUnion      = document.getElementById('op-union');
+      var btnSubtract   = document.getElementById('op-subtract');
+      var btnIntersect  = document.getElementById('op-intersect');
+
+      // Build display names from selected feature slugs/names
+      var displayNames = selected.map(function(id) {
+        var fc = window.__gm.features.getAll();
+        var f = fc && fc.features && fc.features.find(function(feat) {
+          return String(feat.id) === String(id);
+        });
+        if (!f) return id;
+        var p = f.properties;
+        return (p && (p.communityName || p.communitySlug)) || '(unsaved)';
+      });
+
+      if (selected.length === 0) {
+        statusEl.textContent = '0 selected';
+      } else if (selected.length === 1) {
+        statusEl.textContent = '1 selected — ' + displayNames[0];
+      } else {
+        statusEl.textContent = '2 selected — ' + displayNames[0] + ' + ' + displayNames[1];
+      }
+
+      // Union and Intersect require ≥2 selected; Subtract requires exactly 2.
+      var canOp = selected.length >= 2;
+      btnUnion.disabled     = !canOp;
+      btnSubtract.disabled  = selected.length !== 2;
+      btnIntersect.disabled = !canOp;
+
+      // Highlight matching side-panel rows
+      var list = document.getElementById('shape-list');
+      var rows = list ? list.querySelectorAll('.shape-row') : [];
+      rows.forEach(function(row) {
+        row.classList.remove('selected');
+      });
+
+      // For each selected ID, find the slug on that feature, then highlight the row
+      var fc2 = window.__gm.features.getAll();
+      selected.forEach(function(id) {
+        var f = fc2 && fc2.features && fc2.features.find(function(feat) {
+          return String(feat.id) === String(id);
+        });
+        if (!f) return;
+        var slug = f.properties && f.properties.communitySlug;
+        if (slug) {
+          rows.forEach(function(row) {
+            if (row.dataset.slug === slug) row.classList.add('selected');
+          });
+        }
+      });
+    }
+
+    // Expose for Puppeteer test harness
+    window.__updateBoolopsUI = updateBoolopsUI;
+    Object.defineProperty(window, '__selected', {
+      get: function() { return selected; },
+      set: function(v) { selected = v; },
+    });
+
+    // Toggle a feature ID in the selection array (shift+click behaviour)
+    function toggleSelected(id) {
+      var strId = String(id);
+      var idx = selected.indexOf(strId);
+      if (idx !== -1) {
+        // Already selected — deselect
+        selected = selected.filter(function(s) { return s !== strId; });
+      } else {
+        // Add (cap at 2 — drop oldest if already at 2)
+        if (selected.length >= 2) {
+          selected = [selected[1], strId];
+        } else {
+          selected = selected.concat([strId]);
+        }
+      }
+    }
+
+    // ── Map click — polygon hit-test for boolops selection ─────────────────────
+    //
+    // On shift+click: toggle the hit feature in `selected`.
+    // On plain click (no shift): clear selection (single-select is outside boolops
+    // scope; non-shift clicks are forwarded to geoman's own edit/select logic).
+    // Hit-test uses booleanPointInPolygon against every Polygon/MultiPolygon in
+    // geoman's feature collection.
+
+    map.on('click', function(e) {
+      // If the event was fired synthetically by selectCommunityInGeoman, skip.
+      if (!e.originalEvent || !e.originalEvent.shiftKey) {
+        // Plain click — clear boolean-ops selection and update UI
+        if (selected.length > 0) {
+          selected = [];
+          updateBoolopsUI();
+        }
+        return;
+      }
+
+      // Shift+click — find topmost polygon under cursor
+      var lngLat = e.lngLat;
+      var clickPt = point([lngLat.lng, lngLat.lat]);
+      var fc = window.__gm.features.getAll();
+      if (!fc || !fc.features) return;
+
+      // Walk in reverse order so the "topmost" (last-drawn) feature wins
+      var hit = null;
+      for (var i = fc.features.length - 1; i >= 0; i--) {
+        var f = fc.features[i];
+        if (!f.geometry) continue;
+        var type = f.geometry.type;
+        if (type !== 'Polygon' && type !== 'MultiPolygon') continue;
+        try {
+          if (booleanPointInPolygon(clickPt, f)) {
+            hit = f;
+            break;
+          }
+        } catch (_err) {
+          // malformed geometry — skip
+        }
+      }
+
+      if (!hit) return; // shift+clicked empty map area — no change
+      toggleSelected(hit.id);
+      updateBoolopsUI();
+    });
+
+    // ── Boolean op execution ────────────────────────────────────────────────────
+
+    function setStatus(text) {
+      document.getElementById('status').textContent = text;
+    }
+
+    async function runBoolOp(opName) {
+      if (selected.length < 2) return;
+
+      var fc = window.__gm.features.getAll();
+      var f0 = fc && fc.features && fc.features.find(function(f) {
+        return String(f.id) === String(selected[0]);
+      });
+      var f1 = fc && fc.features && fc.features.find(function(f) {
+        return String(f.id) === String(selected[1]);
+      });
+
+      if (!f0 || !f1) {
+        setStatus('selected features no longer exist');
+        selected = [];
+        updateBoolopsUI();
+        return;
+      }
+
+      var result = null;
+      if (opName === 'union') {
+        result = unionPolygons(f0.geometry, f1.geometry);
+      } else if (opName === 'subtract') {
+        result = differencePolygons(f0.geometry, f1.geometry);
+      } else if (opName === 'intersect') {
+        result = intersectPolygons(f0.geometry, f1.geometry);
+      }
+
+      if (!result) {
+        setStatus(opName + ' produced no geometry — nothing to do');
+        return;
+      }
+
+      var opLabel = opName === 'union' ? 'Union' :
+                    opName === 'subtract' ? 'Subtract' : 'Intersect';
+
+      if (!confirm(opLabel + ' will replace 2 shapes with 1 result. Continue?')) return;
+
+      // Snapshot hook for T6 undo — T6 will wire the actual stack.
+      if (typeof window.__snapshot === 'function') window.__snapshot();
+
+      // Delete originals.
+      // API: gm.features.get('gm_main', id) → FeatureData | null
+      //      gm.features.delete(featureData)
+      var fd0 = window.__gm.features.get('gm_main', f0.id);
+      var fd1 = window.__gm.features.get('gm_main', f1.id);
+      if (fd0) window.__gm.features.delete(fd0);
+      if (fd1) window.__gm.features.delete(fd1);
+
+      // Add result.
+      // The result carries f0's properties so subsequent Save updates the correct
+      // DB row. If f0 had no communitySlug (unsaved), the result is also unsaved.
+      var slug       = f0.properties && f0.properties.communitySlug;
+      var name       = f0.properties && f0.properties.communityName;
+      var regionSlug = f0.properties && f0.properties.regionSlug;
+
+      window.__gm.features.addGeoJsonFeature({
+        type: 'Feature',
+        properties: {
+          communitySlug: slug       || undefined,
+          communityName: name       || undefined,
+          regionSlug:    regionSlug || undefined,
+        },
+        geometry: result,
+      });
+
+      selected = [];
+      updateBoolopsUI();
+      setStatus(opLabel + ' ok — replaced 2 with 1');
+    }
+
+    // Wire the three buttons
+    document.getElementById('op-union').addEventListener('click', function() {
+      runBoolOp('union');
+    });
+    document.getElementById('op-subtract').addEventListener('click', function() {
+      runBoolOp('subtract');
+    });
+    document.getElementById('op-intersect').addEventListener('click', function() {
+      runBoolOp('intersect');
+    });
+
+    // Clear selection when geoman adds or removes features (e.g. user deletes a
+    // selected shape, or a new draw is started).
+    // These are wired below alongside the existing gm:create / gm:remove handlers.
+
     // ── Event wiring ────────────────────────────────────────────────────────────
 
     map.on('load', function() {
@@ -536,8 +804,18 @@
     //   gm:create  — feature_created (polygon finished)
     //   gm:remove  — feature_removed (polygon deleted)
     //   gm:edit    — feature_updated (vertex dragged / geometry changed)
-    map.on('gm:create', updateCount);
-    map.on('gm:remove', updateCount);
+    map.on('gm:create', function() {
+      // New feature drawn — clear selection so stale IDs don't linger.
+      selected = [];
+      updateBoolopsUI();
+      updateCount();
+    });
+    map.on('gm:remove', function() {
+      // Feature removed — clear selection in case a selected feature was deleted.
+      selected = [];
+      updateBoolopsUI();
+      updateCount();
+    });
     map.on('gm:edit',   updateCount);
 
     // ── Save handler (unchanged from v1) ────────────────────────────────────────
