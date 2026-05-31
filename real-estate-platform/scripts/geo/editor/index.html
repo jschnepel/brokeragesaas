@@ -86,14 +86,59 @@
     // Boolean-op helpers — inlined here because geo-compute.ts is Node/Vitest only
     // and cannot be imported directly in the browser's ESM context.
     // Implementations mirror geo-compute.ts exactly; esm.sh serves turf v7 ESM bundles.
-    import turfUnion       from 'https://esm.sh/@turf/union@7';
-    import turfDifference  from 'https://esm.sh/@turf/difference@7';
-    import turfIntersect   from 'https://esm.sh/@turf/intersect@7';
-    import turfDistance    from 'https://esm.sh/@turf/distance@7';
+    import turfUnion              from 'https://esm.sh/@turf/union@7';
+    import turfDifference         from 'https://esm.sh/@turf/difference@7';
+    import turfIntersect          from 'https://esm.sh/@turf/intersect@7';
+    import turfDistance           from 'https://esm.sh/@turf/distance@7';
+    // Validation helpers — mirrors geo-compute.ts kinks-based self-intersection check
+    // and sibling-overlap check. esm.sh serves turf v7 ESM bundles.
+    import turfKinks              from 'https://esm.sh/@turf/kinks@7';
+    import turfBooleanIntersects  from 'https://esm.sh/@turf/boolean-intersects@7';
 
     function _asFeature(geom) {
       return { type: 'Feature', properties: {}, geometry: geom };
     }
+
+    // ── Validation helpers — mirrors geo-compute.ts kinks-based checks ──────────
+
+    function asFeature(geom) { return { type: 'Feature', properties: {}, geometry: geom }; }
+
+    // Returns the number of self-intersection points in geom (0 = clean polygon).
+    function selfIntersectionCount(geom) {
+      return turfKinks(asFeature(geom)).features.length;
+    }
+
+    // Returns true if geom self-intersects.
+    function hasSelfIntersection(geom) {
+      return selfIntersectionCount(geom) > 0;
+    }
+
+    // Returns the slug of the first sibling that overlaps candidate, or null.
+    // ownSlug: skip any sibling whose slug matches (in-place edit exclusion).
+    function findSiblingOverlap(candidate, siblings, ownSlug) {
+      for (var _i = 0; _i < siblings.length; _i++) {
+        var s = siblings[_i];
+        if (ownSlug && s.slug === ownSlug) continue;
+        try {
+          if (turfBooleanIntersects(asFeature(candidate), asFeature(s.geometry))) return s.slug;
+        } catch (_err) { /* malformed sibling geometry — skip */ }
+      }
+      return null;
+    }
+
+    // Returns the number of listing points inside geom.
+    function countPointsInside(listingsArr, geom) {
+      var n = 0;
+      var feat = asFeature(geom);
+      for (var _j = 0; _j < listingsArr.length; _j++) {
+        var l = listingsArr[_j];
+        try {
+          if (booleanPointInPolygon(point([l.lng, l.lat]), feat)) n += 1;
+        } catch (_err) { /* skip malformed */ }
+      }
+      return n;
+    }
+
     // unionPolygons — mirrors geo-compute.ts unionPolygons
     function unionPolygons(a, b) {
       var result = turfUnion(featureCollection([_asFeature(a), _asFeature(b)]));
@@ -966,6 +1011,67 @@
         return;
       }
 
+      // ── Additional keyboard shortcuts (non-meta) ─────────────────────────────
+      // All handlers respect the inInput escape hatch (skip when typing in a field).
+
+      if (!inInput) {
+        if (e.key === 'Escape') {
+          // Cancel the current draw mode — geoman v0.2.10 doesn't expose finish-draw directly;
+          // disableMode is best-effort: no-op if no mode is currently active.
+          try { window.__gm.disableMode('draw'); } catch (_err) {}
+          setStatus('cancelled');
+          return;
+        }
+
+        // Enter — best-effort: geoman v0.2.10 doesn't expose a programmatic finish-draw API;
+        // skip gracefully (operator can double-click to finish as normal).
+        if (e.key === 'Enter') {
+          // geoman v0.2.10 doesn't expose this; best-effort no-op
+          return;
+        }
+
+        if (e.key === 'Delete') {
+          if (selected.length > 0) {
+            window.__snapshot?.();
+            var delCount = selected.length;
+            for (var _di = 0; _di < selected.length; _di++) {
+              var fd = window.__gm.features.get('gm_main', selected[_di]);
+              if (fd) window.__gm.features.delete(fd);
+            }
+            selected = [];
+            updateBoolopsUI();
+            setStatus('deleted ' + delCount + ' feature(s)');
+          }
+          return;
+        }
+
+        if (e.key === 'Backspace') {
+          // Remove last vertex via geoman's edit mode — geoman v0.2.10 doesn't expose this;
+          // best-effort no-op (use Ctrl/Cmd+Z to undo the last vertex instead).
+          return;
+        }
+
+        const k = e.key.toLowerCase();
+
+        if (k === 'v') {
+          // Enter vertex-edit mode
+          try { window.__gm.enableMode('edit', 'change'); setStatus('vertex edit mode'); } catch (_err) {}
+          return;
+        }
+
+        if (k === 'u') {
+          // Trigger union if exactly 2 shapes are selected
+          if (selected.length === 2) document.getElementById('op-union').click();
+          return;
+        }
+
+        if (k === 'c' || k === 's') {
+          // Trigger subtract if exactly 2 shapes are selected
+          if (selected.length === 2) document.getElementById('op-subtract').click();
+          return;
+        }
+      }
+
       // ── Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z: undo / redo ──────────────────────────
       const isMeta = e.metaKey || e.ctrlKey;
       if (!isMeta) return;
@@ -1027,7 +1133,11 @@
       snapshot(); // push undo entry after the vertex edit is committed
     });
 
-    // ── Save handler (unchanged from v1) ────────────────────────────────────────
+    // ── Save handler ─────────────────────────────────────────────────────────────
+    // Three pre-flight validations gate the POST:
+    //   1. Self-intersection  — kinks-based, mirrors geo-compute.ts
+    //   2. Sibling overlap    — turfBooleanIntersects against all other community polys
+    //   3. Zero listings      — countPointsInside must be > 0
 
     document.getElementById('save').addEventListener('click', async function() {
       const poly = currentPolygon();
@@ -1039,6 +1149,28 @@
         status.textContent = 'slug, name, region, and a polygon are required';
         return;
       }
+
+      const polygon = poly.geometry;
+
+      // 1. Self-intersection
+      const kn = selfIntersectionCount(polygon);
+      if (kn > 0) { setStatus('cannot save: polygon self-intersects at ' + kn + ' point(s)'); return; }
+
+      // 2. Sibling overlap (exclude self-by-slug — the shape currently being edited)
+      var allFeats = window.__gm.features.getAll().features
+        .filter(function(f) { return (f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon')); })
+        .filter(function(f) { return f.properties && f.properties.communitySlug; });
+      // Exclude by feature id first; fall back to slug exclusion if id is absent
+      var siblings = allFeats
+        .filter(function(f) { return typeof poly.id !== 'undefined' ? String(f.id) !== String(poly.id) : f.properties.communitySlug !== slug; })
+        .map(function(f) { return { slug: f.properties.communitySlug, geometry: f.geometry }; });
+      var overlap = findSiblingOverlap(polygon, siblings, slug);
+      if (overlap) { setStatus('cannot save: overlaps "' + overlap + '"'); return; }
+
+      // 3. Zero listings inside
+      var inside = countPointsInside(listings, polygon);
+      if (inside === 0) { setStatus('cannot save: no listings inside the polygon (check geometry?)'); return; }
+
       status.textContent = 'saving…';
       const res = await fetch('/api/community', {
         method: 'POST', headers: { 'content-type': 'application/json' },
