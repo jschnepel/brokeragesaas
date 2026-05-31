@@ -25,11 +25,21 @@
     button { background: #bfa67a; border: 0; color: #0c1c2e; font-weight: 700; cursor: pointer; }
     .count { font-size: 28px; font-weight: 700; }
     .muted { color: #9fb0c0; font-size: 12px; }
+    /* Side-panel community list rows */
+    .shape-row { display: block; width: 100%; text-align: left; padding: 6px 4px; background: transparent; color: #f9f8f6; border: 0; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; font: inherit; }
+    .shape-row:hover { background: rgba(191,166,122,0.12); }
+    .shape-row .name { display: block; font-weight: 600; }
+    .shape-row .meta { display: block; font-size: 11px; color: #9fb0c0; }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <div id="panel">
+    <!-- ── Communities list (top of panel) ── -->
+    <div id="shape-list-header" class="muted" style="margin-bottom: 4px;">Communities</div>
+    <div id="shape-list" style="max-height: 35vh; overflow-y: auto; margin-bottom: 16px; border-top: 1px solid rgba(255,255,255,0.08); border-bottom: 1px solid rgba(255,255,255,0.08);"></div>
+
+    <!-- ── Save form (unchanged from v1) ── -->
     <label>Community slug</label>
     <input id="slug" placeholder="troon-north" />
     <label>Display name</label>
@@ -45,7 +55,9 @@
 
   <script type="module">
     import booleanPointInPolygon from 'https://esm.sh/@turf/boolean-point-in-polygon@7';
-    import { point } from 'https://esm.sh/@turf/helpers@7';
+    import { point }             from 'https://esm.sh/@turf/helpers@7';
+    import centroid              from 'https://esm.sh/@turf/centroid@7';
+    import bbox                  from 'https://esm.sh/@turf/bbox@7';
 
     // UMD globals set by the <script> tags in <head>.
     // geoman UMD assigns its namespace to window.Geoman; the constructor is at .Geoman.
@@ -61,35 +73,67 @@
 
     const gm = new Geoman(map, {});
 
-    // Expose for headless verification only — safe to keep as dev tool
+    // Expose for headless verification and testing.
     window.__map = map;
-    window.__gm = gm;
+    window.__gm  = gm;
 
     let listings = []; // [{lng, lat, ...}]
 
+    // ── Listings layer ──────────────────────────────────────────────────────────
+
     async function loadListings() {
       const b = map.getBounds();
-      const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',');
-      const res = await fetch(`/api/listings?bbox=${bbox}`);
-      listings = await res.json();
-      const fc = { type: 'FeatureCollection', features: listings.map((l) => ({
-        type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [l.lng, l.lat] },
-      })) };
+      const bboxStr = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',');
+      try {
+        const res = await fetch('/api/listings?bbox=' + bboxStr);
+        listings = await res.json();
+      } catch (_err) {
+        // RDS_DATABASE_URL missing or unreachable — listings stays empty, editor
+        // still loads and the polygon tools function normally.
+        listings = [];
+      }
+      const fc = { type: 'FeatureCollection', features: listings.map(function(l) {
+        return { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [l.lng, l.lat] } };
+      }) };
       const src = map.getSource('listings');
-      if (src) src.setData(fc);
-      else {
+      if (src) {
+        src.setData(fc);
+      } else {
         map.addSource('listings', { type: 'geojson', data: fc });
         map.addLayer({ id: 'listings', type: 'circle', source: 'listings',
           paint: { 'circle-radius': 3, 'circle-color': '#d4654b', 'circle-opacity': 0.7 } });
       }
+      // Refresh inside-counts in the list whenever the viewport's listings update.
+      renderShapeList(_loadedCommunities);
     }
+
+    // ── Hover-highlight source + layer ──────────────────────────────────────────
+
+    function initHoverLayer() {
+      if (!map.getSource('community-hover')) {
+        map.addSource('community-hover', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+        });
+        map.addLayer({
+          id: 'community-hover',
+          type: 'line',
+          source: 'community-hover',
+          paint: { 'line-color': '#bfa67a', 'line-width': 4, 'line-opacity': 0.9 },
+        });
+      }
+    }
+
+    // ── Polygon helpers ─────────────────────────────────────────────────────────
 
     function currentPolygon() {
       // gm.features.getAll() returns a GeoJSON FeatureCollection of all drawn features.
       // Filter to Polygons; last one wins (consistent with v1 behaviour).
       const fc = gm.features.getAll();
       if (!fc) return null;
-      const polys = fc.features.filter((f) => f.geometry.type === 'Polygon');
+      const polys = fc.features.filter(function(f) {
+        return f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon');
+      });
       return polys.length ? polys[polys.length - 1] : null;
     }
 
@@ -97,39 +141,232 @@
       const poly = currentPolygon();
       if (!poly) { document.getElementById('count').textContent = '—'; return; }
       let n = 0;
-      for (const l of listings) if (booleanPointInPolygon(point([l.lng, l.lat]), poly)) n += 1;
+      for (const l of listings) {
+        if (booleanPointInPolygon(point([l.lng, l.lat]), poly)) n += 1;
+      }
       document.getElementById('count').textContent = String(n);
-      document.getElementById('meta').textContent = `${poly.geometry.coordinates[0].length} vertices`;
+      document.getElementById('meta').textContent = poly.geometry.coordinates[0].length + ' vertices';
+      // Also re-render list so the unsaved row gets updated
+      renderShapeList(_loadedCommunities);
     }
 
-    map.on('load', loadListings);
+    // ── Communities — load into geoman ──────────────────────────────────────────
+
+    // Holds the last-fetched communities array so list rerenders can reuse it.
+    let _loadedCommunities = [];
+
+    async function loadCommunities() {
+      let all = [];
+      try {
+        const res = await fetch('/api/boundaries');
+        all = await res.json();
+      } catch (_err) {
+        // DB unavailable — empty list, no error shown
+      }
+      _loadedCommunities = all.filter(function(b) { return b.type === 'community'; });
+
+      for (const c of _loadedCommunities) {
+        if (!c.geometry) continue;
+        const feature = {
+          type: 'Feature',
+          // gm.features.addGeoJsonFeature accepts ImportGeoJsonProperties which
+          // allows arbitrary [key: string]: unknown extra properties — we stamp
+          // communitySlug so we can look the feature up later via getAll().
+          properties: {
+            communitySlug: c.slug,
+            communityName: c.name,
+            regionSlug:    c.regionSlug,
+            areaSqMi:      c.areaSqMi,
+          },
+          geometry: c.geometry,
+        };
+        // Verified API (maplibre-geoman 0.2.10 type defs):
+        //   gm.features.addGeoJsonFeature(GeoJsonImportFeature) → FeatureData | null
+        // Fallback: gm.features.importGeoJson(FeatureCollection)
+        try {
+          gm.features.addGeoJsonFeature(feature);
+        } catch (_e1) {
+          try {
+            gm.features.importGeoJson({ type: 'FeatureCollection', features: [feature] });
+          } catch (_e2) {
+            // Could not add to geoman — skip, operator can redraw
+          }
+        }
+      }
+
+      renderShapeList(_loadedCommunities);
+    }
+
+    // ── Side-panel list ─────────────────────────────────────────────────────────
+
+    function computeInsideCount(geometry) {
+      let n = 0;
+      for (const l of listings) {
+        try {
+          if (booleanPointInPolygon(point([l.lng, l.lat]), { type: 'Feature', properties: {}, geometry: geometry })) n += 1;
+        } catch (_err) { /* non-polygon geometry — skip */ }
+      }
+      return n;
+    }
+
+    function makeShapeRow(c) {
+      const inside = c.geometry ? computeInsideCount(c.geometry) : 0;
+      const area   = c.areaSqMi != null ? Number(c.areaSqMi).toFixed(2) : '—';
+
+      const row  = document.createElement('button');
+      row.className = 'shape-row';
+      if (c.slug) row.dataset.slug = c.slug;
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'name';
+      nameSpan.textContent = c.name;
+
+      const metaSpan = document.createElement('span');
+      metaSpan.className = 'meta';
+      metaSpan.textContent = area + ' sq mi · ' + inside + ' listings inside';
+
+      row.appendChild(nameSpan);
+      row.appendChild(metaSpan);
+
+      row.addEventListener('mouseenter', function() {
+        if (c.geometry) {
+          map.getSource('community-hover').setData({
+            type: 'FeatureCollection',
+            features: [{ type: 'Feature', properties: {}, geometry: c.geometry }],
+          });
+        }
+      });
+      row.addEventListener('mouseleave', function() {
+        map.getSource('community-hover').setData({ type: 'FeatureCollection', features: [] });
+      });
+      row.addEventListener('click', function() {
+        if (!c.geometry) return;
+        const b = bbox({ type: 'Feature', properties: {}, geometry: c.geometry });
+        map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, duration: 600 });
+        if (c.slug) selectCommunityInGeoman(c.slug);
+      });
+
+      return row;
+    }
+
+    function renderShapeList(communities) {
+      const list = document.getElementById('shape-list');
+      // Remove all existing children without innerHTML
+      while (list.firstChild) list.removeChild(list.firstChild);
+
+      // Also collect any in-geoman shapes that have no communitySlug (freshly
+      // drawn, not yet saved) and append them as "(unsaved)" rows.
+      const allRows = communities.slice();
+      const gmFc = gm.features.getAll();
+      if (gmFc && gmFc.features) {
+        for (const f of gmFc.features) {
+          const slug = f.properties && f.properties.communitySlug;
+          if (slug) continue; // already in communities list
+          if (!f.geometry || (f.geometry.type !== 'Polygon' && f.geometry.type !== 'MultiPolygon')) continue;
+          allRows.push({ slug: null, name: '(unsaved)', areaSqMi: null, geometry: f.geometry });
+        }
+      }
+
+      if (!allRows.length) {
+        const hint = document.createElement('div');
+        hint.className = 'muted';
+        hint.style.padding = '8px 4px';
+        hint.textContent = 'No communities yet — draw one.';
+        list.appendChild(hint);
+        return;
+      }
+
+      for (const c of allRows) {
+        list.appendChild(makeShapeRow(c));
+      }
+    }
+
+    // Expose for Puppeteer testing so the harness can inject and verify the list.
+    window.__renderShapeList = renderShapeList;
+
+    // ── Programmatic selection ──────────────────────────────────────────────────
+    //
+    // geoman 0.2.10 type defs confirm there is NO public gm.features.select(id)
+    // method.  Fallback path used:
+    //   1. Enable the vertex-edit mode ('edit', 'change') so the operator can
+    //      immediately start editing the clicked shape.
+    //   2. Walk gm.features.getAll() to find the matching feature.
+    //   3. Compute its centroid and fire a synthetic map 'click' at that screen
+    //      point so geoman's internal hit-test can select the right feature.
+    //
+    // FALLBACK — if a future geoman version exposes a direct select API,
+    // swap it in here.
+    function selectCommunityInGeoman(slug) {
+      // Enable change/vertex-edit mode so clicks activate vertex handles.
+      try {
+        gm.enableMode('edit', 'change');
+      } catch (_err) { /* mode may already be active */ }
+
+      const fc = gm.features.getAll();
+      if (!fc || !fc.features) return;
+
+      const match = fc.features.find(function(f) {
+        return f.properties && f.properties.communitySlug === slug;
+      });
+      if (!match || !match.geometry) return;
+
+      // Compute centroid and fire a synthetic click so geoman's pointer
+      // handler selects the shape.
+      try {
+        const ctr = centroid({ type: 'Feature', properties: {}, geometry: match.geometry });
+        const coords = ctr.geometry.coordinates;
+        const lng = coords[0];
+        const lat = coords[1];
+        const screenPt = map.project([lng, lat]);
+        // map.fire routes through maplibre's event system — geoman listens here.
+        map.fire('click', { lngLat: { lng: lng, lat: lat }, point: screenPt, originalEvent: {} });
+      } catch (_err) {
+        // Projection error — skip; shape is already visible from fitBounds.
+      }
+    }
+
+    // ── Event wiring ────────────────────────────────────────────────────────────
+
+    map.on('load', function() {
+      initHoverLayer();
+      loadListings();
+      loadCommunities();
+    });
     map.on('moveend', loadListings);
 
     // geoman fires these on the map instance via mapAdapter.fire():
     //   gm:create  — feature_created (polygon finished)
     //   gm:remove  — feature_removed (polygon deleted)
     //   gm:edit    — feature_updated (vertex dragged / geometry changed)
-    // Subscribing here replaces the v1 map.on('idle', updateCount) safety-net.
-    // The idle fallback is intentionally removed because these events are synchronous
-    // with every geometry mutation and cover all three change paths reliably.
     map.on('gm:create', updateCount);
     map.on('gm:remove', updateCount);
     map.on('gm:edit',   updateCount);
 
-    document.getElementById('save').addEventListener('click', async () => {
+    // ── Save handler (unchanged from v1) ────────────────────────────────────────
+
+    document.getElementById('save').addEventListener('click', async function() {
       const poly = currentPolygon();
       const slug = document.getElementById('slug').value.trim();
       const name = document.getElementById('name').value.trim();
       const region = document.getElementById('region').value.trim();
       const status = document.getElementById('status');
-      if (!poly || !slug || !name || !region) { status.textContent = 'slug, name, region, and a polygon are required'; return; }
+      if (!poly || !slug || !name || !region) {
+        status.textContent = 'slug, name, region, and a polygon are required';
+        return;
+      }
       status.textContent = 'saving…';
       const res = await fetch('/api/community', {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ slug, name, regionSlug: region, geometry: poly.geometry }),
+        body: JSON.stringify({ slug: slug, name: name, regionSlug: region, geometry: poly.geometry }),
       });
       const body = await res.json();
-      status.textContent = res.ok ? `saved — ${body.areaSqMi.toFixed(2)} sq mi, ${body.vertexCount} verts` : `error: ${body.error}`;
+      if (res.ok) {
+        status.textContent = 'saved — ' + body.areaSqMi.toFixed(2) + ' sq mi, ' + body.vertexCount + ' verts';
+        // Reload communities so the saved shape appears in the list with its slug.
+        await loadCommunities();
+      } else {
+        status.textContent = 'error: ' + body.error;
+      }
     });
   </script>
 </body>
