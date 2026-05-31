@@ -30,6 +30,8 @@
     .shape-row:hover { background: rgba(191,166,122,0.12); }
     .shape-row .name { display: block; font-weight: 600; }
     .shape-row .meta { display: block; font-size: 11px; color: #9fb0c0; }
+    /* Snap indicator: thin gold ring around candidate listing dot */
+    /* Rendered via the snap-candidate geojson layer — no extra CSS needed. */
   </style>
 </head>
 <body>
@@ -73,9 +75,50 @@
 
     const gm = new Geoman(map, {});
 
+    // ── Snap configuration ──────────────────────────────────────────────────────
+    //
+    // Snap API verified from @geoman-io/maplibre-geoman-free@0.2.10 type defs:
+    //   - enableMode('helper', 'snapping') activates the SnappingHelper
+    //   - SnappingHelper is instantiated and stored at gm.actionInstances['helper__snapping']
+    //   - SnappingHelper.tolerance: number — the snap radius in pixels
+    //   - SnappingHelper.setCustomSnappingCoordinates(sectionKey, lngLats) — registers
+    //     external [lng, lat][] arrays as snap targets (used for listing dots)
+    //
+    // Default tolerance: 12 px.  Space-bar boost: 24 px.
+    // Geoman natively snaps to vertex + edge + midpoint for drawn features.
+    // Listing dots snap via setCustomSnappingCoordinates('listings', [...]).
+    //
+    // Note: snap is enabled here at construction time so the helper instance is
+    // created before the first draw mode starts.  The helper persists while it is
+    // active; listing coordinates are pushed in whenever listings load/refresh.
+
+    const SNAP_RADIUS_DEFAULT = 12; // pixels
+    const SNAP_RADIUS_BOOSTED = 24; // pixels while Space is held
+
+    // snapStrongMode is toggled by Space key — exposed on window for Puppeteer tests.
+    let snapStrongMode = false;
+    window.__snapStrongMode = false;
+
+    // Helper accessor — populated after enableMode so the instance exists.
+    function getSnappingHelper() {
+      return gm.actionInstances['helper__snapping'] || null;
+    }
+
+    // Push listing coordinates into geoman's native snap engine.
+    // Called whenever the listings array is refreshed.
+    function syncListingsSnapCoords() {
+      const helper = getSnappingHelper();
+      if (!helper || typeof helper.setCustomSnappingCoordinates !== 'function') return;
+      // LngLat format in geoman type defs: [number, number] = [lng, lat]
+      const coords = listings.map(function(l) { return [l.lng, l.lat]; });
+      helper.setCustomSnappingCoordinates('listings', coords);
+    }
+
     // Expose for headless verification and testing.
     window.__map = map;
     window.__gm  = gm;
+    window.__syncListingsSnapCoords = syncListingsSnapCoords;
+    window.__getSnappingHelper = getSnappingHelper;
 
     let listings = []; // [{lng, lat, ...}]
 
@@ -103,6 +146,9 @@
         map.addLayer({ id: 'listings', type: 'circle', source: 'listings',
           paint: { 'circle-radius': 3, 'circle-color': '#d4654b', 'circle-opacity': 0.7 } });
       }
+      // Push new listing coordinates into geoman's native snap engine so the
+      // snapping helper targets the current viewport's listing dots.
+      syncListingsSnapCoords();
       // Refresh inside-counts in the list whenever the viewport's listings update.
       renderShapeList(_loadedCommunities);
     }
@@ -121,6 +167,98 @@
           source: 'community-hover',
           paint: { 'line-color': '#bfa67a', 'line-width': 4, 'line-opacity': 0.9 },
         });
+      }
+    }
+
+    // ── Snap-candidate ring source + layer ──────────────────────────────────────
+    //
+    // A thin gold ring drawn around the nearest listing dot when it is within
+    // snap range.  Empty FeatureCollection by default; set to a 1-feature FC
+    // during mousemove when a snap candidate exists.
+    //
+    // Layer sits above 'listings' so the ring is always visible.
+
+    const SNAP_CANDIDATE_EMPTY = { type: 'FeatureCollection', features: [] };
+
+    function initSnapCandidateLayer() {
+      if (!map.getSource('snap-candidate')) {
+        map.addSource('snap-candidate', {
+          type: 'geojson',
+          data: SNAP_CANDIDATE_EMPTY,
+        });
+        // Outer ring: gold stroke
+        map.addLayer({
+          id: 'snap-candidate',
+          type: 'circle',
+          source: 'snap-candidate',
+          paint: {
+            'circle-radius': 9,
+            'circle-color': 'transparent',
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#bfa67a',
+            'circle-opacity': 1,
+          },
+        });
+      }
+    }
+
+    // Active snap candidate: {lng, lat} or null.
+    // Exposed on window for Puppeteer testing.
+    let _snapCandidate = null;
+    window.__snapCandidate = null;
+
+    function setSnapCandidate(lngLat) {
+      _snapCandidate = lngLat;
+      window.__snapCandidate = lngLat;
+      const src = map.getSource('snap-candidate');
+      if (!src) return;
+      if (!lngLat) {
+        src.setData(SNAP_CANDIDATE_EMPTY);
+        return;
+      }
+      src.setData({
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          properties: {},
+          geometry: { type: 'Point', coordinates: [lngLat.lng, lngLat.lat] },
+        }],
+      });
+    }
+
+    // ── Mousemove snap-candidate detection ─────────────────────────────────────
+    //
+    // On each mousemove, find the listing dot nearest to the cursor (in pixels).
+    // If it falls within the active snap radius, show the gold ring overlay.
+    // This is a pure visual aid — geoman's snap engine handles the actual vertex
+    // correction via setCustomSnappingCoordinates.
+
+    function onMapMouseMove(e) {
+      if (!listings.length) return;
+
+      const helper = getSnappingHelper();
+      const radius = (helper && helper.tolerance) ? helper.tolerance : SNAP_RADIUS_DEFAULT;
+
+      const cursorPx = e.point; // {x, y} in screen pixels
+      let bestDist = Infinity;
+      let bestListing = null;
+
+      for (let i = 0; i < listings.length; i++) {
+        const l = listings[i];
+        const dotPx = map.project([l.lng, l.lat]);
+        const dx = dotPx.x - cursorPx.x;
+        const dy = dotPx.y - cursorPx.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestListing = l;
+        }
+      }
+
+      if (bestListing && bestDist <= radius) {
+        setSnapCandidate({ lng: bestListing.lng, lat: bestListing.lat });
+      } else {
+        setSnapCandidate(null);
       }
     }
 
@@ -329,10 +467,70 @@
 
     map.on('load', function() {
       initHoverLayer();
+      initSnapCandidateLayer();
+
+      // ── Enable geoman snapping (vertex + edge + midpoint) ──────────────────
+      //
+      // enableMode('helper', 'snapping') instantiates SnappingHelper and stores
+      // it at gm.actionInstances['helper__snapping'].  It must be called before
+      // we try to set tolerance or push listing coordinates.
+      //
+      // Vertex/edge/midpoint snapping is geoman's default behaviour — the library
+      // handles all three target types internally without per-flag options (none
+      // exist in the GmOptionsData schema).
+      try {
+        gm.enableMode('helper', 'snapping');
+        const helper = getSnappingHelper();
+        if (helper) {
+          helper.tolerance = SNAP_RADIUS_DEFAULT;
+        }
+      } catch (_err) {
+        // Snap helper failed to activate — editor still functional, just no snap.
+      }
+
       loadListings();
       loadCommunities();
     });
+
+    // Snap-candidate ring tracks the cursor while the map is interactive.
+    map.on('mousemove', onMapMouseMove);
+    map.on('mouseout', function() { setSnapCandidate(null); });
+
     map.on('moveend', loadListings);
+
+    // ── Space key — momentary snap-radius boost ─────────────────────────────
+    //
+    // keydown Space (not in input/textarea): boost tolerance to SNAP_RADIUS_BOOSTED
+    // and set snapStrongMode = true so the visual ring also uses the wider radius.
+    // keyup Space: restore SNAP_RADIUS_DEFAULT.
+    //
+    // If the geoman SnappingHelper is not available (e.g. snap was disabled or
+    // helper not yet instantiated), the flags still flip — the mousemove handler
+    // reads SNAP_RADIUS_DEFAULT/BOOSTED directly when helper.tolerance is absent.
+
+    document.addEventListener('keydown', function(e) {
+      if (e.code !== 'Space') return;
+      const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+      if (tag === 'input' || tag === 'textarea') return; // let the user type spaces
+      e.preventDefault(); // prevent page scroll
+      if (snapStrongMode) return; // already boosted
+      snapStrongMode = true;
+      window.__snapStrongMode = true;
+      const helper = getSnappingHelper();
+      if (helper) {
+        helper.tolerance = SNAP_RADIUS_BOOSTED;
+      }
+    });
+
+    document.addEventListener('keyup', function(e) {
+      if (e.code !== 'Space') return;
+      snapStrongMode = false;
+      window.__snapStrongMode = false;
+      const helper = getSnappingHelper();
+      if (helper) {
+        helper.tolerance = SNAP_RADIUS_DEFAULT;
+      }
+    });
 
     // geoman fires these on the map instance via mapAdapter.fire():
     //   gm:create  — feature_created (polygon finished)
