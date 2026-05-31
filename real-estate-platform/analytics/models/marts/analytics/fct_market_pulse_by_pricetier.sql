@@ -88,7 +88,10 @@ active_communities AS (
     seg.property_segment,
     b.price_band,
     cal.month,
-    COUNT(DISTINCT c.dedup_signature) FILTER (
+    -- One CLOSED listing = one sale (NAR convention). COUNT(*) not
+    -- COUNT(DISTINCT dedup_signature): the latter collapsed distinct sales
+    -- sharing an APN and dropped NULL-APN rows. See fct_market_pulse for detail.
+    COUNT(*) FILTER (
       WHERE {{ segment_includes('seg.property_segment', 'c.property_segment') }}
     ) AS closing_count,
     PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY c.close_price)

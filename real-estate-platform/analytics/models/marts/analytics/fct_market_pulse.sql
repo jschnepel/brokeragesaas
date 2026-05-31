@@ -33,9 +33,16 @@ cal AS (
     {{ s.group_col }}::VARCHAR                    AS scope_key,
     seg.property_segment,
     cal.month,
-    -- Count of closings, de-duplicated to one row per physical property per year
-    -- (Realtor.com Sep-2022 methodology fix prevents re-listing inflation).
-    COUNT(DISTINCT c.dedup_signature) FILTER (
+    -- Count of closings: one CLOSED listing = one sale (NAR / Realtor.com
+    -- Existing-Home-Sales convention — each closed transaction counted once).
+    -- listing_key is unique in fct_closings, so COUNT(*) = one row per close
+    -- event. The prior COUNT(DISTINCT dedup_signature) keyed on
+    -- parcel_number||close_year, which silently collapsed DISTINCT sales that
+    -- share an APN (mobile-home/RV/golf resorts, manufactured parks, multi-unit)
+    -- and dropped NULL-APN rows — undercounting whole communities (e.g.
+    -- viewpoint-golf-resort 35 real closings → 7). Genuine re-listing inflation
+    -- is a one-Closed-record-per-sale property and is not double-counted here.
+    COUNT(*) FILTER (
       WHERE {{ segment_includes('seg.property_segment', 'c.property_segment') }}
     ) AS closing_count,
     -- Median close price, with $/sqft trim applied to the per-sqft median
