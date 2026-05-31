@@ -4,8 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RLSIR Community Boundary Editor</title>
+  <!-- draw control: @geoman-io/maplibre-geoman-free@0.2.10 (last release supporting maplibre-gl@4.x) -->
+  <!-- maplibre-gl and mapbox-gl loaded as UMD globals so geoman UMD can consume them directly. -->
+  <!-- geoman's ES bundle does named imports from mapbox-gl (CJS interop) that break in raw ESM;
+       the UMD build uses globals and avoids that constraint entirely. -->
   <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
-  <link href="https://unpkg.com/@watergis/maplibre-gl-terradraw@1.13.1/dist/maplibre-gl-terradraw.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/@geoman-io/maplibre-geoman-free@0.2.10/dist/maplibre-geoman.css" rel="stylesheet" />
+  <!-- 1. maplibre-gl global (sets window.maplibregl) -->
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <!-- 2. mapbox-gl global required by geoman dual-adapter (sets window.mapboxgl) -->
+  <script src="https://unpkg.com/mapbox-gl@2.15.0/dist/mapbox-gl.js"></script>
+  <!-- 3. geoman UMD — reads window.maplibregl + window.mapboxgl, sets window.Geoman -->
+  <script src="https://cdn.jsdelivr.net/npm/@geoman-io/maplibre-geoman-free@0.2.10/dist/maplibre-geoman.umd.js"></script>
   <style>
     html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
     #map { position: absolute; inset: 0 320px 0 0; }
@@ -34,10 +44,13 @@
   </div>
 
   <script type="module">
-    import maplibregl from 'https://esm.sh/maplibre-gl@4.7.1';
-    import { MaplibreTerradrawControl } from 'https://esm.sh/@watergis/maplibre-gl-terradraw@1.13.1';
     import booleanPointInPolygon from 'https://esm.sh/@turf/boolean-point-in-polygon@7';
     import { point } from 'https://esm.sh/@turf/helpers@7';
+
+    // UMD globals set by the <script> tags in <head>.
+    // geoman UMD assigns its namespace to window.Geoman; the constructor is at .Geoman.
+    const maplibregl = window.maplibregl;
+    const Geoman     = window.Geoman.Geoman;
 
     const map = new maplibregl.Map({
       container: 'map',
@@ -46,12 +59,11 @@
       zoom: 10,
     });
 
-    const draw = new MaplibreTerradrawControl({ modes: ['polygon', 'select', 'delete'], open: true });
-    map.addControl(draw, 'top-left');
+    const gm = new Geoman(map, {});
 
     // Expose for headless verification only — safe to keep as dev tool
     window.__map = map;
-    window.__draw = draw;
+    window.__gm = gm;
 
     let listings = []; // [{lng, lat, ...}]
 
@@ -73,10 +85,9 @@
     }
 
     function currentPolygon() {
-      // draw.getFeatures() is the public API on MaplibreTerradrawControl ≥1.13.x.
-      // It returns a GeoJSON FeatureCollection, already filtered (mode==='select' excluded).
-      // Internally it calls this.terradraw.getSnapshot(), so semantics are identical.
-      const fc = draw.getFeatures();
+      // gm.features.getAll() returns a GeoJSON FeatureCollection of all drawn features.
+      // Filter to Polygons; last one wins (consistent with v1 behaviour).
+      const fc = gm.features.getAll();
       if (!fc) return null;
       const polys = fc.features.filter((f) => f.geometry.type === 'Polygon');
       return polys.length ? polys[polys.length - 1] : null;
@@ -93,7 +104,17 @@
 
     map.on('load', loadListings);
     map.on('moveend', loadListings);
-    map.on('idle', updateCount);
+
+    // geoman fires these on the map instance via mapAdapter.fire():
+    //   gm:create  — feature_created (polygon finished)
+    //   gm:remove  — feature_removed (polygon deleted)
+    //   gm:edit    — feature_updated (vertex dragged / geometry changed)
+    // Subscribing here replaces the v1 map.on('idle', updateCount) safety-net.
+    // The idle fallback is intentionally removed because these events are synchronous
+    // with every geometry mutation and cover all three change paths reliably.
+    map.on('gm:create', updateCount);
+    map.on('gm:remove', updateCount);
+    map.on('gm:edit',   updateCount);
 
     document.getElementById('save').addEventListener('click', async () => {
       const poly = currentPolygon();
