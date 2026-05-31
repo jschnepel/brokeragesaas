@@ -155,6 +155,70 @@
     // Expose for headless verification and testing.
     window.__map = map;
     window.__gm  = gm;
+
+    // ── Undo / Redo stack ───────────────────────────────────────────────────────
+    //
+    // Snapshots the geoman FeatureCollection on every committed change.
+    // Cap: 50 entries.  Cmd+Z (or Ctrl+Z) undoes; Cmd+Shift+Z (or Ctrl+Shift+Z) redoes.
+    //
+    // isRestoring guards against re-entrant snapshots: while restore() is clearing
+    // and re-adding features it temporarily fires gm:create / gm:remove events —
+    // those are suppressed so the stack does not corrupt.
+
+    const undoStack = [];
+    const redoStack = [];
+    const UNDO_CAP  = 50;
+    let isRestoring = false;
+
+    function deepCloneFC(fc) {
+      return structuredClone(fc);
+    }
+
+    function snapshot() {
+      if (isRestoring) return;
+      const fc = window.__gm.features.getAll();
+      undoStack.push(deepCloneFC(fc));
+      if (undoStack.length > UNDO_CAP) undoStack.shift();
+      redoStack.length = 0;
+    }
+
+    async function restore(fc) {
+      isRestoring = true;
+      try {
+        const current = window.__gm.features.getAll();
+        for (const f of current.features) {
+          const fd = window.__gm.features.get('gm_main', f.id);
+          if (fd) window.__gm.features.delete(fd);
+        }
+        if (typeof window.__gm.features.importGeoJson === 'function') {
+          window.__gm.features.importGeoJson(fc);
+        } else {
+          for (const f of fc.features) window.__gm.features.addGeoJsonFeature(f);
+        }
+      } finally {
+        isRestoring = false;
+      }
+      // Clear boolops selection — restored IDs may no longer match.
+      if (typeof selected !== 'undefined') { selected = []; }
+      if (typeof updateBoolopsUI === 'function') updateBoolopsUI();
+      if (typeof renderShapeList === 'function') {
+        const all = window.__gm.features.getAll().features
+          .filter(function(f) { return f.properties && f.properties.communitySlug; })
+          .map(function(f) { return {
+            slug:       f.properties.communitySlug,
+            name:       f.properties.communityName || f.properties.communitySlug,
+            regionSlug: f.properties.regionSlug,
+            areaSqMi:   f.properties.areaSqMi,
+            geometry:   f.geometry,
+          }; });
+        renderShapeList(all);
+      }
+    }
+
+    // Expose stacks for Puppeteer test harness.
+    window.__snapshot   = snapshot;
+    window.__undoStack  = undoStack;
+    window.__redoStack  = redoStack;
     window.__syncListingsSnapCoords = syncListingsSnapCoords;
     window.__getSnappingHelper = getSnappingHelper;
 
@@ -757,7 +821,9 @@
       }
 
       loadListings();
-      loadCommunities();
+      // Push the initial state as the baseline undo entry after communities load,
+      // so the operator can undo all the way back to the loaded state.
+      loadCommunities().then(function() { snapshot(); });
     });
 
     // Snap-candidate ring tracks the cursor while the map is interactive.
@@ -777,16 +843,48 @@
     // reads SNAP_RADIUS_DEFAULT/BOOSTED directly when helper.tolerance is absent.
 
     document.addEventListener('keydown', function(e) {
-      if (e.code !== 'Space') return;
       const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
-      if (tag === 'input' || tag === 'textarea') return; // let the user type spaces
-      e.preventDefault(); // prevent page scroll
-      if (snapStrongMode) return; // already boosted
-      snapStrongMode = true;
-      window.__snapStrongMode = true;
-      const helper = getSnappingHelper();
-      if (helper) {
-        helper.tolerance = SNAP_RADIUS_BOOSTED;
+      const inInput = (tag === 'input' || tag === 'textarea');
+
+      // ── Space: snap-radius boost ─────────────────────────────────────────────
+      if (e.code === 'Space') {
+        if (inInput) return; // let the user type spaces
+        e.preventDefault(); // prevent page scroll
+        if (snapStrongMode) return; // already boosted
+        snapStrongMode = true;
+        window.__snapStrongMode = true;
+        const helper = getSnappingHelper();
+        if (helper) {
+          helper.tolerance = SNAP_RADIUS_BOOSTED;
+        }
+        return;
+      }
+
+      // ── Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z: undo / redo ──────────────────────────
+      const isMeta = e.metaKey || e.ctrlKey;
+      if (!isMeta) return;
+      if (e.key !== 'z' && e.key !== 'Z') return;
+      if (inInput) return; // don't capture undo while typing
+
+      e.preventDefault();
+
+      if (!e.shiftKey) {
+        // Undo
+        // The last entry in undoStack IS the current committed state.
+        // We need at least 2 entries to have a "previous" state to return to.
+        if (undoStack.length <= 1) { setStatus('nothing to undo'); return; }
+        var current = undoStack.pop();   // remove current-state snapshot
+        redoStack.push(current);         // save it for redo
+        // Restore the new top of the stack (the previous committed state)
+        void restore(undoStack[undoStack.length - 1]);
+        setStatus('undid (' + (undoStack.length - 1) + ' more in history)');
+      } else {
+        // Redo
+        if (redoStack.length === 0) { setStatus('nothing to redo'); return; }
+        var next = redoStack.pop();
+        undoStack.push(next);     // re-push to undo stack as the new current state
+        void restore(next);
+        setStatus('redid (' + redoStack.length + ' more available)');
       }
     });
 
@@ -809,14 +907,19 @@
       selected = [];
       updateBoolopsUI();
       updateCount();
+      snapshot(); // push undo entry after the feature is committed
     });
     map.on('gm:remove', function() {
       // Feature removed — clear selection in case a selected feature was deleted.
       selected = [];
       updateBoolopsUI();
       updateCount();
+      snapshot(); // push undo entry after the removal is committed
     });
-    map.on('gm:edit',   updateCount);
+    map.on('gm:edit', function() {
+      updateCount();
+      snapshot(); // push undo entry after the vertex edit is committed
+    });
 
     // ── Save handler (unchanged from v1) ────────────────────────────────────────
 
