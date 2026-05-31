@@ -54,6 +54,16 @@
       </div>
     </div>
 
+    <!-- ── Weld Nearby Vertices panel ── -->
+    <div id="weld-panel" style="margin-bottom: 16px;">
+      <label>Weld nearby vertices <span class="muted" style="text-transform: none; letter-spacing: 0; font-size: 11px;">(select 1 shape)</span></label>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+        <input id="weld-threshold" type="range" min="1" max="50" step="1" value="10" style="flex: 1;" />
+        <span id="weld-threshold-label" class="muted" style="font-variant-numeric: tabular-nums; width: 40px; text-align: right;">10 m</span>
+      </div>
+      <button id="op-weld" disabled>Weld vertices</button>
+    </div>
+
     <!-- ── Save form (unchanged from v1) ── -->
     <label>Community slug</label>
     <input id="slug" placeholder="troon-north" />
@@ -79,6 +89,7 @@
     import turfUnion       from 'https://esm.sh/@turf/union@7';
     import turfDifference  from 'https://esm.sh/@turf/difference@7';
     import turfIntersect   from 'https://esm.sh/@turf/intersect@7';
+    import turfDistance    from 'https://esm.sh/@turf/distance@7';
 
     function _asFeature(geom) {
       return { type: 'Feature', properties: {}, geometry: geom };
@@ -97,6 +108,46 @@
     function intersectPolygons(a, b) {
       var result = turfIntersect(featureCollection([_asFeature(a), _asFeature(b)]));
       return result ? result.geometry : null;
+    }
+
+    // weldNearbyVertices — mirrors geo-compute.ts weldNearbyVertices
+    // Walks each ring, drops vertices within thresholdMeters of the previous kept
+    // vertex (using turf distance in km), preserves ring closure, never degenerates
+    // below 4 points (3 unique + closing repeat).
+    function weldNearbyVertices(geom, thresholdMeters) {
+      var km = thresholdMeters / 1000;
+      var MIN_RING_LEN = 4;
+      var weldRing = function(ring) {
+        if (ring.length < MIN_RING_LEN) return ring;
+        var keep = [ring[0]];
+        for (var i = 1; i < ring.length - 1; i++) {
+          var prev = keep[keep.length - 1];
+          var d = turfDistance(prev, ring[i], { units: 'kilometers' });
+          if (d > km) keep.push(ring[i]);
+        }
+        keep.push(keep[0]);
+        return keep.length >= MIN_RING_LEN ? keep : ring;
+      };
+      return { type: 'Polygon', coordinates: geom.coordinates.map(weldRing) };
+    }
+    // weldGeometry — dispatches to weldNearbyVertices for Polygon or MultiPolygon
+    function weldGeometry(geom, thresholdMeters) {
+      if (geom.type === 'Polygon') return weldNearbyVertices(geom, thresholdMeters);
+      if (geom.type === 'MultiPolygon') {
+        return {
+          type: 'MultiPolygon',
+          coordinates: geom.coordinates.map(function(poly) {
+            return weldNearbyVertices({ type: 'Polygon', coordinates: poly }, thresholdMeters).coordinates;
+          }),
+        };
+      }
+      return geom;
+    }
+    // countVertices — counts all coordinate positions across all rings
+    function countVertices(geom) {
+      if (geom.type === 'Polygon') return geom.coordinates.reduce(function(s, r) { return s + r.length; }, 0);
+      if (geom.type === 'MultiPolygon') return geom.coordinates.reduce(function(s, p) { return s + p.reduce(function(ss, r) { return ss + r.length; }, 0); }, 0);
+      return 0;
     }
 
     // UMD globals set by the <script> tags in <head>.
@@ -231,7 +282,9 @@
       const bboxStr = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',');
       try {
         const res = await fetch('/api/listings?bbox=' + bboxStr);
-        listings = await res.json();
+        const data = await res.json();
+        // Guard: server returns {error:...} on DB failure — treat as empty list
+        listings = Array.isArray(data) ? data : [];
       } catch (_err) {
         // RDS_DATABASE_URL missing or unreachable — listings stays empty, editor
         // still loads and the polygon tools function normally.
@@ -399,7 +452,9 @@
       let all = [];
       try {
         const res = await fetch('/api/boundaries');
-        all = await res.json();
+        const data = await res.json();
+        // Guard: server returns {error:...} on DB failure — treat as empty list
+        all = Array.isArray(data) ? data : [];
       } catch (_err) {
         // DB unavailable — empty list, no error shown
       }
@@ -610,6 +665,9 @@
       btnSubtract.disabled  = selected.length !== 2;
       btnIntersect.disabled = !canOp;
 
+      // Weld requires exactly 1 selected feature.
+      document.getElementById('op-weld').disabled = !(selected.length === 1);
+
       // Highlight matching side-panel rows
       var list = document.getElementById('shape-list');
       var rows = list ? list.querySelectorAll('.shape-row') : [];
@@ -789,6 +847,54 @@
     });
     document.getElementById('op-intersect').addEventListener('click', function() {
       runBoolOp('intersect');
+    });
+
+    // ── Weld Nearby Vertices — slider label + handler ───────────────────────────
+
+    var weldThresholdEl      = document.getElementById('weld-threshold');
+    var weldThresholdLabelEl = document.getElementById('weld-threshold-label');
+
+    weldThresholdEl.addEventListener('input', function() {
+      weldThresholdLabelEl.textContent = weldThresholdEl.value + ' m';
+    });
+
+    document.getElementById('op-weld').addEventListener('click', function() {
+      if (selected.length !== 1) return;
+      var all = window.__gm.features.getAll();
+      var f = all.features.find(function(x) { return String(x.id) === String(selected[0]); });
+      if (!f) {
+        setStatus('selected feature no longer exists');
+        selected = [];
+        updateBoolopsUI();
+        return;
+      }
+      if (f.geometry.type !== 'Polygon' && f.geometry.type !== 'MultiPolygon') {
+        setStatus('weld only applies to polygons');
+        return;
+      }
+
+      var threshold = Number(weldThresholdEl.value);
+      var before = countVertices(f.geometry);
+      var result = weldGeometry(f.geometry, threshold);
+      var after = countVertices(result);
+      if (after === before) {
+        setStatus('weld at ' + threshold + ' m removed 0 vertices — no change');
+        return;
+      }
+
+      window.__snapshot?.();
+
+      var fd = window.__gm.features.get('gm_main', f.id);
+      if (fd) window.__gm.features.delete(fd);
+      window.__gm.features.addGeoJsonFeature({
+        type: 'Feature',
+        properties: Object.assign({}, f.properties || {}),
+        geometry: result,
+      });
+
+      selected = [];
+      updateBoolopsUI();
+      setStatus('welded — removed ' + (before - after) + ' vertices (' + before + ' → ' + after + ') at ' + threshold + ' m');
     });
 
     // Clear selection when geoman adds or removes features (e.g. user deletes a
