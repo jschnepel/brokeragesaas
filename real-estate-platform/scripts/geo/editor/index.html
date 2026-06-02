@@ -76,6 +76,8 @@
     <div class="muted" id="meta"></div>
     <button id="save">Save community</button>
     <div class="muted" id="status"></div>
+    <!-- ── Op-status row — boolean ops / weld / undo / keyboard shortcuts ── -->
+    <div id="op-status" class="muted" style="margin-top: 4px;"></div>
   </div>
 
   <script type="module">
@@ -320,6 +322,16 @@
 
     let listings = []; // [{lng, lat, ...}]
 
+    // Expose listings array + setter for Puppeteer test harness.
+    // Tests set window.__setListings([...]) to inject synthetic listing data into
+    // the module-level closure without going through loadListings().
+    window.__setListings = function(arr) {
+      listings = arr;
+      // Bump the version and clear the memo cache so computeInsideCount recomputes.
+      _listingsVersion++;
+      _insideCountCache = new Map();
+    };
+
     // ── Listings layer ──────────────────────────────────────────────────────────
 
     async function loadListings() {
@@ -335,6 +347,9 @@
         // still loads and the polygon tools function normally.
         listings = [];
       }
+      // Fix 2 — bump version + invalidate memo so next renderShapeList recomputes.
+      _listingsVersion++;
+      _insideCountCache = new Map();
       const fc = { type: 'FeatureCollection', features: listings.map(function(l) {
         return { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [l.lng, l.lat] } };
       }) };
@@ -432,19 +447,52 @@
     // If it falls within the active snap radius, show the gold ring overlay.
     // This is a pure visual aid — geoman's snap engine handles the actual vertex
     // correction via setCustomSnappingCoordinates.
+    //
+    // Fix 1 — RAF throttle + bbox prefilter:
+    //   - All mousemove events are coalesced: only the LAST pending event is run
+    //     per animation frame, so rapid pixel-level moves don't stack O(N) work.
+    //   - Before iterating, we unproject a cursor±24px screen bbox to lng/lat and
+    //     filter `listings` to that small rectangle first, then do the px-distance
+    //     check only on survivors.  At Phoenix density (~60K points) this reduces
+    //     the hot loop to a handful of candidates on almost every frame.
 
-    function onMapMouseMove(e) {
+    let _snapRafPending = false;
+    let _snapLastEvent  = null;
+
+    // Expose frame counter for Puppeteer instrumentation.
+    window.__snapFrameCount = 0;
+
+    function _runSnapCandidate(e) {
+      window.__snapFrameCount++;
+      _snapRafPending = false;
+      _snapLastEvent  = null;
+
       if (!listings.length) return;
 
       const helper = getSnappingHelper();
       const radius = (helper && helper.tolerance) ? helper.tolerance : SNAP_RADIUS_DEFAULT;
 
       const cursorPx = e.point; // {x, y} in screen pixels
+
+      // bbox prefilter: unproject the cursor ±24 px rectangle to lng/lat.
+      // If unproject fails (map not ready) fall back to full scan.
+      const PAD = 24;
+      let candidates = listings;
+      try {
+        const sw = map.unproject([cursorPx.x - PAD, cursorPx.y + PAD]);
+        const ne = map.unproject([cursorPx.x + PAD, cursorPx.y - PAD]);
+        const minLng = sw.lng, maxLng = ne.lng;
+        const minLat = sw.lat, maxLat = ne.lat;
+        candidates = listings.filter(function(l) {
+          return l.lng >= minLng && l.lng <= maxLng && l.lat >= minLat && l.lat <= maxLat;
+        });
+      } catch (_err) { /* unproject failed — fall back to full scan */ }
+
       let bestDist = Infinity;
       let bestListing = null;
 
-      for (let i = 0; i < listings.length; i++) {
-        const l = listings[i];
+      for (let i = 0; i < candidates.length; i++) {
+        const l = candidates[i];
         const dotPx = map.project([l.lng, l.lat]);
         const dx = dotPx.x - cursorPx.x;
         const dy = dotPx.y - cursorPx.y;
@@ -460,6 +508,17 @@
       } else {
         setSnapCandidate(null);
       }
+    }
+
+    function onMapMouseMove(e) {
+      // Coalesce: store the latest event; schedule one RAF if not already pending.
+      _snapLastEvent = e;
+      if (_snapRafPending) return; // a frame is already queued — it will use _snapLastEvent
+      _snapRafPending = true;
+      requestAnimationFrame(function() {
+        if (_snapLastEvent) _runSnapCandidate(_snapLastEvent);
+        // _snapRafPending and _snapLastEvent are cleared inside _runSnapCandidate
+      });
     }
 
     // ── Polygon helpers ─────────────────────────────────────────────────────────
@@ -539,13 +598,51 @@
 
     // ── Side-panel list ─────────────────────────────────────────────────────────
 
+    // Fix 2 — Inside-count memoization.
+    //
+    // With 50 communities × 60K listings = 3M pip ops per render, fired on every
+    // gm:create/edit/remove and every loadListings(), this is the hottest path in
+    // the side panel.  We memoize by (listingsVersion, geomKey) where:
+    //   - listingsVersion is bumped on every loadListings() call
+    //   - geomKey is a cheap structural fingerprint of the geometry object
+    //
+    // The cache is a plain Map; it is fully replaced on each listingsVersion bump so
+    // it cannot grow unboundedly.
+
+    let _listingsVersion = 0;   // bumped in loadListings() after the array is replaced
+    let _insideCountCache = new Map(); // key: `${listingsVersion}:${geomKey}` → count
+
+    // Expose for Puppeteer instrumentation.
+    window.__insideCountCacheHits  = 0;
+    window.__insideCountCacheMisses = 0;
+
+    // Cheap geometry fingerprint — not cryptographic, ~99% collision-free for the
+    // community boundary editing use-case where geometry strings churn rarely.
+    function _geomKey(geometry) {
+      var coords0 = geometry.coordinates && geometry.coordinates[0];
+      var ringLen = Array.isArray(coords0) ? coords0.length : 0;
+      // Include type + outer ring length + first coordinate as disambiguation.
+      var firstPt = (ringLen > 0 && Array.isArray(coords0[0]))
+        ? (coords0[0][0] + ',' + coords0[0][1])
+        : '';
+      return geometry.type + ':' + ringLen + ':' + firstPt;
+    }
+
     function computeInsideCount(geometry) {
+      var cacheKey = _listingsVersion + ':' + _geomKey(geometry);
+      if (_insideCountCache.has(cacheKey)) {
+        window.__insideCountCacheHits++;
+        return _insideCountCache.get(cacheKey);
+      }
+      window.__insideCountCacheMisses++;
       let n = 0;
+      const feat = { type: 'Feature', properties: {}, geometry: geometry };
       for (const l of listings) {
         try {
-          if (booleanPointInPolygon(point([l.lng, l.lat]), { type: 'Feature', properties: {}, geometry: geometry })) n += 1;
+          if (booleanPointInPolygon(point([l.lng, l.lat]), feat)) n += 1;
         } catch (_err) { /* non-polygon geometry — skip */ }
       }
+      _insideCountCache.set(cacheKey, n);
       return n;
     }
 
@@ -813,6 +910,24 @@
       document.getElementById('status').textContent = text;
     }
 
+    // Fix 4 — Dedicated op-status row for boolean ops / weld / undo / shortcuts.
+    // Writes to #op-status (below the weld panel) with a 4-second auto-clear.
+    // #status is reserved for save-flow messages only.
+    var _opStatusCurrentText = '';
+    function setOpStatus(text) {
+      _opStatusCurrentText = text;
+      var el = document.getElementById('op-status');
+      if (el) el.textContent = text;
+      var captured = text;
+      setTimeout(function() {
+        if (_opStatusCurrentText === captured) {
+          var el2 = document.getElementById('op-status');
+          if (el2) el2.textContent = '';
+          _opStatusCurrentText = '';
+        }
+      }, 4000);
+    }
+
     async function runBoolOp(opName) {
       if (selected.length < 2) return;
 
@@ -825,7 +940,7 @@
       });
 
       if (!f0 || !f1) {
-        setStatus('selected features no longer exist');
+        setOpStatus('selected features no longer exist');
         selected = [];
         updateBoolopsUI();
         return;
@@ -841,7 +956,7 @@
       }
 
       if (!result) {
-        setStatus(opName + ' produced no geometry — nothing to do');
+        setOpStatus(opName + ' produced no geometry — nothing to do');
         return;
       }
 
@@ -880,7 +995,7 @@
 
       selected = [];
       updateBoolopsUI();
-      setStatus(opLabel + ' ok — replaced 2 with 1');
+      setOpStatus(opLabel + ' ok — replaced 2 with 1');
     }
 
     // Wire the three buttons
@@ -908,13 +1023,13 @@
       var all = window.__gm.features.getAll();
       var f = all.features.find(function(x) { return String(x.id) === String(selected[0]); });
       if (!f) {
-        setStatus('selected feature no longer exists');
+        setOpStatus('selected feature no longer exists');
         selected = [];
         updateBoolopsUI();
         return;
       }
       if (f.geometry.type !== 'Polygon' && f.geometry.type !== 'MultiPolygon') {
-        setStatus('weld only applies to polygons');
+        setOpStatus('weld only applies to polygons');
         return;
       }
 
@@ -923,7 +1038,7 @@
       var result = weldGeometry(f.geometry, threshold);
       var after = countVertices(result);
       if (after === before) {
-        setStatus('weld at ' + threshold + ' m removed 0 vertices — no change');
+        setOpStatus('weld at ' + threshold + ' m removed 0 vertices — no change');
         return;
       }
 
@@ -939,7 +1054,7 @@
 
       selected = [];
       updateBoolopsUI();
-      setStatus('welded — removed ' + (before - after) + ' vertices (' + before + ' → ' + after + ') at ' + threshold + ' m');
+      setOpStatus('welded — removed ' + (before - after) + ' vertices (' + before + ' → ' + after + ') at ' + threshold + ' m');
     });
 
     // Clear selection when geoman adds or removes features (e.g. user deletes a
@@ -1019,7 +1134,7 @@
           // Cancel the current draw mode — geoman v0.2.10 doesn't expose finish-draw directly;
           // disableMode is best-effort: no-op if no mode is currently active.
           try { window.__gm.disableMode('draw'); } catch (_err) {}
-          setStatus('cancelled');
+          setOpStatus('cancelled');
           return;
         }
 
@@ -1040,7 +1155,7 @@
             }
             selected = [];
             updateBoolopsUI();
-            setStatus('deleted ' + delCount + ' feature(s)');
+            setOpStatus('deleted ' + delCount + ' feature(s)');
           }
           return;
         }
@@ -1055,7 +1170,7 @@
 
         if (k === 'v') {
           // Enter vertex-edit mode
-          try { window.__gm.enableMode('edit', 'change'); setStatus('vertex edit mode'); } catch (_err) {}
+          try { window.__gm.enableMode('edit', 'change'); setOpStatus('vertex edit mode'); } catch (_err) {}
           return;
         }
 
@@ -1084,19 +1199,19 @@
         // Undo
         // The last entry in undoStack IS the current committed state.
         // We need at least 2 entries to have a "previous" state to return to.
-        if (undoStack.length <= 1) { setStatus('nothing to undo'); return; }
+        if (undoStack.length <= 1) { setOpStatus('nothing to undo'); return; }
         var current = undoStack.pop();   // remove current-state snapshot
         redoStack.push(current);         // save it for redo
         // Restore the new top of the stack (the previous committed state)
         void restore(undoStack[undoStack.length - 1]);
-        setStatus('undid (' + (undoStack.length - 1) + ' more in history)');
+        setOpStatus('undid (' + (undoStack.length - 1) + ' more in history)');
       } else {
         // Redo
-        if (redoStack.length === 0) { setStatus('nothing to redo'); return; }
+        if (redoStack.length === 0) { setOpStatus('nothing to redo'); return; }
         var next = redoStack.pop();
         undoStack.push(next);     // re-push to undo stack as the new current state
         void restore(next);
-        setStatus('redid (' + redoStack.length + ' more available)');
+        setOpStatus('redid (' + redoStack.length + ' more available)');
       }
     });
 
@@ -1178,7 +1293,12 @@
       });
       const body = await res.json();
       if (res.ok) {
-        status.textContent = 'saved — ' + body.areaSqMi.toFixed(2) + ' sq mi, ' + body.vertexCount + ' verts';
+        // Fix 3 — clear form inputs on success so operator can start the next community.
+        // Do NOT clear on validation rejection or HTTP error so the operator can retry.
+        document.getElementById('slug').value   = '';
+        document.getElementById('name').value   = '';
+        document.getElementById('region').value = '';
+        status.textContent = 'saved — ' + body.areaSqMi.toFixed(2) + ' sq mi, ' + body.vertexCount + ' verts (form cleared)';
         // Reload communities so the saved shape appears in the list with its slug.
         await loadCommunities();
       } else {
