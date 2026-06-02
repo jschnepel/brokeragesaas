@@ -39,6 +39,20 @@
 <body>
   <div id="map"></div>
   <div id="panel">
+    <!-- ── Mismatch overlay toggle ── -->
+    <div id="mismatch-toggle-row" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin: 0; text-transform: none; letter-spacing: 0; font-size: 12px; color: #f9f8f6;">
+        <input type="checkbox" id="mismatch-toggle" style="margin: 0; width: auto;" />
+        Show mismatches
+      </label>
+      <span id="mismatch-count" class="muted" style="font-size: 11px;"></span>
+    </div>
+    <div id="mismatch-legend" class="muted" style="font-size: 11px; display: none; margin-bottom: 8px;">
+      <span style="color:#4ade80">●</span> matched
+      <span style="color:#f97316; margin-left: 8px;">●</span> mismatch
+      <span style="color:#d4654b; margin-left: 8px;">●</span> outside
+    </div>
+
     <!-- ── Communities list (top of panel) ── -->
     <div id="shape-list-header" class="muted" style="margin-bottom: 4px;">Communities</div>
     <div id="shape-list" style="max-height: 35vh; overflow-y: auto; margin-bottom: 16px; border-top: 1px solid rgba(255,255,255,0.08); border-bottom: 1px solid rgba(255,255,255,0.08);"></div>
@@ -197,6 +211,106 @@
       return 0;
     }
 
+    // ── Mismatch overlay — helpers ──────────────────────────────────────────────
+
+    function slugify(s) {
+      if (!s) return '';
+      return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    }
+
+    // Returns Map<listingKey, 'matched' | 'mismatched'>. Listings outside all polygons are absent.
+    function computeMismatches() {
+      const polygons = window.__gm.features.getAll().features
+        .filter(function(f) { return f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'); })
+        .filter(function(f) { return f.properties && f.properties.communitySlug; })
+        .map(function(f) {
+          return {
+            slug:     f.properties.communitySlug,
+            geometry: f.geometry,
+            area:     f.properties.areaSqMi != null ? Number(f.properties.areaSqMi) : Number.MAX_SAFE_INTEGER,
+            bboxArr:  bbox({ type: 'Feature', properties: {}, geometry: f.geometry }),
+          };
+        });
+
+      var result = new Map();
+      for (var _ci = 0; _ci < listings.length; _ci++) {
+        var listing = listings[_ci];
+        var containingSlug = null;
+        var smallestArea = Infinity;
+        for (var _pi = 0; _pi < polygons.length; _pi++) {
+          var p = polygons[_pi];
+          var minLng = p.bboxArr[0], minLat = p.bboxArr[1], maxLng = p.bboxArr[2], maxLat = p.bboxArr[3];
+          if (listing.lng < minLng || listing.lng > maxLng || listing.lat < minLat || listing.lat > maxLat) continue;
+          try {
+            if (booleanPointInPolygon(point([listing.lng, listing.lat]), { type: 'Feature', properties: {}, geometry: p.geometry })) {
+              if (p.area < smallestArea) {
+                containingSlug = p.slug;
+                smallestArea = p.area;
+              }
+            }
+          } catch (_err) { /* malformed geometry — skip */ }
+        }
+        if (containingSlug) {
+          var textSlug = slugify(listing.subdivision_name);
+          result.set(listing.listing_key, textSlug === containingSlug ? 'matched' : 'mismatched');
+        }
+      }
+      return result;
+    }
+
+    // ── Mismatch overlay — paint + source rebuild ──────────────────────────────
+
+    var mismatchMode = false; // module-scope toggle state
+
+    function applyMismatchPaint() {
+      if (!map.getLayer('listings')) return;
+      if (mismatchMode) {
+        map.setPaintProperty('listings', 'circle-color', [
+          'match', ['get', 'category'],
+          'matched',    '#4ade80',
+          'mismatched', '#f97316',
+          /* default */ '#d4654b',
+        ]);
+        map.setPaintProperty('listings', 'circle-radius', [
+          'match', ['get', 'category'],
+          'mismatched', 5,
+          /* default */ 3,
+        ]);
+      } else {
+        map.setPaintProperty('listings', 'circle-color', '#d4654b');
+        map.setPaintProperty('listings', 'circle-radius', 3);
+      }
+    }
+
+    function rebuildListingsSourceData() {
+      var src = map.getSource('listings');
+      if (!src) return;
+      var categoryByKey = null;
+      if (mismatchMode) categoryByKey = computeMismatches();
+      var fc = {
+        type: 'FeatureCollection',
+        features: listings.map(function(l) {
+          return {
+            type: 'Feature',
+            properties: { category: categoryByKey ? (categoryByKey.get(l.listing_key) || null) : null },
+            geometry: { type: 'Point', coordinates: [l.lng, l.lat] },
+          };
+        }),
+      };
+      src.setData(fc);
+      if (mismatchMode && categoryByKey) {
+        var matched = 0, mismatched = 0;
+        categoryByKey.forEach(function(v) { if (v === 'matched') matched++; else mismatched++; });
+        var total = matched + mismatched;
+        var countEl = document.getElementById('mismatch-count');
+        if (countEl) countEl.textContent = mismatched + ' mismatched of ' + total + ' inside';
+        if (typeof setOpStatus === 'function') setOpStatus('mismatch overlay: ' + mismatched + '/' + total);
+      } else {
+        var countEl2 = document.getElementById('mismatch-count');
+        if (countEl2) countEl2.textContent = '';
+      }
+    }
+
     // UMD globals set by the <script> tags in <head>.
     // geoman UMD assigns its namespace to window.Geoman; the constructor is at .Geoman.
     const maplibregl = window.maplibregl;
@@ -350,17 +464,16 @@
       // Fix 2 — bump version + invalidate memo so next renderShapeList recomputes.
       _listingsVersion++;
       _insideCountCache = new Map();
-      const fc = { type: 'FeatureCollection', features: listings.map(function(l) {
-        return { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [l.lng, l.lat] } };
-      }) };
       const src = map.getSource('listings');
-      if (src) {
-        src.setData(fc);
-      } else {
-        map.addSource('listings', { type: 'geojson', data: fc });
+      if (!src) {
+        // First load — add source + layer with an empty FC; rebuildListingsSourceData fills it.
+        map.addSource('listings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         map.addLayer({ id: 'listings', type: 'circle', source: 'listings',
           paint: { 'circle-radius': 3, 'circle-color': '#d4654b', 'circle-opacity': 0.7 } });
       }
+      // Rebuild source data (respects mismatch mode) then apply the right paint.
+      rebuildListingsSourceData();
+      applyMismatchPaint();
       // Push new listing coordinates into geoman's native snap engine so the
       // snapping helper targets the current viewport's listing dots.
       syncListingsSnapCoords();
@@ -998,6 +1111,14 @@
       setOpStatus(opLabel + ' ok — replaced 2 with 1');
     }
 
+    // ── Mismatch toggle — wire checkbox ─────────────────────────────────────────
+    document.getElementById('mismatch-toggle').addEventListener('change', function(e) {
+      mismatchMode = e.target.checked;
+      document.getElementById('mismatch-legend').style.display = mismatchMode ? '' : 'none';
+      rebuildListingsSourceData();
+      applyMismatchPaint();
+    });
+
     // Wire the three buttons
     document.getElementById('op-union').addEventListener('click', function() {
       runBoolOp('union');
@@ -1235,6 +1356,8 @@
       updateBoolopsUI();
       updateCount();
       snapshot(); // push undo entry after the feature is committed
+      // Recompute mismatch overlay: a new polygon may reclassify dots.
+      if (mismatchMode) { rebuildListingsSourceData(); }
     });
     map.on('gm:remove', function() {
       // Feature removed — clear selection in case a selected feature was deleted.
@@ -1242,10 +1365,14 @@
       updateBoolopsUI();
       updateCount();
       snapshot(); // push undo entry after the removal is committed
+      // Recompute mismatch overlay: a removed polygon changes containment.
+      if (mismatchMode) { rebuildListingsSourceData(); }
     });
     map.on('gm:edit', function() {
       updateCount();
       snapshot(); // push undo entry after the vertex edit is committed
+      // Recompute mismatch overlay: boundary change may reclassify dots.
+      if (mismatchMode) { rebuildListingsSourceData(); }
     });
 
     // ── Save handler ─────────────────────────────────────────────────────────────
