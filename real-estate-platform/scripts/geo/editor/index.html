@@ -218,6 +218,40 @@
       return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     }
 
+    // ── Auto-suggest helpers — T11 ──────────────────────────────────────────────
+
+    function looksAllCaps(s) { return s === s.toUpperCase() && /[A-Z]/.test(s); }
+    function toTitleCase(s) {
+      return s.toLowerCase().replace(/\b([a-z])([a-z]*)/g, function(_, a, b) { return a.toUpperCase() + b; });
+    }
+
+    // Scans listings inside geometry, returns the dominant subdivision suggestion
+    // or null if the quality gate isn't met (< 5 total inside, or top name < 30% share).
+    function computeSuggestedNameAndSlug(geometry) {
+      var counts = new Map(); // name -> count
+      var totalInside = 0;
+      var feat = { type: 'Feature', properties: {}, geometry: geometry };
+      for (var _si = 0; _si < listings.length; _si++) {
+        var l = listings[_si];
+        if (!l.subdivision_name) continue;
+        try {
+          if (!booleanPointInPolygon(point([l.lng, l.lat]), feat)) continue;
+        } catch (_err) { continue; }
+        totalInside += 1;
+        var name = String(l.subdivision_name).trim();
+        if (!name) continue;
+        counts.set(name, (counts.get(name) || 0) + 1);
+      }
+      if (totalInside < 5) return null;
+      var topName = null;
+      var topCount = 0;
+      counts.forEach(function(c, n) { if (c > topCount) { topName = n; topCount = c; } });
+      if (!topName) return null;
+      if (topCount / totalInside < 0.30) return null;
+      var display = looksAllCaps(topName) ? toTitleCase(topName) : topName;
+      return { name: display, slug: slugify(display), count: topCount, total: totalInside, share: topCount / totalInside };
+    }
+
     // Returns Map<listingKey, 'matched' | 'mismatched'>. Listings outside all polygons are absent.
     function computeMismatches() {
       const polygons = window.__gm.features.getAll().features
@@ -1358,6 +1392,30 @@
       snapshot(); // push undo entry after the feature is committed
       // Recompute mismatch overlay: a new polygon may reclassify dots.
       if (mismatchMode) { rebuildListingsSourceData(); }
+      // T11 — Auto-suggest name + slug from dominant subdivision.
+      // Wrapped in an IIFE so early-return doesn't affect the outer handler.
+      (function() {
+        try {
+          var all = window.__gm.features.getAll();
+          if (!all || !all.features || !all.features.length) return;
+          var last = all.features[all.features.length - 1];
+          if (!last || (last.geometry.type !== 'Polygon' && last.geometry.type !== 'MultiPolygon')) return;
+          if (last.properties && last.properties.communitySlug) return; // editing an existing community — skip
+          var slugEl = document.getElementById('slug');
+          var nameEl = document.getElementById('name');
+          if ((slugEl.value && slugEl.value.trim()) || (nameEl.value && nameEl.value.trim())) return; // operator already typed something
+          var sug = computeSuggestedNameAndSlug(last.geometry);
+          if (!sug) {
+            if (typeof setOpStatus === 'function') setOpStatus('drew a polygon — no dominant subdivision to suggest');
+            return;
+          }
+          nameEl.value = sug.name;
+          slugEl.value = sug.slug;
+          if (typeof setOpStatus === 'function') setOpStatus('suggested "' + sug.name + '" (' + sug.count + '/' + sug.total + ' listings, ' + Math.round(sug.share * 100) + '%)');
+        } catch (_err) {
+          // never break the create flow over a suggestion error
+        }
+      })();
     });
     map.on('gm:remove', function() {
       // Feature removed — clear selection in case a selected feature was deleted.
