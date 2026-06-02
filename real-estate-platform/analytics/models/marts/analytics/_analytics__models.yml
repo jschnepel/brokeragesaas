@@ -39,7 +39,15 @@ models:
       - name: community_slug
         data_tests: [not_null]
       - name: region_slug
-        data_tests: [not_null]
+        # warn (not error): NULL region is a valid coarse-fallback state —
+        # a curated community whose centroid falls outside the 9 region
+        # outlines has no region and rolls up at city/zip/metro instead.
+        # Geometry-first attribution (community by polygon PIP) intentionally
+        # does not force a region on every community.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
       - name: closes_12mo
         data_tests:
           - dbt_expectations.expect_column_values_to_be_between:
@@ -241,7 +249,15 @@ models:
       - name: community_slug
         data_tests: [not_null]
       - name: region_slug
-        data_tests: [not_null]
+        # warn (not error): NULL region is a valid coarse-fallback state —
+        # a curated community whose centroid falls outside the 9 region
+        # outlines has no region and rolls up at city/zip/metro instead.
+        # Geometry-first attribution (community by polygon PIP) intentionally
+        # does not force a region on every community.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
       - name: confidence
         data_tests: [not_null]
 
@@ -429,7 +445,15 @@ models:
         description: community_slug (aliased to scope_key for cross-mart consistency)
         data_tests: [not_null]
       - name: region_slug
-        data_tests: [not_null]
+        # warn (not error): NULL region is a valid coarse-fallback state —
+        # a curated community whose centroid falls outside the 9 region
+        # outlines has no region and rolls up at city/zip/metro instead.
+        # Geometry-first attribution (community by polygon PIP) intentionally
+        # does not force a region on every community.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
 
   - name: fct_active_heatmap_h3
     description: |

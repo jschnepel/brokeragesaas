@@ -6,7 +6,11 @@
    (or lat/long is NULL). EPSG:4326 — ST_Point(lng, lat). #}
 {% macro pip_community_slug(lat_col, lng_col) %}
 (
-  SELECT b.community_slug
+  -- Smallest covering polygon wins (most specific), then roll a child polygon
+  -- up to its parent community so the drilldown dimension is always the
+  -- top-level community (e.g. a point in "candlewood-estates-at-troon-north"
+  -- reports "troon-north"). parent_slug is set by the Phase-A clean step.
+  SELECT COALESCE(b.parent_slug, b.community_slug)
   FROM {{ ref('stg_geo__community_boundaries') }} b
   WHERE {{ lng_col }} BETWEEN b.bbox_min_lng AND b.bbox_max_lng
     AND {{ lat_col }} BETWEEN b.bbox_min_lat AND b.bbox_max_lat

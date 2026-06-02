@@ -1,32 +1,41 @@
 -- real-estate-platform/analytics/models/staging/geo/stg_geo__community_boundaries.sql
 {{ config(materialized='table', tags=['staging', 'geo']) }}
 
--- Community boundary polygons, read live from the RDS geo_boundaries table
--- (attached as the read-only `rlsir_platform` postgres catalog). geometry is
--- stored as plain GeoJSON text, so ST_GeomFromGeoJSON parses it directly — no
--- PostGIS WKB involved. bbox extents are derived from the parsed geometry for a
--- cheap prefilter before the ST_Covers test downstream.
+-- Curated community boundary polygons — geometry-first attribution source.
+--
+-- Reads the cleaned community layer (seeds/geo/community_boundaries.geojson),
+-- produced by scripts/geo/build_clean_communities.py from the marketing
+-- GEOJSON-luxury-communities.geojson with: exact-duplicate polygons removed,
+-- parent_slug assigned for contained sub-areas (SafeGraph >=80% rule), and
+-- rank (0 top-level / 1 child). One Polygon/MultiPolygon per real community.
+--
+-- ST_Read parses GeoJSON directly (DuckDB spatial). geometry is EPSG:4326
+-- (ARMLS lat/long is WGS84 — same CRS, no reprojection). bbox extents are
+-- derived for the cheap prefilter before the ST_Covers test downstream
+-- (pip_community.sql).
 
 WITH src AS (
   SELECT
     slug          AS community_slug,
     name          AS community_name,
-    properties->>'regionSlug' AS region_slug,
+    region_slug,
+    parent_slug,
+    rank,
     area_sq_mi,
-    geometry      AS geometry_text
-  FROM rlsir_platform.public.geo_boundaries
-  WHERE type = 'community'
-    AND geometry IS NOT NULL
+    geom          AS boundary_geom
+  FROM st_read('{{ community_boundaries_path() }}')
 )
 
 SELECT
   community_slug,
   community_name,
   region_slug,
+  parent_slug,
+  rank,
   area_sq_mi,
-  ST_GeomFromGeoJSON(geometry_text) AS boundary_geom,
-  ST_XMin(ST_GeomFromGeoJSON(geometry_text)) AS bbox_min_lng,
-  ST_XMax(ST_GeomFromGeoJSON(geometry_text)) AS bbox_max_lng,
-  ST_YMin(ST_GeomFromGeoJSON(geometry_text)) AS bbox_min_lat,
-  ST_YMax(ST_GeomFromGeoJSON(geometry_text)) AS bbox_max_lat
+  boundary_geom,
+  ST_XMin(boundary_geom) AS bbox_min_lng,
+  ST_XMax(boundary_geom) AS bbox_max_lng,
+  ST_YMin(boundary_geom) AS bbox_min_lat,
+  ST_YMax(boundary_geom) AS bbox_max_lat
 FROM src

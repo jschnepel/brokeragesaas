@@ -63,18 +63,48 @@ slug_helpers AS (
   FROM {{ ref('int_listings_closed_cleaned') }} c
   LEFT JOIN {{ ref('stg_armls__listing_geography') }} lg USING (listing_key)
   LEFT JOIN dedup_canonical dc ON UPPER(TRIM(c.subdivision_name)) = dc.raw_key
+),
+
+-- ── Geometry-first point-in-polygon (set-based, not correlated subquery) ──
+-- The prior version called scalar PIP subqueries per row → naive O(rows ×
+-- polygons) nested loop (~6.4h on 1.84M rows). This LEFT JOIN form lets DuckDB
+-- pick the SPATIAL_JOIN operator (R-tree, ~58× faster). Smallest covering
+-- polygon wins via QUALIFY ROW_NUMBER; child polygons roll up to parent_slug
+-- so the community dimension is always the top-level community.
+{{ pip_join_cte('slug_helpers', 'community') }},
+{{ pip_join_cte('slug_helpers', 'region') }},
+
+-- Region lookup keyed on the PIP-assigned community: the curated community
+-- polygon carries its own region_slug (assigned by centroid PIP into the 9
+-- region outlines in build_clean_communities.py). This is the authoritative
+-- region for a geometry-attributed listing — preferred over the sparse
+-- ARMLS lg.region_slug (~14% coverage).
+community_region AS (
+  SELECT community_slug, MAX(region_slug) AS region_slug
+  FROM {{ ref('stg_geo__community_boundaries') }}
+  WHERE region_slug IS NOT NULL
+  GROUP BY community_slug
 )
 
 SELECT
-  *,
-  -- Community via fresh point-in-polygon (authoritative), canonical-map slug as
-  -- the gap-filler. Mirrors int_listings_active_cleaned via shared macros.
-  {{ pip_community_slug('latitude', 'longitude') }} AS community_pip_slug,
-  {{ pip_region_slug('latitude', 'longitude') }}    AS region_pip_slug,
-  {{ community_unified_slug(
-       pip_community_slug('latitude', 'longitude'),
-       'canonical_slug'
-  ) }} AS community_unified_slug,
+  -- region_slug emitted below as a resolved value; exclude the raw lg one.
+  s.* EXCLUDE (region_slug),
+  pc.pip_slug AS community_pip_slug,
+  pr.pip_slug AS region_pip_slug,
+  -- Resolved region: curated community's region (geometry-first) → region PIP
+  -- → ARMLS lg.region_slug, whichever is first non-null. NULL only when no
+  -- layer covers the point (coarse city/zip fallback handles those downstream).
+  COALESCE(cr.region_slug, pr.pip_slug, s.region_slug) AS region_slug,
+  -- community_unified_slug is now GEOMETRY-FIRST: the PIP-assigned curated
+  -- community (smallest covering polygon, child rolled up to parent) and
+  -- nothing else. The old name-based canonical-map fallback is intentionally
+  -- dropped from the community dimension — it produced ~20K subdivision/street
+  -- "communities" (the /phoenix drilldown junk: "16 roeser place", Sun City
+  -- Grand split ×36, Boulders fragmented across 9 slugs). Areas with no curated
+  -- polygon get NULL community and roll up at region/zip/metro instead (per the
+  -- geospatial best-practices research). Name-based grain stays available as
+  -- subdivision_slug below for finest-grain drill, separate from "community".
+  pc.pip_slug AS community_unified_slug,
   -- Subdivision (finest-grain): canonical-map preferred for naming consistency,
   -- else cleaned subdivision_name slug. Same junk-slug filter applied to both.
   CASE
@@ -103,4 +133,7 @@ SELECT
     ELSE '10M+'
   END AS price_band
 
-FROM slug_helpers
+FROM slug_helpers s
+LEFT JOIN community_pip pc ON pc.listing_key = s.listing_key
+LEFT JOIN region_pip    pr ON pr.listing_key = s.listing_key
+LEFT JOIN community_region cr ON cr.community_slug = pc.pip_slug
