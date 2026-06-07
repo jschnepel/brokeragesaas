@@ -68,6 +68,9 @@
     #ctx-menu .item.disabled:hover { background: transparent; color: #6b7280; }
     #ctx-menu .sep { height: 1px; background: rgba(255,255,255,0.08); margin: 4px 0; }
     #ctx-menu .label { padding: 4px 14px; font-size: 11px; color: #9fb0c0; text-transform: uppercase; letter-spacing: .08em; }
+    /* T17 — stale-draft inline choice buttons */
+    .stale-choice .link { background: transparent; border: 0; color: #bfa67a; padding: 0 4px; cursor: pointer; width: auto; font: inherit; }
+    .stale-choice .link:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -107,6 +110,8 @@
   <div id="left-nav">
     <div id="nav-header" style="margin-bottom: 8px;">
       <div style="font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #bfa67a; margin-bottom: 8px;">Catalog</div>
+      <!-- T17 - drafts summary line (hidden when no drafts) -->
+      <div id="drafts-summary" class="muted" style="font-size: 11px; margin-bottom: 6px; display: none;"></div>
       <input id="nav-search" type="text" placeholder="Search communities…" style="width: 100%; padding: 6px 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #f9f8f6; font: 13px system-ui; border-radius: 2px; box-sizing: border-box;" />
     </div>
     <div id="nav-filters" style="display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap;">
@@ -181,6 +186,9 @@
     <!-- ── Op-status row — boolean ops / weld / undo / keyboard shortcuts ── -->
     <div id="op-status" class="muted" style="margin-top: 4px;"></div>
   </div>
+
+  <!-- T17 - auto-save status pill (fixed overlay, bottom-right) -->
+  <div id="autosave-pill" style="position: fixed; right: 16px; bottom: 16px; padding: 6px 10px; background: rgba(12,28,46,0.92); color: #bfa67a; font-size: 11px; border: 1px solid rgba(191,166,122,0.4); border-radius: 12px; display: none; z-index: 700;"></div>
 
   <script type="module">
     import booleanPointInPolygon from 'https://esm.sh/@turf/boolean-point-in-polygon@7';
@@ -634,6 +642,35 @@
           },
         },
         { sep: true },
+        // T17: 'Discard local draft' -- only shown when a draft exists for this slug.
+        ...(slug && getDraft(slug) ? [{
+          text: 'Discard local draft',
+          onClick: (function(capturedSlug, capturedGmId) {
+            return function() {
+              clearDraft(capturedSlug);
+              if (capturedGmId) {
+                var dfd = window.__gm.features.getAll().features
+                  .find(function(x) { return String(x.id) === String(capturedGmId); });
+                if (dfd && dfd.properties) {
+                  dfd.properties.staleDraft = false;
+                  dfd.properties.hasDraft   = false;
+                }
+              }
+              if (confirm('Draft discarded. Reload ' + capturedSlug + ' from server?')) {
+                removeCommunityFromGeoman(capturedSlug, { force: true }).then(function() {
+                  addCommunityToGeoman(capturedSlug);
+                  refreshDraftUI();
+                  renderNav();
+                  setOpStatus('reloaded ' + capturedSlug + ' from server');
+                });
+              } else {
+                refreshDraftUI();
+                renderNav();
+                setOpStatus('draft discarded for ' + capturedSlug);
+              }
+            };
+          })(slug, gmId),
+        }] : []),
         {
           text: 'Delete polygon',
           onClick: function() {
@@ -771,6 +808,182 @@
     let navFilter = 'all';
     let navSearch = '';
 
+    // -- T17 DraftStore: auto-save drafts to localStorage -------------------
+    //
+    // Keys: 'editorDraft:<slug>' for named communities,
+    //       'editorDraft:_unsaved:<gmId>' for fresh polygons without a slug.
+    // Draft record: { geometry, baseGeometryHash, savedAt, propertiesSnapshot }
+    // baseGeometryHash: FNV-1a hex of server geometry at load time.
+    // Stale-draft: if hash mismatches server current state, show inline choice.
+
+    var DRAFT_KEY_PREFIX     = 'editorDraft:';
+    var DRAFT_UNSAVED_PREFIX = 'editorDraft:_unsaved:';
+    var AUTO_SAVE_DEBOUNCE_MS = 2000;
+
+    var autoSaveTimers   = new Map();
+    var lastAutoSaveAt   = 0;
+    var autoSavePillTimer = null;
+
+    function geometryHash(geom) {
+      var str = JSON.stringify((geom && geom.coordinates) ? geom.coordinates : []);
+      var h = 2166136261;
+      for (var _fni = 0; _fni < str.length; _fni++) {
+        h ^= str.charCodeAt(_fni);
+        h = (h * 16777619) >>> 0;
+      }
+      return h.toString(16);
+    }
+
+    function getDraft(slug) {
+      if (!slug) return null;
+      try {
+        var raw = localStorage.getItem(DRAFT_KEY_PREFIX + slug);
+        if (!raw) return null;
+        var parsed = JSON.parse(raw);
+        if (!parsed || !parsed.geometry) return null;
+        return parsed;
+      } catch (_ge) { return null; }
+    }
+
+    function saveDraft(slug, geometry, baseGeometryHash, propertiesSnapshot) {
+      if (!slug) return;
+      try {
+        var draftPayload = JSON.stringify({
+          geometry:           geometry,
+          baseGeometryHash:   baseGeometryHash != null ? baseGeometryHash : null,
+          savedAt:            Date.now(),
+          propertiesSnapshot: propertiesSnapshot != null ? propertiesSnapshot : null,
+        });
+        localStorage.setItem(DRAFT_KEY_PREFIX + slug, draftPayload);
+      } catch (_se) {
+        if (typeof setOpStatus === 'function') setOpStatus('auto-save failed (storage full?)');
+      }
+    }
+
+    function clearDraft(slug) {
+      if (!slug) return;
+      try { localStorage.removeItem(DRAFT_KEY_PREFIX + slug); } catch (_ce) {}
+    }
+
+    function listDrafts() {
+      var out = [];
+      try {
+        for (var _ldi = 0; _ldi < localStorage.length; _ldi++) {
+          var lk = localStorage.key(_ldi);
+          if (!lk || !lk.startsWith(DRAFT_KEY_PREFIX)) continue;
+          var lslug = lk.slice(DRAFT_KEY_PREFIX.length);
+          if (lslug.startsWith('_unsaved:')) continue;
+          var ld = getDraft(lslug);
+          if (ld) out.push({ slug: lslug, draft: ld });
+        }
+      } catch (_lde) {}
+      return out;
+    }
+
+    window.__drafts = { getDraft: getDraft, saveDraft: saveDraft, clearDraft: clearDraft, listDrafts: listDrafts, geometryHash: geometryHash };
+
+    function showAutoSavePill(text) {
+      var pillEl = document.getElementById('autosave-pill');
+      if (!pillEl) return;
+      pillEl.textContent = text;
+      pillEl.style.display = 'block';
+      if (autoSavePillTimer) clearTimeout(autoSavePillTimer);
+      autoSavePillTimer = setTimeout(function() {
+        var p2 = document.getElementById('autosave-pill');
+        if (p2) p2.textContent = 'all changes auto-saved';
+        autoSavePillTimer = setTimeout(function() {
+          var p3 = document.getElementById('autosave-pill');
+          if (p3) p3.style.display = 'none';
+          autoSavePillTimer = null;
+        }, 2500);
+      }, 1500);
+    }
+
+    function runAutoSaveFor(feature) {
+      if (!feature) return;
+      var aslug = (feature.properties && feature.properties.communitySlug) ? feature.properties.communitySlug : null;
+      var asbaseHash = (feature.properties && feature.properties.serverGeometryHash) ? feature.properties.serverGeometryHash : null;
+      if (aslug) {
+        saveDraft(aslug, feature.geometry, asbaseHash, {
+          name:       (feature.properties && feature.properties.communityName) ? feature.properties.communityName : null,
+          regionSlug: (feature.properties && feature.properties.regionSlug)    ? feature.properties.regionSlug    : null,
+        });
+      } else {
+        try {
+          var astempKey = DRAFT_UNSAVED_PREFIX + String(feature.id);
+          localStorage.setItem(astempKey, JSON.stringify({
+            geometry:           feature.geometry,
+            baseGeometryHash:   null,
+            savedAt:            Date.now(),
+            propertiesSnapshot: null,
+          }));
+        } catch (_ase) {
+          if (typeof setOpStatus === 'function') setOpStatus('auto-save failed (storage full?)');
+        }
+      }
+      lastAutoSaveAt = Date.now();
+      showAutoSavePill(aslug ? ('auto-saved ' + aslug) : 'auto-saved draft');
+      if (typeof refreshDraftUI === 'function') refreshDraftUI();
+    }
+
+    function scheduleAutoSave(featureId) {
+      if (featureId == null) return;
+      var sasAll = window.__gm && window.__gm.features ? window.__gm.features.getAll() : null;
+      var sasF   = sasAll && sasAll.features
+        ? sasAll.features.find(function(x) { return String(x.id) === String(featureId); })
+        : null;
+      if (!sasF) return;
+      var sasSlug = (sasF.properties && sasF.properties.communitySlug) ? sasF.properties.communitySlug : null;
+      var sasKey  = sasSlug ? (DRAFT_KEY_PREFIX + sasSlug) : (DRAFT_UNSAVED_PREFIX + String(featureId));
+      if (autoSaveTimers.has(sasKey)) clearTimeout(autoSaveTimers.get(sasKey));
+      var sasCapturedId = featureId;
+      var sasTimer = setTimeout(function() {
+        autoSaveTimers.delete(sasKey);
+        var latestAll = window.__gm && window.__gm.features ? window.__gm.features.getAll() : null;
+        var latestF   = latestAll && latestAll.features
+          ? latestAll.features.find(function(x) { return String(x.id) === String(sasCapturedId); })
+          : null;
+        runAutoSaveFor(latestF || sasF);
+      }, AUTO_SAVE_DEBOUNCE_MS);
+      autoSaveTimers.set(sasKey, sasTimer);
+    }
+
+    // refreshDraftUI: update banner + nav indicators after any draft state change.
+    function refreshDraftUI() {
+      var rdDrafts = listDrafts();
+      var rdEl = document.getElementById('drafts-summary');
+      if (rdEl) {
+        if (rdDrafts.length === 0) {
+          rdEl.style.display = 'none';
+          rdEl.textContent = '';
+        } else {
+          rdEl.style.display = 'block';
+          while (rdEl.firstChild) rdEl.removeChild(rdEl.firstChild);
+          rdEl.appendChild(document.createTextNode('Drafts: ' + rdDrafts.length + ' '));
+          var rdBtn = document.createElement('button');
+          rdBtn.id = 'discard-all-drafts';
+          rdBtn.textContent = 'discard all';
+          rdBtn.style.cssText = 'background:transparent;border:0;color:#bfa67a;cursor:pointer;width:auto;font:inherit;padding:0 4px;';
+          rdBtn.addEventListener('click', function() {
+            var rdCopy = listDrafts();
+            if (!confirm('Discard ' + rdCopy.length + ' local draft(s)? Their server copies are untouched.')) return;
+            for (var _rdx = 0; _rdx < rdCopy.length; _rdx++) clearDraft(rdCopy[_rdx].slug);
+            refreshDraftUI();
+            if (typeof renderNav === 'function') renderNav();
+            if (typeof setOpStatus === 'function') setOpStatus('drafts discarded');
+          });
+          rdEl.appendChild(rdBtn);
+        }
+      }
+    }
+
+    window.__refreshDraftUI   = function() { refreshDraftUI(); };
+    window.__getDraft         = getDraft;
+    window.__clearDraft       = clearDraft;
+    window.__listDrafts       = listDrafts;
+    window.__geometryHash     = geometryHash;
+    window.__scheduleAutoSave = scheduleAutoSave;
+
     function persistLoadedSlugs() {
       try { localStorage.setItem('editorLoadedSlugs', JSON.stringify(Array.from(loadedSlugs))); } catch (_e) {}
     }
@@ -895,6 +1108,17 @@
         }
       } finally {
         isRestoring = false;
+      }
+      // T17: undo/redo = new edit state — schedule auto-save for all restored features.
+      if (!isRestoring) {
+        try {
+          var restFc = window.__gm.features.getAll();
+          if (restFc && restFc.features) {
+            restFc.features.forEach(function(rf) {
+              if (rf && rf.id != null) scheduleAutoSave(rf.id);
+            });
+          }
+        } catch (_rae) { /* never break restore flow */ }
       }
       // Clear boolops selection — restored IDs may no longer match.
       if (typeof selected !== 'undefined') { selected = []; }
@@ -1384,20 +1608,40 @@
     }
 
     // Low-level: add a single catalog entry into geoman (if not already loaded).
-    // Called during initial restore and on checkbox toggle.
+    // T17: checks for a local draft and either restores it (hash matches server)
+    // or marks the feature staleDraft=true (hash mismatch) for the inline choice.
     function addCommunityToGeoman(slug) {
       var c = catalog.get(slug);
       if (!c) return;
       if (loadedSlugs.has(slug)) return;
+
+      var serverHash    = geometryHash(c.geometry);
+      var draft         = getDraft(slug);
+      var geometryToLoad = c.geometry;
+      var useDraft       = false;
+      var staleDraft     = false;
+
+      if (draft) {
+        if (draft.baseGeometryHash === serverHash) {
+          geometryToLoad = draft.geometry;
+          useDraft = true;
+        } else {
+          staleDraft = true;
+        }
+      }
+
       var feature = {
         type: 'Feature',
         properties: {
-          communitySlug: c.slug,
-          communityName: c.name,
-          regionSlug:    c.regionSlug,
-          areaSqMi:      c.areaSqMi,
+          communitySlug:       c.slug,
+          communityName:       c.name,
+          regionSlug:          c.regionSlug,
+          areaSqMi:            c.areaSqMi,
+          serverGeometryHash:  serverHash,
+          hasDraft:            useDraft,
+          staleDraft:          staleDraft,
         },
-        geometry: c.geometry,
+        geometry: geometryToLoad,
       };
       try {
         window.__gm.features.addGeoJsonFeature(feature);
@@ -1410,6 +1654,14 @@
       }
       loadedSlugs.add(slug);
       persistLoadedSlugs();
+
+      if (useDraft) {
+        var allAfterAdd = window.__gm.features.getAll();
+        var addedF = allAfterAdd && allAfterAdd.features
+          ? allAfterAdd.features.find(function(x) { return x.properties && x.properties.communitySlug === slug; })
+          : null;
+        if (addedF && !isImportingFromDb) markDirty(addedF.id);
+      }
     }
 
     // Low-level: remove a single community from geoman with dirty guard.
@@ -1486,6 +1738,7 @@
       }
 
       renderNav();
+      refreshDraftUI(); // T17: update banner after catalog restore
     }
 
     // Backward-compat alias so existing callers (save handler etc.) keep working.
@@ -1663,6 +1916,17 @@
             nm.className = 'nav-community-name';
             nm.textContent = c.name;
 
+            // T17: draft pencil indicator
+            var navDraft = getDraft(c.slug);
+            if (navDraft) {
+              var draftSpan = document.createElement('span');
+              draftSpan.title = 'local draft';
+              draftSpan.textContent = ' ✎';
+              draftSpan.style.color = '#facc15';
+              draftSpan.style.fontSize = '11px';
+              nm.appendChild(draftSpan);
+            }
+
             var meta = document.createElement('span');
             meta.className = 'nav-community-meta';
             meta.textContent = c.areaSqMi != null ? c.areaSqMi.toFixed(1) + ' mi²' : '';
@@ -1671,6 +1935,73 @@
             row.appendChild(nm);
             row.appendChild(meta);
             list.appendChild(row);
+
+            // T17: stale-draft inline choice row
+            var navFeat = findGmFeatureBySlug(c.slug);
+            var navStaleDraft = navFeat && navFeat.properties && navFeat.properties.staleDraft;
+            if (navStaleDraft && navDraft) {
+              var staleRow = document.createElement('div');
+              staleRow.className = 'stale-choice';
+              staleRow.style.cssText = 'font-size:11px; padding: 2px 8px 6px 24px; color: #9fb0c0;';
+              staleRow.appendChild(document.createTextNode('Server changed since draft. '));
+
+              var useBtn = document.createElement('button');
+              useBtn.className = 'link';
+              useBtn.textContent = 'Use draft';
+              (function(captSlug, captDraft) {
+                useBtn.addEventListener('click', function(ev) {
+                  ev.stopPropagation();
+                  var uf = findGmFeatureBySlug(captSlug);
+                  if (!uf) { setOpStatus('feature not found'); return; }
+                  var srvHash = (uf.properties && uf.properties.serverGeometryHash) ? uf.properties.serverGeometryHash : null;
+                  var fd2 = window.__gm.features.get('gm_main', uf.id);
+                  if (fd2) window.__gm.features.delete(fd2);
+                  window.__gm.features.addGeoJsonFeature({
+                    type: 'Feature',
+                    properties: {
+                      communitySlug:      captSlug,
+                      communityName:      (uf.properties && uf.properties.communityName) ? uf.properties.communityName : captSlug,
+                      regionSlug:         (uf.properties && uf.properties.regionSlug)    ? uf.properties.regionSlug    : '',
+                      areaSqMi:           (uf.properties && uf.properties.areaSqMi)      ? uf.properties.areaSqMi      : null,
+                      serverGeometryHash: srvHash,
+                      hasDraft:           true,
+                      staleDraft:         false,
+                    },
+                    geometry: captDraft.geometry,
+                  });
+                  if (!isImportingFromDb) {
+                    var updatedF = findGmFeatureBySlug(captSlug);
+                    if (updatedF) markDirty(updatedF.id);
+                  }
+                  refreshDirtyUI();
+                  refreshDraftUI();
+                  renderNav();
+                  setOpStatus('draft applied for ' + captSlug);
+                });
+              })(c.slug, navDraft);
+
+              var discardBtn = document.createElement('button');
+              discardBtn.className = 'link';
+              discardBtn.textContent = 'Discard';
+              (function(captSlug2) {
+                discardBtn.addEventListener('click', function(ev) {
+                  ev.stopPropagation();
+                  clearDraft(captSlug2);
+                  var df2 = findGmFeatureBySlug(captSlug2);
+                  if (df2 && df2.properties) {
+                    df2.properties.staleDraft = false;
+                    df2.properties.hasDraft   = false;
+                  }
+                  refreshDraftUI();
+                  renderNav();
+                  setOpStatus('draft discarded for ' + captSlug2);
+                });
+              })(c.slug);
+
+              staleRow.appendChild(useBtn);
+              staleRow.appendChild(discardBtn);
+              list.appendChild(staleRow);
+            }
           })(visibleCommunities[_vci]);
         }
 
@@ -1813,6 +2144,15 @@
         nameSpan.appendChild(document.createTextNode(c.name));
       } else {
         nameSpan.textContent = c.name;
+      }
+      // T17: draft pencil indicator on right-panel row
+      if (c.slug && getDraft(c.slug)) {
+        var rspDraftSpan = document.createElement('span');
+        rspDraftSpan.title = 'local draft';
+        rspDraftSpan.textContent = ' ✎';
+        rspDraftSpan.style.color = '#facc15';
+        rspDraftSpan.style.fontSize = '11px';
+        nameSpan.appendChild(rspDraftSpan);
       }
 
       const metaSpan = document.createElement('span');
@@ -2615,6 +2955,17 @@
           markDirty(last.id);
         } catch (_err) { /* never break the create flow */ }
       })();
+      // T17 — Schedule auto-save for the newly created feature.
+      (function() {
+        if (isImportingFromDb) return;
+        try {
+          var acAll = window.__gm.features.getAll();
+          if (!acAll || !acAll.features || !acAll.features.length) return;
+          var acLast = acAll.features[acAll.features.length - 1];
+          if (acLast) scheduleAutoSave(acLast.id);
+        } catch (_ace) { /* never break create flow */ }
+      })();
+
       // T11 — Auto-suggest name + slug from dominant subdivision.
       // Wrapped in an IIFE so early-return doesn't affect the outer handler.
       (function() {
@@ -2655,6 +3006,10 @@
           var removedId = e && e.feature && e.feature.id;
           if (removedId != null) {
             clearDirty(String(removedId));
+            // T17: clear draft for removed feature
+            var removedSlug = e.feature.properties && e.feature.properties.communitySlug;
+            if (removedSlug) clearDraft(removedSlug);
+            try { localStorage.removeItem(DRAFT_UNSAVED_PREFIX + String(removedId)); } catch (_rme) {}
           } else {
             // Event doesn't carry the id — attempt a best-effort sync:
             // any id in dirty that no longer exists in geoman should be removed.
@@ -2668,6 +3023,7 @@
           }
         } catch (_err) { /* never break the remove flow */ }
       }
+      refreshDraftUI(); // T17
     });
     map.on('gm:edit', function(e) {
       updateCount();
@@ -2681,10 +3037,14 @@
           var editedId = e && e.feature && e.feature.id;
           if (editedId != null) {
             markDirty(String(editedId));
+            scheduleAutoSave(String(editedId)); // T17
           } else {
             // geoman fires gm:edit without the feature id in some versions —
             // mark the currently-selected feature dirty as a best-effort fallback.
-            if (selected.length > 0) markDirty(selected[0]);
+            if (selected.length > 0) {
+              markDirty(selected[0]);
+              scheduleAutoSave(selected[0]); // T17
+            }
           }
         } catch (_err) { /* never break the edit flow */ }
       }
@@ -2750,6 +3110,22 @@
         // T12 — mark the saved feature clean before reloading (loadCommunities
         // calls dirty.clear() internally via the isImportingFromDb guard).
         if (savedFeatureId != null) clearDirty(savedFeatureId);
+        // T17 — clear the local draft: operator just formally saved.
+        clearDraft(slug);
+        // Refresh serverGeometryHash so future edits debit against the correct base.
+        if (savedFeatureId != null) {
+          try {
+            var savedFeatNow = window.__gm.features.getAll().features
+              .find(function(f) { return String(f.id) === String(savedFeatureId); });
+            if (savedFeatNow) {
+              savedFeatNow.properties.serverGeometryHash = geometryHash(savedFeatNow.geometry);
+              savedFeatNow.properties.staleDraft = false;
+              savedFeatNow.properties.hasDraft   = false;
+            }
+          } catch (_she) { /* non-critical */ }
+        }
+        showAutoSavePill('saved ' + slug + ' to source of truth');
+        refreshDraftUI();
         // Reload communities so the saved shape appears in the list with its slug.
         await loadCommunities();
       } else {
