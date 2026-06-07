@@ -18,12 +18,33 @@
   <script src="https://cdn.jsdelivr.net/npm/@geoman-io/maplibre-geoman-free@0.2.10/dist/maplibre-geoman.umd.js"></script>
   <style>
     html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
-    #map { position: absolute; inset: 0 320px 0 0; }
+    #left-nav { position: absolute; top: 0; bottom: 0; left: 0; width: 260px; box-sizing: border-box; padding: 16px; background: #0c1c2e; color: #f9f8f6; overflow: auto; border-right: 1px solid rgba(255,255,255,0.06); z-index: 1; }
+    #map { position: absolute; inset: 0 320px 0 260px; }
     #panel { position: absolute; top: 0; right: 0; bottom: 0; width: 320px; padding: 16px; box-sizing: border-box; background: #0c1c2e; color: #f9f8f6; overflow: auto; }
     label { display: block; margin: 8px 0 2px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #bfa67a; }
     input, button { width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 8px; }
     button { background: #bfa67a; border: 0; color: #0c1c2e; font-weight: 700; cursor: pointer; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
+    /* ── Left-nav chips ── */
+    .nav-chip { padding: 4px 8px; font-size: 11px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #f9f8f6; cursor: pointer; border-radius: 2px; width: auto; margin: 0; }
+    .nav-chip:hover { background: rgba(191,166,122,0.15); }
+    .nav-chip.active { background: #bfa67a; color: #0c1c2e; }
+    /* ── Left-nav tree ── */
+    .nav-region { margin-bottom: 12px; }
+    .nav-region-header { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; padding: 4px 0; }
+    .nav-region-toggle { width: 12px; color: #9fb0c0; font-size: 10px; }
+    .nav-region-name { font-weight: 600; color: #f9f8f6; font-size: 12px; flex: 1; }
+    .nav-region-count { color: #9fb0c0; font-size: 11px; }
+    .nav-region-load-all { background: transparent; border: 0; color: #bfa67a; font-size: 11px; cursor: pointer; padding: 0 4px; width: auto; margin: 0; }
+    .nav-region-load-all:hover { text-decoration: underline; }
+    .nav-community-list { display: flex; flex-direction: column; padding-left: 18px; }
+    .nav-community-row { display: flex; align-items: center; gap: 6px; padding: 4px 4px; cursor: pointer; border-radius: 2px; }
+    .nav-community-row:hover { background: rgba(191,166,122,0.10); }
+    .nav-community-row input[type="checkbox"] { margin: 0; width: auto; }
+    .nav-community-name { flex: 1; font-size: 12px; color: #f9f8f6; }
+    .nav-community-meta { font-size: 11px; color: #9fb0c0; }
+    .nav-community-row.loaded .nav-community-name { color: #bfa67a; }
+    .nav-community-row.dirty .nav-community-name::after { content: ' \25cf'; color: #f97316; }
     .count { font-size: 28px; font-weight: 700; }
     .muted { color: #9fb0c0; font-size: 12px; }
     /* Side-panel community list rows */
@@ -81,6 +102,23 @@
 
   <!-- ── Context menu (T15) ── -->
   <div id="ctx-menu" style="display: none; position: fixed; z-index: 999; background: #0c1c2e; border: 1px solid #bfa67a; border-radius: 2px; padding: 4px 0; min-width: 200px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); color: #f9f8f6; font: 13px/1.4 system-ui, sans-serif;"></div>
+
+  <!-- ── Left-column catalog picker (T16) ── -->
+  <div id="left-nav">
+    <div id="nav-header" style="margin-bottom: 8px;">
+      <div style="font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #bfa67a; margin-bottom: 8px;">Catalog</div>
+      <input id="nav-search" type="text" placeholder="Search communities…" style="width: 100%; padding: 6px 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #f9f8f6; font: 13px system-ui; border-radius: 2px; box-sizing: border-box;" />
+    </div>
+    <div id="nav-filters" style="display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap;">
+      <button class="nav-chip" data-filter="all">All</button>
+      <button class="nav-chip" data-filter="none">None</button>
+      <button class="nav-chip" data-filter="loaded">Loaded</button>
+      <button class="nav-chip" data-filter="dirty">Dirty</button>
+    </div>
+    <div id="nav-tree"></div>
+    <div id="nav-empty" class="muted" style="display:none; font-size: 12px; padding: 12px 4px;">No matches.</div>
+    <div id="nav-error" class="muted" style="display:none; font-size: 12px; padding: 12px 4px; color: #f59e0b;"></div>
+  </div>
 
   <div id="map"></div>
   <div id="panel">
@@ -722,6 +760,33 @@
     const dirty = new Set(); // string feature ids
     let isImportingFromDb = false;
 
+    // ── T16 — Catalog model + loaded-slugs state ────────────────────────────────
+    //
+    // catalog: Map<slug, {slug, name, regionSlug, regionName, geometry, areaSqMi}>
+    // loadedSlugs: Set<slug> of communities currently in geoman
+    // navFilter / navSearch: left-panel UI state only (not destructive to geoman)
+
+    const catalog = new Map();
+    const loadedSlugs = new Set();
+    let navFilter = 'all';
+    let navSearch = '';
+
+    function persistLoadedSlugs() {
+      try { localStorage.setItem('editorLoadedSlugs', JSON.stringify(Array.from(loadedSlugs))); } catch (_e) {}
+    }
+    function restoreLoadedSlugs() {
+      try {
+        var raw = localStorage.getItem('editorLoadedSlugs');
+        if (!raw) return [];
+        var arr = JSON.parse(raw);
+        return Array.isArray(arr) ? arr.filter(function(x) { return typeof x === 'string'; }) : [];
+      } catch (_e) { return []; }
+    }
+
+    // Expose for Puppeteer test harness.
+    window.__catalog = catalog;
+    window.__loadedSlugs = loadedSlugs;
+
     function markDirty(featureId) {
       if (featureId == null) return;
       dirty.add(String(featureId));
@@ -1112,7 +1177,7 @@
       // snapping helper targets the current viewport's listing dots.
       syncListingsSnapCoords();
       // Refresh inside-counts in the list whenever the viewport's listings update.
-      renderShapeList(_loadedCommunities);
+      renderShapeList(getLoadedCommunitiesFromGm());
     }
 
     // ── Hover-highlight source + layer ──────────────────────────────────────────
@@ -1291,75 +1356,375 @@
       document.getElementById('count').textContent = String(n);
       document.getElementById('meta').textContent = poly.geometry.coordinates[0].length + ' vertices';
       // Also re-render list so the unsaved row gets updated
-      renderShapeList(_loadedCommunities);
+      renderShapeList(getLoadedCommunitiesFromGm());
     }
 
-    // ── Communities — load into geoman ──────────────────────────────────────────
+    // ── T16 — Communities catalog + on-demand load/unload ──────────────────────
 
     // Holds the last-fetched communities array so list rerenders can reuse it.
+    // Now populated from geoman's live features rather than the bulk-fetched catalog.
     let _loadedCommunities = [];
 
-    async function loadCommunities() {
-      // Suppress dirty-marking for all gm:create/gm:edit events fired during the
-      // bulk import below.  Any stale dirty ids are cleared after load so the
-      // beforeunload guard starts fresh.
+    // Derive the current "loaded communities" list from geoman's live feature collection.
+    // This is what renderShapeList consumes for the right-panel rows.
+    function getLoadedCommunitiesFromGm() {
+      if (!window.__gm) return [];
+      return window.__gm.features.getAll().features
+        .filter(function(f) { return f.properties && f.properties.communitySlug; })
+        .map(function(f) {
+          return {
+            slug:       f.properties.communitySlug,
+            name:       f.properties.communityName || f.properties.communitySlug,
+            regionSlug: f.properties.regionSlug,
+            areaSqMi:   f.properties.areaSqMi,
+            geometry:   f.geometry,
+            _gmId:      f.id,
+          };
+        });
+    }
+
+    // Low-level: add a single catalog entry into geoman (if not already loaded).
+    // Called during initial restore and on checkbox toggle.
+    function addCommunityToGeoman(slug) {
+      var c = catalog.get(slug);
+      if (!c) return;
+      if (loadedSlugs.has(slug)) return;
+      var feature = {
+        type: 'Feature',
+        properties: {
+          communitySlug: c.slug,
+          communityName: c.name,
+          regionSlug:    c.regionSlug,
+          areaSqMi:      c.areaSqMi,
+        },
+        geometry: c.geometry,
+      };
+      try {
+        window.__gm.features.addGeoJsonFeature(feature);
+      } catch (_e1) {
+        try {
+          window.__gm.features.importGeoJson({ type: 'FeatureCollection', features: [feature] });
+        } catch (_e2) {
+          // Could not add to geoman — skip, operator can redraw
+        }
+      }
+      loadedSlugs.add(slug);
+      persistLoadedSlugs();
+    }
+
+    // Low-level: remove a single community from geoman with dirty guard.
+    // opts.force = true skips the confirm prompt (used during isImportingFromDb restore).
+    // Returns true if removed, false if operator cancelled.
+    async function removeCommunityFromGeoman(slug, opts) {
+      opts = opts || {};
+      var all = window.__gm.features.getAll();
+      var feat = all.features.find(function(f) {
+        return f.properties && f.properties.communitySlug === slug;
+      });
+      if (!feat) {
+        loadedSlugs.delete(slug);
+        persistLoadedSlugs();
+        return true;
+      }
+      var id = feat.id;
+      if (!opts.force && isDirty(id)) {
+        var ok = confirm('"' + slug + '" has unsaved changes. Discard them?');
+        if (!ok) return false;
+      }
+      var fd = window.__gm.features.get('gm_main', id);
+      if (fd) window.__gm.features.delete(fd);
+      loadedSlugs.delete(slug);
+      clearDirty(id);
+      persistLoadedSlugs();
+      return true;
+    }
+
+    // Expose for Puppeteer test harness.
+    window.__addCommunityToGeoman    = addCommunityToGeoman;
+    window.__removeCommunityFromGeoman = removeCommunityFromGeoman;
+
+    // Main entry point — fetches catalog, restores previously loaded slugs, renders nav.
+    // Replaces the old loadCommunities() single-step bulk-add.
+    async function loadCatalog() {
+      try {
+        const res = await fetch('/api/boundaries');
+        if (!res.ok) throw new Error('boundaries fetch failed: ' + res.status);
+        const all = await res.json();
+        catalog.clear();
+        for (var _bi = 0; _bi < (Array.isArray(all) ? all.length : 0); _bi++) {
+          var b = all[_bi];
+          if (b.type !== 'community') continue;
+          catalog.set(b.slug, {
+            slug:       b.slug,
+            name:       b.name,
+            regionSlug: b.regionSlug != null ? b.regionSlug : '(none)',
+            regionName: b.regionSlug != null ? b.regionSlug : '(none)',
+            geometry:   b.geometry,
+            areaSqMi:   b.areaSqMi != null ? b.areaSqMi : null,
+          });
+        }
+        _communitiesLoaded = true;
+        _communitiesErrText = '';
+        _updateConnBanner();
+      } catch (_err) {
+        _communitiesErrText = "Couldn't load communities — check RDS_DATABASE_URL.";
+        _updateConnBanner();
+        catalog.clear();
+      }
+
+      // Restore the previously-loaded set (intersect with what exists in catalog today).
       isImportingFromDb = true;
       try {
-        let all = [];
-        try {
-          const res = await fetch('/api/boundaries');
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          const data = await res.json();
-          // Guard: server returns {error:...} on DB failure — treat as empty list
-          all = Array.isArray(data) ? data : [];
-          _communitiesLoaded = true;
-          _communitiesErrText = '';
-          _updateConnBanner();
-        } catch (_err) {
-          // DB unavailable — empty list, banner shown
-          _communitiesErrText = "Couldn't load communities — check RDS_DATABASE_URL.";
-          _updateConnBanner();
+        var toLoad = restoreLoadedSlugs().filter(function(s) { return catalog.has(s); });
+        for (var _ri = 0; _ri < toLoad.length; _ri++) {
+          addCommunityToGeoman(toLoad[_ri]);
         }
-        _loadedCommunities = all.filter(function(b) { return b.type === 'community'; });
-
-        for (const c of _loadedCommunities) {
-          if (!c.geometry) continue;
-          const feature = {
-            type: 'Feature',
-            // gm.features.addGeoJsonFeature accepts ImportGeoJsonProperties which
-            // allows arbitrary [key: string]: unknown extra properties — we stamp
-            // communitySlug so we can look the feature up later via getAll().
-            properties: {
-              communitySlug: c.slug,
-              communityName: c.name,
-              regionSlug:    c.regionSlug,
-              areaSqMi:      c.areaSqMi,
-            },
-            geometry: c.geometry,
-          };
-          // Verified API (maplibre-geoman 0.2.10 type defs):
-          //   gm.features.addGeoJsonFeature(GeoJsonImportFeature) → FeatureData | null
-          // Fallback: gm.features.importGeoJson(FeatureCollection)
-          try {
-            gm.features.addGeoJsonFeature(feature);
-          } catch (_e1) {
-            try {
-              gm.features.importGeoJson({ type: 'FeatureCollection', features: [feature] });
-            } catch (_e2) {
-              // Could not add to geoman — skip, operator can redraw
-            }
-          }
-        }
-
-        renderShapeList(_loadedCommunities);
       } finally {
         isImportingFromDb = false;
-        // Clear any ids that might have leaked in (shouldn't happen with the
-        // guard, but belt-and-suspenders for geoman firing sync events).
         dirty.clear();
         refreshDirtyUI();
       }
+
+      renderNav();
     }
+
+    // Backward-compat alias so existing callers (save handler etc.) keep working.
+    // The save handler calls loadCommunities() to reload after a save — we keep that
+    // working by delegating to loadCatalog().
+    async function loadCommunities() {
+      return loadCatalog();
+    }
+
+    // Expose for Puppeteer test harness.
+    window.__loadCatalog = loadCatalog;
+
+    // Find a geoman feature by community slug (helper used by renderNav + toggles).
+    function findGmFeatureBySlug(slug) {
+      if (!window.__gm) return null;
+      var all = window.__gm.features.getAll();
+      return (all.features.find(function(f) {
+        return f.properties && f.properties.communitySlug === slug;
+      }) || null);
+    }
+
+    // Toggle an entire region in or out (load all / unload all for that region).
+    async function toggleRegion(regionKey, loadIt) {
+      for (var _c of catalog.values()) {
+        var cRegion = _c.regionSlug || '(unassigned)';
+        if (cRegion !== regionKey) continue;
+        if (loadIt && !loadedSlugs.has(_c.slug)) {
+          addCommunityToGeoman(_c.slug);
+        } else if (!loadIt && loadedSlugs.has(_c.slug)) {
+          var ok = await removeCommunityFromGeoman(_c.slug);
+          if (!ok) break; // operator cancelled dirty-discard prompt — stop batch
+        }
+      }
+      refreshDirtyUI();
+      renderNav();
+    }
+
+    // ── T16 — Left-nav render ───────────────────────────────────────────────────
+
+    function renderNav() {
+      var tree  = document.getElementById('nav-tree');
+      var empty = document.getElementById('nav-empty');
+      if (!tree) return;
+      // Remove all children
+      while (tree.firstChild) tree.removeChild(tree.firstChild);
+      empty.style.display = 'none';
+
+      // Group communities by regionSlug.
+      var byRegion = new Map();
+      for (var _cv of catalog.values()) {
+        var rkey = (_cv.regionSlug && _cv.regionSlug !== '(none)') ? _cv.regionSlug : '(unassigned)';
+        if (!byRegion.has(rkey)) byRegion.set(rkey, []);
+        byRegion.get(rkey).push(_cv);
+      }
+
+      // Sort regions A→Z; communities A→Z within each region.
+      var regionKeys = Array.from(byRegion.keys()).sort();
+      for (var _rk of regionKeys) {
+        byRegion.get(_rk).sort(function(a, b) { return a.name.localeCompare(b.name); });
+      }
+
+      var q = navSearch.trim().toLowerCase();
+      var shownCount = 0;
+
+      for (var _rki = 0; _rki < regionKeys.length; _rki++) {
+        var region = regionKeys[_rki];
+        var communities = byRegion.get(region);
+
+        // Apply search + filter
+        var visibleCommunities = communities.filter(function(c) {
+          if (q && !(c.name.toLowerCase().indexOf(q) !== -1 || c.slug.indexOf(q) !== -1)) return false;
+          if (navFilter === 'loaded' && !loadedSlugs.has(c.slug)) return false;
+          if (navFilter === 'dirty') {
+            var feat = findGmFeatureBySlug(c.slug);
+            if (!feat || !isDirty(feat.id)) return false;
+          }
+          return true;
+        });
+
+        if (visibleCommunities.length === 0) continue;
+        shownCount += visibleCommunities.length;
+
+        var regionEl = document.createElement('div');
+        regionEl.className = 'nav-region';
+
+        // Region header
+        var header = document.createElement('div');
+        header.className = 'nav-region-header';
+
+        var tog = document.createElement('span');
+        tog.className = 'nav-region-toggle';
+        tog.textContent = '▼'; // ▼
+
+        var nameEl = document.createElement('span');
+        nameEl.className = 'nav-region-name';
+        nameEl.textContent = region;
+
+        var countEl = document.createElement('span');
+        countEl.className = 'nav-region-count';
+        countEl.textContent = '(' + visibleCommunities.length + ')';
+
+        var loadAllBtn = document.createElement('button');
+        loadAllBtn.className = 'nav-region-load-all';
+        loadAllBtn.textContent = 'load all';
+        (function(rk) {
+          loadAllBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleRegion(rk, true);
+          });
+        })(region);
+
+        var unloadAllBtn = document.createElement('button');
+        unloadAllBtn.className = 'nav-region-load-all';
+        unloadAllBtn.textContent = 'unload';
+        (function(rk) {
+          unloadAllBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleRegion(rk, false);
+          });
+        })(region);
+
+        header.appendChild(tog);
+        header.appendChild(nameEl);
+        header.appendChild(countEl);
+        header.appendChild(loadAllBtn);
+        header.appendChild(unloadAllBtn);
+        regionEl.appendChild(header);
+
+        // Community list
+        var list = document.createElement('div');
+        list.className = 'nav-community-list';
+
+        // Collapsible region — IIFE captures list + tog per iteration
+        (function(capturedList, capturedTog) {
+          var collapsed = false;
+          header.addEventListener('click', function() {
+            collapsed = !collapsed;
+            capturedList.style.display = collapsed ? 'none' : 'flex';
+            capturedTog.textContent = collapsed ? '▶' : '▼'; // ▶ or ▼
+          });
+        })(list, tog);
+
+        for (var _vci = 0; _vci < visibleCommunities.length; _vci++) {
+          (function(c) {
+            var row = document.createElement('label');
+            row.className = 'nav-community-row';
+            if (loadedSlugs.has(c.slug)) row.classList.add('loaded');
+            var feat = findGmFeatureBySlug(c.slug);
+            if (feat && isDirty(feat.id)) row.classList.add('dirty');
+
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = loadedSlugs.has(c.slug);
+            cb.addEventListener('change', function(e) {
+              if (e.target.checked) {
+                addCommunityToGeoman(c.slug);
+                row.classList.add('loaded');
+                refreshDirtyUI();
+                renderNav();
+              } else {
+                removeCommunityFromGeoman(c.slug).then(function(ok) {
+                  if (!ok) {
+                    e.target.checked = true; // user cancelled the discard prompt
+                    return;
+                  }
+                  row.classList.remove('loaded');
+                  row.classList.remove('dirty');
+                  refreshDirtyUI();
+                  renderNav();
+                });
+              }
+            });
+
+            var nm = document.createElement('span');
+            nm.className = 'nav-community-name';
+            nm.textContent = c.name;
+
+            var meta = document.createElement('span');
+            meta.className = 'nav-community-meta';
+            meta.textContent = c.areaSqMi != null ? c.areaSqMi.toFixed(1) + ' mi²' : '';
+
+            row.appendChild(cb);
+            row.appendChild(nm);
+            row.appendChild(meta);
+            list.appendChild(row);
+          })(visibleCommunities[_vci]);
+        }
+
+        regionEl.appendChild(list);
+        tree.appendChild(regionEl);
+      }
+
+      if (shownCount === 0) empty.style.display = 'block';
+    }
+
+    // Expose for Puppeteer test harness.
+    window.__renderNav = renderNav;
+
+    // ── T16 — Wire search + filter chips ───────────────────────────────────────
+
+    (function() {
+      var searchEl = document.getElementById('nav-search');
+      if (searchEl) {
+        searchEl.addEventListener('input', function(e) {
+          navSearch = e.target.value;
+          renderNav();
+        });
+      }
+
+      document.querySelectorAll('.nav-chip').forEach(function(chip) {
+        chip.addEventListener('click', async function() {
+          var f = chip.dataset.filter;
+          if (f === 'all') {
+            // Load every community in catalog into geoman.
+            for (var _c of catalog.values()) addCommunityToGeoman(_c.slug);
+            navFilter = 'all';
+          } else if (f === 'none') {
+            // Unload everything (with dirty guard).
+            var slugsToRemove = Array.from(loadedSlugs);
+            for (var _i = 0; _i < slugsToRemove.length; _i++) {
+              var ok = await removeCommunityFromGeoman(slugsToRemove[_i]);
+              if (!ok) break;
+            }
+            navFilter = 'all'; // return to "show all" filter view after unloading
+          } else {
+            navFilter = f; // 'loaded' | 'dirty' — UI filter only
+          }
+          refreshDirtyUI();
+          document.querySelectorAll('.nav-chip').forEach(function(c) {
+            c.classList.toggle('active', c.dataset.filter === navFilter);
+          });
+          renderNav();
+        });
+      });
+
+      // Initialize active chip state
+      var defaultChip = document.querySelector('.nav-chip[data-filter="all"]');
+      if (defaultChip) defaultChip.classList.add('active');
+    })();
 
     // ── Side-panel list ─────────────────────────────────────────────────────────
 
@@ -1935,9 +2300,9 @@
       });
 
       loadListings();
-      // Push the initial state as the baseline undo entry after communities load,
+      // Push the initial state as the baseline undo entry after catalog loads,
       // so the operator can undo all the way back to the loaded state.
-      loadCommunities().then(function() { snapshot(); });
+      loadCatalog().then(function() { snapshot(); });
     });
 
     // ── T15 — Polygon hover cursor ─────────────────────────────────────────────
