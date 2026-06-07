@@ -40,8 +40,33 @@
   </style>
 </head>
 <body>
+  <!-- ── Help overlay (Fix 2) ── -->
+  <div id="help-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center;" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div id="help-card" style="background: #0c1c2e; color: #f9f8f6; padding: 24px 28px; border-radius: 4px; max-width: 460px; width: 90vw; box-shadow: 0 12px 40px rgba(0,0,0,0.4); position: relative;">
+      <button id="help-close" aria-label="Close" style="position: absolute; top: 8px; right: 12px; background: transparent; border: 0; color: #9fb0c0; font-size: 20px; cursor: pointer; width: auto; padding: 4px;">×</button>
+      <h2 id="help-title" style="margin: 0 0 12px; font-size: 16px; color: #bfa67a; text-transform: uppercase; letter-spacing: .08em;">Keyboard shortcuts</h2>
+      <table style="border-collapse: collapse; width: 100%; font-size: 13px;">
+        <tbody>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Esc</td><td>Cancel current draw / close modal</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Enter</td><td>Finish current draw (geoman-dependent)</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Delete</td><td>Remove selected shape</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">V</td><td>Vertex edit mode</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Shift + click</td><td>Multi-select shapes</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">U</td><td>Union (2 selected)</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">C / S</td><td>Subtract (2 selected)</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Cmd / Ctrl + Z</td><td>Undo</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Cmd / Ctrl + Shift + Z</td><td>Redo</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Space (hold)</td><td>Boost snap radius</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">?</td><td>Open this help</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <div id="map"></div>
   <div id="panel">
+    <!-- ── Connection error banner (Fix 4) ── -->
+    <div id="conn-banner" style="display: none; background: #f59e0b; color: #0c1c2e; padding: 8px 12px; font-size: 12px; font-weight: 600; margin: -16px -16px 12px -16px;"></div>
     <!-- ── Mismatch overlay toggle ── -->
     <div id="mismatch-toggle-row" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
       <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin: 0; text-transform: none; letter-spacing: 0; font-size: 12px; color: #f9f8f6;">
@@ -94,6 +119,8 @@
     <div class="muted" id="meta"></div>
     <button id="save">Save community</button>
     <div class="muted" id="status"></div>
+    <!-- ── Help link ── -->
+    <button id="help-link" style="background: transparent; border: 0; color: #9fb0c0; padding: 8px 0; font-size: 11px; text-align: left; cursor: pointer; width: auto;">? — keyboard shortcuts</button>
     <!-- ── Op-status row — boolean ops / weld / undo / keyboard shortcuts ── -->
     <div id="op-status" class="muted" style="margin-top: 4px;"></div>
   </div>
@@ -569,6 +596,37 @@
 
     let listings = []; // [{lng, lat, ...}]
 
+    // ── Fix 1 — Persist last-used region in localStorage ──────────────────────
+    // Pre-fill the region input from localStorage on page load (if present).
+    (function() {
+      var savedRegion = localStorage.getItem('editorLastRegion');
+      if (savedRegion) {
+        var regionEl = document.getElementById('region');
+        if (regionEl) regionEl.value = savedRegion;
+      }
+    })();
+
+    // ── Fix 2 — Help overlay open/close ────────────────────────────────────────
+    function openHelp() { var o = document.getElementById('help-overlay'); o.style.display = 'flex'; }
+    function closeHelp() { var o = document.getElementById('help-overlay'); o.style.display = 'none'; }
+    document.getElementById('help-close').addEventListener('click', closeHelp);
+    document.getElementById('help-overlay').addEventListener('click', function(e) { if (e.target.id === 'help-overlay') closeHelp(); });
+    document.getElementById('help-link').addEventListener('click', openHelp);
+
+    // ── Fix 4 — Connection error banner helpers ─────────────────────────────────
+    function showConnBanner(text) {
+      var b = document.getElementById('conn-banner');
+      b.style.display = 'block';
+      b.textContent = text;
+    }
+    function hideConnBanner() { document.getElementById('conn-banner').style.display = 'none'; }
+
+    // Expose for Puppeteer test harness.
+    window.__openHelp  = openHelp;
+    window.__closeHelp = closeHelp;
+    window.__showConnBanner = showConnBanner;
+    window.__hideConnBanner = hideConnBanner;
+
     // Expose listings array + setter for Puppeteer test harness.
     // Tests set window.__setListings([...]) to inject synthetic listing data into
     // the module-level closure without going through loadListings().
@@ -581,18 +639,42 @@
 
     // ── Listings layer ──────────────────────────────────────────────────────────
 
+    // Track per-resource load success for the connection banner (Fix 4).
+    // Both must succeed before we hide the banner.
+    var _listingsLoaded = false;
+    var _communitiesLoaded = false;
+    var _listingsErrText = '';
+    var _communitiesErrText = '';
+
+    function _updateConnBanner() {
+      var msgs = [];
+      if (_listingsErrText) msgs.push(_listingsErrText);
+      if (_communitiesErrText) msgs.push(_communitiesErrText);
+      if (msgs.length > 0) {
+        showConnBanner(msgs.join(' | '));
+      } else if (_listingsLoaded && _communitiesLoaded) {
+        hideConnBanner();
+      }
+    }
+
     async function loadListings() {
       const b = map.getBounds();
       const bboxStr = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',');
       try {
         const res = await fetch('/api/listings?bbox=' + bboxStr);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         // Guard: server returns {error:...} on DB failure — treat as empty list
         listings = Array.isArray(data) ? data : [];
+        _listingsLoaded = true;
+        _listingsErrText = '';
+        _updateConnBanner();
       } catch (_err) {
         // RDS_DATABASE_URL missing or unreachable — listings stays empty, editor
         // still loads and the polygon tools function normally.
         listings = [];
+        _listingsErrText = "Couldn't load listings — check RDS_DATABASE_URL.";
+        _updateConnBanner();
       }
       // Fix 2 — bump version + invalidate memo so next renderShapeList recomputes.
       _listingsVersion++;
@@ -807,11 +889,17 @@
         let all = [];
         try {
           const res = await fetch('/api/boundaries');
+          if (!res.ok) throw new Error('HTTP ' + res.status);
           const data = await res.json();
           // Guard: server returns {error:...} on DB failure — treat as empty list
           all = Array.isArray(data) ? data : [];
+          _communitiesLoaded = true;
+          _communitiesErrText = '';
+          _updateConnBanner();
         } catch (_err) {
-          // DB unavailable — empty list, no error shown
+          // DB unavailable — empty list, banner shown
+          _communitiesErrText = "Couldn't load communities — check RDS_DATABASE_URL.";
+          _updateConnBanner();
         }
         _loadedCommunities = all.filter(function(b) { return b.type === 'community'; });
 
@@ -990,10 +1078,20 @@
       }
 
       if (!allRows.length) {
-        const hint = document.createElement('div');
+        var hint = document.createElement('div');
         hint.className = 'muted';
-        hint.style.padding = '8px 4px';
-        hint.textContent = 'No communities yet — draw one.';
+        if (listings.length > 0) {
+          // DB is reachable but no communities saved yet — show structured guidance (Fix 3)
+          hint.style.cssText = 'padding: 12px 8px; line-height: 1.5;';
+          hint.innerHTML = 'No saved communities yet.<br/>' +
+            '1. Click the <strong style="color:#bfa67a;">polygon tool</strong> in the top-left toolbar.<br/>' +
+            '2. Draw around a cluster of listing dots.<br/>' +
+            '3. The name + slug fill from the dominant subdivision.<br/>' +
+            '4. Click Save.';
+        } else {
+          hint.style.padding = '8px 4px';
+          hint.textContent = 'No communities yet — draw one.';
+        }
         list.appendChild(hint);
         return;
       }
@@ -1425,6 +1523,12 @@
 
       if (!inInput) {
         if (e.key === 'Escape') {
+          // Close help overlay first if it is open, otherwise cancel draw.
+          var helpOverlay = document.getElementById('help-overlay');
+          if (helpOverlay && helpOverlay.style.display !== 'none') {
+            closeHelp();
+            return;
+          }
           // Cancel the current draw mode — geoman v0.2.10 doesn't expose finish-draw directly;
           // disableMode is best-effort: no-op if no mode is currently active.
           try { window.__gm.disableMode('draw'); } catch (_err) {}
@@ -1481,8 +1585,12 @@
         }
       }
 
-      // ── Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z: undo / redo ──────────────────────────
+      // ── ? key: open help overlay ────────────────────────────────────────────
+      // e.key === '?' is what browsers report for Shift+/ — respect inInput.
       const isMeta = e.metaKey || e.ctrlKey;
+      if (e.key === '?' && !isMeta && !inInput) { e.preventDefault(); openHelp(); return; }
+
+      // ── Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z: undo / redo ──────────────────────────
       if (!isMeta) return;
       if (e.key !== 'z' && e.key !== 'Z') return;
       if (inInput) return; // don't capture undo while typing
@@ -1670,12 +1778,14 @@
       });
       const body = await res.json();
       if (res.ok) {
-        // Fix 3 — clear form inputs on success so operator can start the next community.
+        // Fix 1/3 — clear slug + name so operator can start the next community,
+        // but KEEP region (persisted) so they don't retype it for every community.
         // Do NOT clear on validation rejection or HTTP error so the operator can retry.
         document.getElementById('slug').value   = '';
         document.getElementById('name').value   = '';
-        document.getElementById('region').value = '';
-        status.textContent = 'saved — ' + body.areaSqMi.toFixed(2) + ' sq mi, ' + body.vertexCount + ' verts (form cleared)';
+        // Persist the region to localStorage so it survives a page reload (Fix 1).
+        localStorage.setItem('editorLastRegion', region);
+        status.textContent = 'saved — ' + body.areaSqMi.toFixed(2) + ' sq mi, ' + body.vertexCount + ' verts (region kept)';
         // T12 — mark the saved feature clean before reloading (loadCommunities
         // calls dirty.clear() internally via the isImportingFromDb guard).
         if (savedFeatureId != null) clearDirty(savedFeatureId);
