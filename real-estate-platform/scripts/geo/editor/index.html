@@ -40,6 +40,13 @@
     /* T14 — listing hover tooltip */
     .listing-popup .maplibregl-popup-content { background: #f9f8f6; border: 1px solid #bfa67a; border-radius: 2px; padding: 8px 10px; box-shadow: 0 4px 12px rgba(12,28,46,0.3); }
     .listing-popup .maplibregl-popup-tip { display: none; }
+    /* T15 — context menu */
+    #ctx-menu .item { padding: 6px 14px; cursor: pointer; user-select: none; }
+    #ctx-menu .item:hover { background: rgba(191,166,122,0.18); color: #bfa67a; }
+    #ctx-menu .item.disabled { color: #6b7280; cursor: not-allowed; }
+    #ctx-menu .item.disabled:hover { background: transparent; color: #6b7280; }
+    #ctx-menu .sep { height: 1px; background: rgba(255,255,255,0.08); margin: 4px 0; }
+    #ctx-menu .label { padding: 4px 14px; font-size: 11px; color: #9fb0c0; text-transform: uppercase; letter-spacing: .08em; }
   </style>
 </head>
 <body>
@@ -50,21 +57,30 @@
       <h2 id="help-title" style="margin: 0 0 12px; font-size: 16px; color: #bfa67a; text-transform: uppercase; letter-spacing: .08em;">Keyboard shortcuts</h2>
       <table style="border-collapse: collapse; width: 100%; font-size: 13px;">
         <tbody>
-          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Esc</td><td>Cancel current draw / close modal</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Esc</td><td>Close help / cancel draw / clear selection</td></tr>
           <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Enter</td><td>Finish current draw (geoman-dependent)</td></tr>
           <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Delete</td><td>Remove selected shape</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">P</td><td>Polygon tool</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">F</td><td>Freehand tool</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">R</td><td>Rectangle tool</td></tr>
           <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">V</td><td>Vertex edit mode</td></tr>
           <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Shift + click</td><td>Multi-select shapes</td></tr>
           <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">U</td><td>Union (2 selected)</td></tr>
           <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">C / S</td><td>Subtract (2 selected)</td></tr>
           <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Cmd / Ctrl + Z</td><td>Undo</td></tr>
           <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Cmd / Ctrl + Shift + Z</td><td>Redo</td></tr>
-          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Space (hold)</td><td>Boost snap radius</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Space (hold)</td><td>Pan the map (while in draw mode)</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Alt (hold)</td><td>Boost snap radius</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Double-click polygon</td><td>Enter vertex edit</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Right-click</td><td>Context menu</td></tr>
           <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">?</td><td>Open this help</td></tr>
         </tbody>
       </table>
     </div>
   </div>
+
+  <!-- ── Context menu (T15) ── -->
+  <div id="ctx-menu" style="display: none; position: fixed; z-index: 999; background: #0c1c2e; border: 1px solid #bfa67a; border-radius: 2px; padding: 4px 0; min-width: 200px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); color: #f9f8f6; font: 13px/1.4 system-ui, sans-serif;"></div>
 
   <div id="map"></div>
   <div id="panel">
@@ -417,11 +433,17 @@
     // active; listing coordinates are pushed in whenever listings load/refresh.
 
     const SNAP_RADIUS_DEFAULT = 12; // pixels
-    const SNAP_RADIUS_BOOSTED = 24; // pixels while Space is held
+    const SNAP_RADIUS_BOOSTED = 24; // pixels while Alt is held
 
-    // snapStrongMode is toggled by Space key — exposed on window for Puppeteer tests.
+    // snapStrongMode is toggled by Alt key — exposed on window for Puppeteer tests.
     let snapStrongMode = false;
     window.__snapStrongMode = false;
+
+    // T15 — Space-pan state.  Set true while Space is held during an active draw mode.
+    // Exposed on window for Puppeteer.
+    let spacePanActive = false;
+    let _savedDrawMode = null; // the draw mode name to restore when Space is released
+    window.__spacePanActive = false;
 
     // Helper accessor — populated after enableMode so the instance exists.
     function getSnappingHelper() {
@@ -441,6 +463,236 @@
     // Expose for headless verification and testing.
     window.__map = map;
     window.__gm  = gm;
+
+    // ── T15 — Geoman feature layer ID discovery ────────────────────────────────
+    //
+    // Geoman v0.2.10 renders shapes into maplibre layers prefixed with 'gm_' or 'gm-'.
+    // We query the style layers after map load and cache the matching IDs on window
+    // so context-menu hit-tests and cursor hover can use them.
+    //
+    // Called once after map.on('load') and exposed on window for debugging.
+
+    function getGmFeatureLayerIds() {
+      var layers = map.getStyle().layers;
+      var ids = layers
+        .map(function(l) { return l.id; })
+        .filter(function(id) {
+          return /^gm_main/.test(id) ||
+                 /^gm-main/.test(id) ||
+                 /^maplibre-gl-terradraw-/.test(id) ||
+                 (id.startsWith('gm_') && id !== 'gm_snap');
+        });
+      // Log discovered IDs so developers can verify the prefix in use.
+      if (ids.length > 0) console.debug('[T15] geoman feature layers:', ids);
+      else console.debug('[T15] no geoman feature layers found yet; all style layers:', map.getStyle().layers.map(function(l) { return l.id; }));
+      return ids;
+    }
+
+    window.__getGmFeatureLayerIds = getGmFeatureLayerIds;
+    // __gmLayerIds is populated once on map load (see map.on('load')).
+    window.__gmLayerIds = [];
+
+    // ── T15 — Context menu helpers ─────────────────────────────────────────────
+
+    function showCtxMenu(x, y, items) {
+      var m = document.getElementById('ctx-menu');
+      m.innerHTML = '';
+      for (var _ci = 0; _ci < items.length; _ci++) {
+        var it = items[_ci];
+        if (it.sep) {
+          var s = document.createElement('div');
+          s.className = 'sep';
+          m.appendChild(s);
+          continue;
+        }
+        if (it.label) {
+          var l = document.createElement('div');
+          l.className = 'label';
+          l.textContent = it.label;
+          m.appendChild(l);
+          continue;
+        }
+        var el = document.createElement('div');
+        el.className = 'item' + (it.disabled ? ' disabled' : '');
+        el.textContent = it.text;
+        if (!it.disabled && typeof it.onClick === 'function') {
+          (function(handler) {
+            el.addEventListener('click', function() { hideCtxMenu(); handler(); });
+          })(it.onClick);
+        }
+        m.appendChild(el);
+      }
+      m.style.left = x + 'px';
+      m.style.top  = y + 'px';
+      m.style.display = 'block';
+      // Keep menu on-screen — adjust if it would overflow.
+      requestAnimationFrame(function() {
+        var r = m.getBoundingClientRect();
+        if (r.right > window.innerWidth)   m.style.left = (window.innerWidth  - r.width  - 8) + 'px';
+        if (r.bottom > window.innerHeight) m.style.top  = (window.innerHeight - r.height - 8) + 'px';
+      });
+    }
+
+    function hideCtxMenu() {
+      var m = document.getElementById('ctx-menu');
+      if (m) m.style.display = 'none';
+    }
+
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('#ctx-menu')) hideCtxMenu();
+    });
+    window.addEventListener('blur', hideCtxMenu);
+
+    // Expose for Puppeteer test harness.
+    window.__showCtxMenu = showCtxMenu;
+    window.__hideCtxMenu = hideCtxMenu;
+
+    function showPolygonMenu(e, feature) {
+      var props = feature.properties || {};
+      var featureId = feature.id != null ? String(feature.id) : (props._gmId != null ? String(props._gmId) : null);
+      // Find matching geoman feature by communitySlug or direct id match.
+      var gmFeat = null;
+      try {
+        var allFc = window.__gm.features.getAll();
+        if (allFc && allFc.features) {
+          for (var _pi = 0; _pi < allFc.features.length; _pi++) {
+            var _pf = allFc.features[_pi];
+            var _pid = String(_pf.id);
+            if (featureId && _pid === featureId) { gmFeat = _pf; break; }
+            if (props.communitySlug && _pf.properties && _pf.properties.communitySlug === props.communitySlug) { gmFeat = _pf; break; }
+          }
+        }
+      } catch (_err) {}
+      var slug = (gmFeat && gmFeat.properties && gmFeat.properties.communitySlug) || props.communitySlug || null;
+      var gmId = gmFeat ? String(gmFeat.id) : featureId;
+      var dirty_ = gmId != null && isDirty(gmId);
+      showCtxMenu(e.originalEvent.clientX, e.originalEvent.clientY, [
+        { label: slug || '(unsaved polygon)' },
+        {
+          text: 'Edit vertices',
+          onClick: function() {
+            try { window.__gm.enableMode('edit', 'change'); setOpStatus('vertex edit'); } catch (_err) {}
+            if (slug) selectCommunityInGeoman(slug);
+          },
+        },
+        {
+          text: 'Center on polygon',
+          onClick: function() {
+            try {
+              var geom = gmFeat ? gmFeat.geometry : feature.geometry;
+              var b = bbox({ type: 'Feature', properties: {}, geometry: geom });
+              map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, duration: 600 });
+            } catch (_err) {}
+          },
+        },
+        {
+          text: 'Copy GeoJSON',
+          onClick: function() {
+            try {
+              var geom = gmFeat ? gmFeat.geometry : feature.geometry;
+              var gj = JSON.stringify({ type: 'Feature', properties: props, geometry: geom }, null, 2);
+              navigator.clipboard.writeText(gj).then(function() { setOpStatus('GeoJSON copied'); }).catch(function() { setOpStatus('clipboard unavailable'); });
+            } catch (_err) { setOpStatus('copy failed'); }
+          },
+        },
+        { sep: true },
+        {
+          text: 'Delete polygon',
+          onClick: function() {
+            if (!gmId) { setOpStatus('cannot delete — feature id unknown'); return; }
+            if (!confirm('Delete this polygon? This cannot be undone without using Undo.')) return;
+            window.__snapshot?.();
+            clearDirty(gmId);
+            var fd = window.__gm.features.get('gm_main', gmId);
+            if (fd) { window.__gm.features.delete(fd); snapshot(); }
+            setOpStatus('deleted polygon');
+          },
+        },
+        {
+          text: 'Save now',
+          disabled: !dirty_,
+          onClick: function() {
+            if (!gmFeat) { setOpStatus('feature not found'); return; }
+            // Pre-fill the save form from feature properties then click Save.
+            if (slug) document.getElementById('slug').value = slug;
+            var cname = (gmFeat.properties && gmFeat.properties.communityName) || '';
+            if (cname) document.getElementById('name').value = cname;
+            var rslug = (gmFeat.properties && gmFeat.properties.regionSlug) || '';
+            if (rslug) document.getElementById('region').value = rslug;
+            document.getElementById('save').click();
+          },
+        },
+      ]);
+    }
+
+    function showListingMenu(e, feature) {
+      var props = feature.properties || {};
+      var key   = props.listing_key   != null ? String(props.listing_key)   : null;
+      var price = formatListingPrice(props.list_price);
+      var sub   = props.subdivision_name != null ? String(props.subdivision_name) : '—';
+      showCtxMenu(e.originalEvent.clientX, e.originalEvent.clientY, [
+        { label: sub + ' · ' + price },
+        {
+          text: 'Copy listing key',
+          disabled: !key,
+          onClick: function() {
+            if (!key) return;
+            navigator.clipboard.writeText(key)
+              .then(function() { setOpStatus('copied key ' + key); })
+              .catch(function() { setOpStatus('clipboard unavailable'); });
+          },
+        },
+        {
+          text: 'Center on listing',
+          onClick: function() {
+            try {
+              var coords = feature.geometry.coordinates;
+              map.flyTo({ center: coords, zoom: Math.max(map.getZoom(), 14), duration: 600 });
+            } catch (_err) {}
+          },
+        },
+      ]);
+    }
+
+    function showEmptyMenu(e) {
+      showCtxMenu(e.originalEvent.clientX, e.originalEvent.clientY, [
+        {
+          text: 'Reset selection',
+          onClick: function() {
+            selected = [];
+            updateBoolopsUI();
+            setOpStatus('cleared selection');
+          },
+        },
+        {
+          text: 'Toggle mismatch overlay',
+          onClick: function() {
+            document.getElementById('mismatch-toggle').click();
+          },
+        },
+        {
+          text: 'Fit to all communities',
+          onClick: function() {
+            try {
+              var allFc2 = window.__gm.features.getAll();
+              if (!allFc2 || !allFc2.features || !allFc2.features.length) { setOpStatus('no features to fit'); return; }
+              var b2 = bbox(allFc2);
+              map.fitBounds([[b2[0], b2[1]], [b2[2], b2[3]]], { padding: 60, duration: 600 });
+            } catch (_err) { setOpStatus('fit failed'); }
+          },
+        },
+        { sep: true },
+        {
+          text: 'Open keyboard help',
+          onClick: function() { openHelp(); },
+        },
+      ]);
+    }
+
+    // Expose menu functions for Puppeteer.
+    window.__showPolygonMenu = showPolygonMenu;
+    window.__showListingMenu = showListingMenu;
+    window.__showEmptyMenu   = showEmptyMenu;
 
     // ── Undo / Redo stack ───────────────────────────────────────────────────────
     //
@@ -765,6 +1017,7 @@
     // Fallback: wrap gm.enableMode / gm.disableMode so we can track the active category
     // when gm.activeMode() is not available.  The wrapping happens here (after gm is
     // constructed) and is safe to apply even if gm:control is the primary path.
+    // T15 — also updates cursor to 'crosshair' when entering draw mode, clears on exit.
     (function() {
       var _origEnable  = gm.enableMode.bind(gm);
       var _origDisable = gm.disableMode.bind(gm);
@@ -772,6 +1025,10 @@
       gm.enableMode = function(category, mode) {
         _activeModeCategory = category || null;
         _updateSuppression();
+        // T15 — crosshair cursor in draw mode.
+        if (category === 'draw') {
+          map.getCanvas().style.cursor = 'crosshair';
+        }
         return _origEnable(category, mode);
       };
 
@@ -779,16 +1036,22 @@
         // Only clear if the category being disabled is the one we're tracking.
         if (!category || category === _activeModeCategory) _activeModeCategory = null;
         _updateSuppression();
+        // T15 — clear crosshair when leaving draw mode (unless Space-pan is active).
+        if (!spacePanActive) {
+          map.getCanvas().style.cursor = '';
+        }
         return _origDisable(category, mode);
       };
     })();
 
-    // gm:create fires when a draw is completed — clear suppression.
+    // gm:create fires when a draw is completed — clear suppression and cursor.
     // Wired further below alongside other gm:create logic; we use a second listener
     // so T14 is self-contained and doesn't require modifying the existing handler.
     map.on('gm:create', function() {
       _activeModeCategory = null;
       _updateSuppression();
+      // T15 — clear draw cursor (unless Space-pan is active).
+      if (!spacePanActive) map.getCanvas().style.cursor = '';
     });
 
     // ── Listings layer ──────────────────────────────────────────────────────────
@@ -1634,11 +1897,112 @@
         // Snap helper failed to activate — editor still functional, just no snap.
       }
 
+      // ── T15 — Discover geoman feature layer IDs ────────────────────────────
+      // geoman adds its layers synchronously during construction; they exist in
+      // the style by map load time.  We cache them now and again after a short
+      // delay to catch any layers added during the first draw init.
+      window.__gmLayerIds = getGmFeatureLayerIds();
+      setTimeout(function() {
+        window.__gmLayerIds = getGmFeatureLayerIds();
+        attachPolygonCursorHover();
+        attachPolygonDblClick();
+      }, 500);
+
+      // ── T15 — Context menu on right-click ──────────────────────────────────
+      map.on('contextmenu', function(e) {
+        e.originalEvent.preventDefault();
+        // Priority 1: listing hit (small targets, check first).
+        var listingHits = map.getLayer('listings')
+          ? map.queryRenderedFeatures(e.point, { layers: ['listings'] })
+          : [];
+        if (listingHits.length) { showListingMenu(e, listingHits[0]); return; }
+        // Priority 2: polygon hit.
+        var layerIds = window.__gmLayerIds || [];
+        var gmHits = layerIds.length
+          ? map.queryRenderedFeatures(e.point, { layers: layerIds })
+          : [];
+        if (gmHits.length) { showPolygonMenu(e, gmHits[0]); return; }
+        // Priority 3: empty map.
+        showEmptyMenu(e);
+      });
+
+      // ── T15 — Space mousedown/mouseup cursor update ─────────────────────────
+      map.on('mousedown', function() {
+        if (spacePanActive) map.getCanvas().style.cursor = 'grabbing';
+      });
+      map.on('mouseup', function() {
+        if (spacePanActive) map.getCanvas().style.cursor = 'grab';
+      });
+
       loadListings();
       // Push the initial state as the baseline undo entry after communities load,
       // so the operator can undo all the way back to the loaded state.
       loadCommunities().then(function() { snapshot(); });
     });
+
+    // ── T15 — Polygon hover cursor ─────────────────────────────────────────────
+    //
+    // Attaches mouseenter/mouseleave handlers to each discovered geoman layer so
+    // the cursor shows 'pointer' on polygon hover.  Safe to call multiple times —
+    // each call replaces the previous handlers (maplibre deduplicates by reference,
+    // but we use named wrappers to ensure clean removal).
+
+    var _polygonHoverHandlersAttached = false;
+
+    function attachPolygonCursorHover() {
+      if (_polygonHoverHandlersAttached) return;
+      var ids = window.__gmLayerIds || [];
+      if (!ids.length) return;
+      _polygonHoverHandlersAttached = true;
+      for (var _hi = 0; _hi < ids.length; _hi++) {
+        (function(layerId) {
+          if (!map.getLayer(layerId)) return;
+          map.on('mouseenter', layerId, function() {
+            if (!spacePanActive && _activeModeCategory !== 'draw') {
+              map.getCanvas().style.cursor = 'pointer';
+            }
+          });
+          map.on('mouseleave', layerId, function() {
+            if (!spacePanActive && _activeModeCategory !== 'draw') {
+              map.getCanvas().style.cursor = '';
+            }
+          });
+        })(ids[_hi]);
+      }
+    }
+
+    // ── T15 — Double-click polygon → vertex edit ───────────────────────────────
+    //
+    // We attach a single dblclick listener on the map.  If the click hits a
+    // geoman feature layer, we enter vertex-edit mode and suppress the default
+    // maplibre double-click zoom.
+
+    var _dblClickAttached = false;
+
+    function attachPolygonDblClick() {
+      if (_dblClickAttached) return;
+      var ids = window.__gmLayerIds || [];
+      if (!ids.length) return;
+      _dblClickAttached = true;
+
+      map.on('dblclick', function(e) {
+        var layerIds = window.__gmLayerIds || [];
+        if (!layerIds.length) return;
+        var hits = map.queryRenderedFeatures(e.point, { layers: layerIds });
+        if (!hits.length) return;
+        // Prevent maplibre's default zoom-in on double-click over a polygon.
+        e.preventDefault();
+        try { window.__gm.enableMode('edit', 'change'); } catch (_err) {}
+        // Best-effort: try to select the polygon via the synthetic-click path.
+        var feat = hits[0];
+        var props = feat.properties || {};
+        var slug = props.communitySlug;
+        if (slug) {
+          selectCommunityInGeoman(slug);
+        }
+        setOpStatus('vertex edit');
+      });
+    }
 
     // Snap-candidate ring tracks the cursor while the map is interactive.
     map.on('mousemove', onMapMouseMove);
@@ -1660,17 +2024,36 @@
       const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
       const inInput = (tag === 'input' || tag === 'textarea');
 
-      // ── Space: snap-radius boost ─────────────────────────────────────────────
+      // ── Space: hold-to-pan (T15) ─────────────────────────────────────────────
+      // If a draw mode is active, Space temporarily disables draw so maplibre's
+      // native dragPan can handle the mouse.  Without an active draw mode the map
+      // already pans on drag — no special handling needed, just prevent scroll.
       if (e.code === 'Space') {
         if (inInput) return; // let the user type spaces
-        e.preventDefault(); // prevent page scroll
+        e.preventDefault();   // always prevent page scroll
+        if (spacePanActive) return; // already panning
+        if (_activeModeCategory === 'draw') {
+          // Save the current draw mode name for restoration on keyup.
+          // _activeModeCategory is the category; we can't cheaply get the sub-mode
+          // name but disabling the category is sufficient to free mouse events.
+          _savedDrawMode = _activeModeCategory;
+          spacePanActive = true;
+          window.__spacePanActive = true;
+          try { window.__gm.disableMode('draw'); } catch (_err) {}
+          map.getCanvas().style.cursor = 'grab';
+        }
+        // When no draw mode is active, Space does nothing extra — map drags naturally.
+        return;
+      }
+
+      // ── Alt: snap-radius boost (T15 — moved from Space) ─────────────────────
+      if (e.key === 'Alt') {
+        if (inInput) return;
         if (snapStrongMode) return; // already boosted
         snapStrongMode = true;
         window.__snapStrongMode = true;
         const helper = getSnappingHelper();
-        if (helper) {
-          helper.tolerance = SNAP_RADIUS_BOOSTED;
-        }
+        if (helper) helper.tolerance = SNAP_RADIUS_BOOSTED;
         return;
       }
 
@@ -1679,16 +2062,34 @@
 
       if (!inInput) {
         if (e.key === 'Escape') {
-          // Close help overlay first if it is open, otherwise cancel draw.
+          // T15 Esc cascade:
+          // 1. Help open? Close it.
           var helpOverlay = document.getElementById('help-overlay');
           if (helpOverlay && helpOverlay.style.display !== 'none') {
             closeHelp();
             return;
           }
-          // Cancel the current draw mode — geoman v0.2.10 doesn't expose finish-draw directly;
-          // disableMode is best-effort: no-op if no mode is currently active.
-          try { window.__gm.disableMode('draw'); } catch (_err) {}
-          setOpStatus('cancelled');
+          // 2. Context menu open? Close it.
+          var ctxMenu = document.getElementById('ctx-menu');
+          if (ctxMenu && ctxMenu.style.display !== 'none') {
+            hideCtxMenu();
+            return;
+          }
+          // 3. Draw mode active? Cancel it.
+          if (_activeModeCategory === 'draw') {
+            try { window.__gm.disableMode('draw'); } catch (_err) {}
+            map.getCanvas().style.cursor = '';
+            setOpStatus('cancelled draw');
+            return;
+          }
+          // 4. Selection non-empty? Deselect.
+          if (selected && selected.length) {
+            selected = [];
+            if (typeof updateBoolopsUI === 'function') updateBoolopsUI();
+            setOpStatus('cleared selection');
+            return;
+          }
+          // 5. No-op.
           return;
         }
 
@@ -1721,20 +2122,41 @@
         }
 
         const k = e.key.toLowerCase();
+        const isMeta2 = e.metaKey || e.ctrlKey;
 
-        if (k === 'v') {
+        if (k === 'v' && !isMeta2) {
           // Enter vertex-edit mode
           try { window.__gm.enableMode('edit', 'change'); setOpStatus('vertex edit mode'); } catch (_err) {}
           return;
         }
 
-        if (k === 'u') {
+        // ── T15 — Tool letter keys (P / F / R) ──────────────────────────────
+        // geoman v0.2.10 draw mode names verified against type defs:
+        //   'polygon'   — standard click-to-draw polygon
+        //   'freehand'  — freehand draw (drag)
+        //   'rectangle' — rectangle by drag
+        // Note: 'line' / 'polyline' also exists but is not wired here (no boundary use-case).
+        if (k === 'p' && !isMeta2) {
+          try { window.__gm.enableMode('draw', 'polygon');   setOpStatus('polygon tool'); } catch (_err) {}
+          return;
+        }
+        if (k === 'f' && !isMeta2) {
+          // 'freehand' — if geoman v0.2.10 uses a different name this no-ops gracefully.
+          try { window.__gm.enableMode('draw', 'freehand');  setOpStatus('freehand tool'); } catch (_err) {}
+          return;
+        }
+        if (k === 'r' && !isMeta2) {
+          try { window.__gm.enableMode('draw', 'rectangle'); setOpStatus('rectangle tool'); } catch (_err) {}
+          return;
+        }
+
+        if (k === 'u' && !isMeta2) {
           // Trigger union if exactly 2 shapes are selected
           if (selected.length === 2) document.getElementById('op-union').click();
           return;
         }
 
-        if (k === 'c' || k === 's') {
+        if ((k === 'c' || k === 's') && !isMeta2) {
           // Trigger subtract if exactly 2 shapes are selected
           if (selected.length === 2) document.getElementById('op-subtract').click();
           return;
@@ -1774,12 +2196,30 @@
     });
 
     document.addEventListener('keyup', function(e) {
-      if (e.code !== 'Space') return;
-      snapStrongMode = false;
-      window.__snapStrongMode = false;
-      const helper = getSnappingHelper();
-      if (helper) {
-        helper.tolerance = SNAP_RADIUS_DEFAULT;
+      // ── Space keyup: restore draw mode after space-pan (T15) ─────────────────
+      if (e.code === 'Space') {
+        if (!spacePanActive) return;
+        spacePanActive = false;
+        window.__spacePanActive = false;
+        map.getCanvas().style.cursor = '';
+        // Restore the draw mode that was active before Space was pressed.
+        if (_savedDrawMode === 'draw') {
+          // Re-enable polygon draw as the default; if operator had freehand/rectangle
+          // active that info isn't tracked at this granularity — they can re-press P/F/R.
+          // This is a best-effort restore; the map is operational regardless.
+          try { window.__gm.enableMode('draw', 'polygon'); } catch (_err) {}
+        }
+        _savedDrawMode = null;
+        return;
+      }
+
+      // ── Alt keyup: restore default snap radius (T15 — moved from Space) ──────
+      if (e.key === 'Alt') {
+        snapStrongMode = false;
+        window.__snapStrongMode = false;
+        const helper = getSnappingHelper();
+        if (helper) helper.tolerance = SNAP_RADIUS_DEFAULT;
+        return;
       }
     });
 
