@@ -1,0 +1,154 @@
+{
+    "MetricAlarms": [
+        {
+            "AlarmName": "rlsir-armls-sync-errors",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:828301486081:alarm:rlsir-armls-sync-errors",
+            "AlarmDescription": "Alert when ARMLS sync Lambda has errors",
+            "AlarmConfigurationUpdatedTimestamp": "2026-03-14T18:52:42.372000-07:00",
+            "ActionsEnabled": true,
+            "OKActions": [],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:828301486081:rlsir-token-alerts"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "OK",
+            "StateReason": "Threshold Crossed: 1 datapoint [0.0 (08/04/26 23:47:00)] was not greater than or equal to the threshold (1.0).",
+            "StateReasonData": "{\"version\":\"1.0\",\"queryDate\":\"2026-04-08T23:52:13.766+0000\",\"startDate\":\"2026-04-08T23:47:00.000+0000\",\"statistic\":\"Sum\",\"period\":300,\"recentDatapoints\":[0.0],\"threshold\":1.0,\"evaluatedDatapoints\":[{\"timestamp\":\"2026-04-08T23:47:00.000+0000\",\"sampleCount\":4.0,\"value\":0.0}]}",
+            "StateUpdatedTimestamp": "2026-04-08T16:52:13.767000-07:00",
+            "MetricName": "Errors",
+            "Namespace": "AWS/Lambda",
+            "Statistic": "Sum",
+            "Dimensions": [
+                {
+                    "Name": "FunctionName",
+                    "Value": "rlsir-armls-sync"
+                }
+            ],
+            "Period": 300,
+            "EvaluationPeriods": 1,
+            "Threshold": 1.0,
+            "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+            "TreatMissingData": "notBreaching",
+            "StateTransitionedTimestamp": "2026-04-08T16:52:13.767000-07:00"
+        },
+        {
+            "AlarmName": "rlsir-billing-20",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:828301486081:alarm:rlsir-billing-20",
+            "AlarmDescription": "Alert when AWS bill exceeds 20 dollars",
+            "AlarmConfigurationUpdatedTimestamp": "2026-02-16T19:54:31.841000-07:00",
+            "ActionsEnabled": true,
+            "OKActions": [],
+            "AlarmActions": [],
+            "InsufficientDataActions": [],
+            "StateValue": "INSUFFICIENT_DATA",
+            "StateReason": "Unchecked: Initial alarm creation",
+            "StateUpdatedTimestamp": "2026-02-16T19:54:31.841000-07:00",
+            "MetricName": "EstimatedCharges",
+            "Namespace": "AWS/Billing",
+            "Statistic": "Maximum",
+            "Dimensions": [
+                {
+                    "Name": "Currency",
+                    "Value": "USD"
+                }
+            ],
+            "Period": 21600,
+            "EvaluationPeriods": 1,
+            "Threshold": 20.0,
+            "ComparisonOperator": "GreaterThanThreshold",
+            "TreatMissingData": "missing",
+            "StateTransitionedTimestamp": "2026-02-16T19:54:31.841000-07:00"
+        },
+        {
+            "AlarmName": "rlsir-billing-5",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:828301486081:alarm:rlsir-billing-5",
+            "AlarmDescription": "Alert when AWS bill exceeds 5 dollars",
+            "AlarmConfigurationUpdatedTimestamp": "2026-02-16T19:54:30.351000-07:00",
+            "ActionsEnabled": true,
+            "OKActions": [],
+            "AlarmActions": [],
+            "InsufficientDataActions": [],
+            "StateValue": "INSUFFICIENT_DATA",
+            "StateReason": "Unchecked: Initial alarm creation",
+            "StateUpdatedTimestamp": "2026-02-16T19:54:30.351000-07:00",
+            "MetricName": "EstimatedCharges",
+            "Namespace": "AWS/Billing",
+            "Statistic": "Maximum",
+            "Dimensions": [
+                {
+                    "Name": "Currency",
+                    "Value": "USD"
+                }
+            ],
+            "Period": 21600,
+            "EvaluationPeriods": 1,
+            "Threshold": 5.0,
+            "ComparisonOperator": "GreaterThanThreshold",
+            "TreatMissingData": "missing",
+            "StateTransitionedTimestamp": "2026-02-16T19:54:30.351000-07:00"
+        },
+        {
+            "AlarmName": "rlsir-rds-storage-critical",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:828301486081:alarm:rlsir-rds-storage-critical",
+            "AlarmDescription": "RDS storage below 4GB free (90% full)",
+            "AlarmConfigurationUpdatedTimestamp": "2026-03-14T22:50:29.526000-07:00",
+            "ActionsEnabled": true,
+            "OKActions": [],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:828301486081:rlsir-token-alerts"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "OK",
+            "StateReason": "Threshold Crossed: 1 datapoint [5.2258062336E9 (09/04/26 16:06:00)] was not less than or equal to the threshold (4.294967296E9).",
+            "StateReasonData": "{\"version\":\"1.0\",\"queryDate\":\"2026-04-09T16:11:37.434+0000\",\"startDate\":\"2026-04-09T16:06:00.000+0000\",\"statistic\":\"Average\",\"period\":300,\"recentDatapoints\":[5.2258062336E9],\"threshold\":4.294967296E9,\"evaluatedDatapoints\":[{\"timestamp\":\"2026-04-09T16:06:00.000+0000\",\"sampleCount\":5.0,\"value\":5.2258062336E9}]}",
+            "StateUpdatedTimestamp": "2026-04-09T09:11:37.436000-07:00",
+            "MetricName": "FreeStorageSpace",
+            "Namespace": "AWS/RDS",
+            "Statistic": "Average",
+            "Dimensions": [
+                {
+                    "Name": "DBInstanceIdentifier",
+                    "Value": "rlsir-db"
+                }
+            ],
+            "Period": 300,
+            "EvaluationPeriods": 1,
+            "Threshold": 4294967296.0,
+            "ComparisonOperator": "LessThanOrEqualToThreshold",
+            "TreatMissingData": "missing",
+            "StateTransitionedTimestamp": "2026-04-09T09:11:37.436000-07:00"
+        },
+        {
+            "AlarmName": "rlsir-rds-storage-warning",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:828301486081:alarm:rlsir-rds-storage-warning",
+            "AlarmDescription": "RDS storage below 8GB free (80% full)",
+            "AlarmConfigurationUpdatedTimestamp": "2026-03-14T22:48:00.338000-07:00",
+            "ActionsEnabled": true,
+            "OKActions": [],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:828301486081:rlsir-token-alerts"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "OK",
+            "StateReason": "Threshold Crossed: 1 datapoint [9.8307956736E9 (13/04/26 19:31:00)] was not less than or equal to the threshold (8.589934592E9).",
+            "StateReasonData": "{\"version\":\"1.0\",\"queryDate\":\"2026-04-13T19:36:08.834+0000\",\"startDate\":\"2026-04-13T19:31:00.000+0000\",\"statistic\":\"Average\",\"period\":300,\"recentDatapoints\":[9.8307956736E9],\"threshold\":8.589934592E9,\"evaluatedDatapoints\":[{\"timestamp\":\"2026-04-13T19:31:00.000+0000\",\"sampleCount\":5.0,\"value\":9.8307956736E9}]}",
+            "StateUpdatedTimestamp": "2026-04-13T12:36:08.837000-07:00",
+            "MetricName": "FreeStorageSpace",
+            "Namespace": "AWS/RDS",
+            "Statistic": "Average",
+            "Dimensions": [
+                {
+                    "Name": "DBInstanceIdentifier",
+                    "Value": "rlsir-db"
+                }
+            ],
+            "Period": 300,
+            "EvaluationPeriods": 1,
+            "Threshold": 8589934592.0,
+            "ComparisonOperator": "LessThanOrEqualToThreshold",
+            "TreatMissingData": "missing",
+            "StateTransitionedTimestamp": "2026-04-13T12:36:08.837000-07:00"
+        }
+    ],
+    "CompositeAlarms": []
+}

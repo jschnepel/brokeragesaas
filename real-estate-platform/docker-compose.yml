@@ -1,0 +1,57 @@
+services:
+  premium-site:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: rlsir-platform-dev
+    container_name: yong-premium-dev
+    working_dir: /app/apps/premium-site
+    command: pnpm exec next dev --turbo -H 0.0.0.0 -p 3000
+    ports:
+      - "3200:3000"
+    volumes:
+      - ./:/app
+      - /app/node_modules
+      - /app/apps/premium-site/node_modules
+      - /app/apps/premium-site/.next
+      - /app/apps/template-site/node_modules
+      - /app/apps/template-site/.next
+      - /app/apps/backend/node_modules
+      - /app/apps/platform/node_modules
+      - /app/packages/database/node_modules
+      - /app/packages/shared/node_modules
+      - /app/packages/ui/node_modules
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+    restart: unless-stopped
+
+  template-site:
+    image: rlsir-platform-dev
+    depends_on:
+      - premium-site
+    container_name: yong-template-dev
+    working_dir: /app/apps/template-site
+    command: pnpm exec next dev -H 0.0.0.0 -p 3002
+    ports:
+      - "3300:3002"
+    volumes:
+      - ./:/app
+      - /app/node_modules
+      - /app/apps/premium-site/node_modules
+      - /app/apps/premium-site/.next
+      - /app/apps/template-site/node_modules
+      - /app/apps/template-site/.next
+      - /app/apps/backend/node_modules
+      - /app/apps/platform/node_modules
+      - /app/packages/database/node_modules
+      - /app/packages/shared/node_modules
+      - /app/packages/ui/node_modules
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+    restart: unless-stopped

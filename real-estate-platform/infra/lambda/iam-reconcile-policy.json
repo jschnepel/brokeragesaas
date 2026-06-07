@@ -1,0 +1,54 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadBronzeForReconcile",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::rlsir-platform-assets-us-east-1",
+        "arn:aws:s3:::rlsir-platform-assets-us-east-1/bronze/*"
+      ]
+    },
+    {
+      "Sid": "PublishMetrics",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:PutMetricData"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "cloudwatch:namespace": "RLSIR/DataPipeline"
+        }
+      }
+    },
+    {
+      "Sid": "PublishAlerts",
+      "Effect": "Allow",
+      "Action": [
+        "sns:Publish"
+      ],
+      "Resource": "arn:aws:sns:us-east-1:828301486081:rlsir-data-pipeline-alerts"
+    },
+    {
+      "Sid": "ReconcileStateTable",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem"
+      ],
+      "Resource": "arn:aws:dynamodb:us-east-1:828301486081:table/rlsir-bronze-reconcile-state"
+    },
+    {
+      "Sid": "ReadDbDsnSecret",
+      "Effect": "Allow",
+      "Action": ["secretsmanager:GetSecretValue"],
+      "Resource": "arn:aws:secretsmanager:us-east-1:828301486081:secret:rlsir/db/url-*"
+    }
+  ]
+}

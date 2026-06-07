@@ -1,0 +1,296 @@
+version: 2
+
+models:
+  - name: int_listings_closed_cleaned
+    description: |
+      Silver fact — one row per closed listing, validated and dimensionally
+      enriched. Materialized as incremental (merge) on listing_key with
+      modification_timestamp watermark. ~500-2000 records modified per 4-h
+      cycle on incremental runs; full refresh ~1.6M records in 5-10 min.
+    config:
+      materialized: incremental
+      unique_key: listing_key
+      grain: listing_key
+    columns:
+      - name: listing_key
+        data_tests: [unique, not_null]
+      - name: standard_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['Closed']
+      - name: close_date
+        data_tests: [not_null]
+      - name: close_price
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 1000
+                  max_value: 1000000000
+      - name: list_price
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 1000
+                  max_value: 500000000
+      - name: sale_to_list_ratio
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0.4
+                  max_value: 2.5
+              config:
+                where: "sale_to_list_ratio IS NOT NULL"
+      - name: property_segment
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['residential', 'land', 'rental', 'commercial', 'multi_family']
+      - name: price_tier
+        data_tests:
+          - accepted_values:
+              arguments:
+                  values: ['under_1m', '1m_3m', '3m_10m', '10m_plus']
+              config:
+                where: "price_tier IS NOT NULL"
+      - name: living_area
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 100
+                  max_value: 50000
+              config:
+                where: "living_area IS NOT NULL"
+      - name: days_on_market
+        data_tests:
+          # Demoted to warn — see int_listings_active_cleaned.days_on_market
+          # for the same rationale. Range is sanity-only; a single long
+          # luxury listing closing after 14 years shouldn't skip downstream
+          # closed marts.
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 5000
+              config:
+                where: "days_on_market IS NOT NULL"
+                severity: warn
+      - name: year_built
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 1850
+                  max_value: 2030
+              config:
+                where: "year_built IS NOT NULL"
+      - name: association_fee
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 50000
+              config:
+                where: "association_fee IS NOT NULL"
+      - name: tax_annual_amount
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 1000000
+              config:
+                where: "tax_annual_amount IS NOT NULL"
+  - name: int_listings_price_history
+    description: |
+      Per-listing price-trajectory metrics derived from listing_change_log.
+      Grain: listing_key. 11.3% of closed listings have at least one recorded
+      price change; the rest have original_list_price = final_list_price.
+    config:
+      materialized: incremental
+      unique_key: listing_key
+      grain: listing_key
+    columns:
+      - name: listing_key
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                  to: ref('int_listings_closed_cleaned')
+                  field: listing_key
+      - name: original_list_price
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 1000
+                  max_value: 500000000
+              config:
+                severity: warn  # ~2 historical outliers exist in change_log; flag without cascading
+      - name: original_list_price_source
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['change_log', 'final_list_assumed']
+      - name: had_price_reduction
+        data_tests: [not_null]
+      - name: reduction_count
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 50
+      - name: close_to_original_ratio
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0.4
+                  max_value: 2.5
+              config:
+                where: "close_to_original_ratio IS NOT NULL"
+                severity: warn  # rare distressed sales legitimately exceed 0.4-2.5
+  - name: int_listings_geographic_enriched
+    description: |
+      Closed listings joined to PostGIS region/community classification
+      and price_band. Primary input to most closed marts.
+      Grain: listing_key.
+    config:
+      materialized: incremental
+      unique_key: listing_key
+      grain: listing_key
+    columns:
+      - name: listing_key
+        data_tests: [unique, not_null]
+      - name: region_slug
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['north-scottsdale','paradise-valley','central-scottsdale','south-scottsdale','arcadia','biltmore','carefree','cave-creek','fountain-hills','rio-verde','desert-ridge','anthem','peoria']
+              config:
+                where: "region_slug IS NOT NULL"
+      - name: price_band
+        data_tests:
+          - accepted_values:
+              arguments:
+                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M-10M', '10M+']
+              config:
+                where: "price_band IS NOT NULL"
+  - name: int_listings_active_cleaned
+    description: |
+      Silver fact for currently-active listings — one row per active listing,
+      validated and dimensionally enriched. Materialized as TABLE (not
+      incremental) — actives churn fast, snapshot is full-overwrite hourly.
+      Grain: listing_key.
+    config:
+      materialized: table
+      grain: listing_key
+    columns:
+      - name: listing_key
+        data_tests: [unique, not_null]
+      - name: standard_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['Active', 'Active Under Contract', 'Pending', 'Coming Soon']
+      - name: list_price
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 1000
+                  max_value: 500000000
+      - name: property_segment
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['residential', 'land', 'rental', 'commercial', 'multi_family']
+      - name: price_tier
+        data_tests:
+          - accepted_values:
+              arguments:
+                  values: ['under_1m', '1m_3m', '3m_10m', '10m_plus']
+              config:
+                where: "price_tier IS NOT NULL"
+      - name: price_band
+        data_tests:
+          - accepted_values:
+              arguments:
+                  values: ['200K-400K', '400K-600K', '600K-800K', '800K-1M', '1M-2M', '2M-5M', '5M-10M', '10M+']
+              config:
+                where: "price_band IS NOT NULL"
+      - name: dom_band
+        data_tests:
+          - accepted_values:
+              arguments:
+                  # 'Unknown' emitted by the dom_band macro when none of
+                  # days_on_market / on_market_date / status_change_timestamp
+                  # are populated (extremely rare since status_change_timestamp
+                  # is 100% populated on the active snapshot, but the macro
+                  # guards against silent NULL→'0-7' miscategorization).
+                  values: ['0-7', '8-14', '15-30', '31-60', '61-90', '91-180', '180+', 'Unknown']
+              config:
+                where: "dom_band IS NOT NULL"
+      - name: days_on_market
+        data_tests:
+          # Demoted to warn so a single >5000-day outlier doesn't cascade-skip
+          # all downstream active marts (fct_active_*, fct_listing_pace,
+          # fct_months_of_supply). Range is sanity-check, not a correctness
+          # invariant — one stale Active with a status_change_timestamp from
+          # 2010 should surface as a warning, not freeze yong2 inventory tab
+          # on week-old data. Confirmed root cause of 2026-05-17 → 2026-05-24
+          # active-mart stoppage (run_results.json showed 7 marts skipped).
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 5000
+              config:
+                where: "days_on_market IS NOT NULL"
+                severity: warn
+  - name: int_listings_status_history
+    description: |
+      Per-listing status transition timeline derived from listing_change_log.
+      Used by both active marts (days-to-pending for current pendings) and
+      closed marts (status velocity for closed cohorts).
+      Grain: listing_key.
+    config:
+      materialized: incremental
+      unique_key: listing_key
+      grain: listing_key
+    columns:
+      - name: listing_key
+        data_tests: [unique, not_null]
+      - name: latest_event_at
+        data_tests: [not_null]
+      - name: days_to_first_pending
+        # Severity: warn (not error) — ~75 rows out-of-range across the full
+        # 14-year history are real data: listings re-activated years after the
+        # first listing event. They surface in CloudWatch but don't block builds.
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 5000
+              config:
+                where: "days_to_first_pending IS NOT NULL"
+                severity: warn
+      - name: days_active_to_closed
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 5000
+              config:
+                where: "days_active_to_closed IS NOT NULL"
+                severity: warn
+      - name: back_on_market_count
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 50

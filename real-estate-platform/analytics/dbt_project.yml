@@ -1,0 +1,94 @@
+name: 'rlsir_analytics'
+version: '1.0.0'
+config-version: 2
+
+profile: 'rlsir_analytics'
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+analysis-paths: ["analyses"]
+snapshot-paths: ["snapshots"]
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+require-dbt-version: ">=1.8.0"
+
+on-run-start:
+  # Schedule is rate(1h) on dbt + rate(4h) on parquet-export. Worst case 8h
+  # gap if a parquet-export fire is missed. Set warn at 8h, error at 24h —
+  # lets dbt run on slightly stale bronze rather than blocking entirely.
+  - "{{ check_bronze_freshness(warn_hours=8, error_hours=24) }}"
+
+# Elementary Data — captures dbt run + test results into elementary.* tables
+# for historical trend + anomaly detection. Enabled 2026-05-11 as part of
+# best-practice DQ stack. Memory headroom validated on next build.
+on-run-end:
+  - "{{ elementary.on_run_end() }}"
+
+# Persist failing test rows to {schema}_dbt_test__audit for sub-second triage
+# (instead of full-table RDS scans). Standard prod config per dbt docs.
+data_tests:
+  +store_failures: true
+
+vars:
+  # Calendar spine bounds — adjust if pre-2011 backfill is sourced
+  calendar_start: '2011-01-01'
+  calendar_end_offset_months: 1
+
+  # Reject thresholds for silver cleaning rules
+  min_close_price: 1000
+  max_close_price: 1000000000
+  min_list_price: 1000
+  max_list_price: 500000000
+  min_ratio: 0.4
+  max_ratio: 2.5
+  min_living_area: 100
+  max_living_area: 50000
+
+  # AZ bounding box
+  az_lat_min: 31
+  az_lat_max: 37
+  az_lng_min: -115
+  az_lng_max: -108
+
+  # Active-inventory marts unlock — flipped 2026-05-04 in Phase C of the
+  # execution playbook (active-snapshot Lambda live, bronze active fresh).
+  # 8 active marts + their tests (active_status_consistency, months_of_supply_within_bounds)
+  # become enabled at this flag.
+  enable_active: true
+
+models:
+  rlsir_analytics:
+    +persist_docs:
+      relation: true
+      columns: true
+
+    staging:
+      +materialized: table          # NOT view — bronze NDJSON scan + dedup must run once per build
+      +tags: ["staging"]
+
+    intermediate:
+      +materialized: table          # tables for reusable intermediates; ephemeral fine for one-shots
+      +tags: ["intermediate"]
+
+    marts:
+      # prod/fargate-prod: write Parquet to S3 (external_root in profile).
+      # dev/ci: local DuckDB tables — external materialization on Windows has
+      # nested-dir issues. Without `external` in production targets, marts die
+      # in the local DuckDB file and never reach yong2 — the whole purpose of
+      # the lakehouse cutover.
+      +materialized: "{{ 'external' if target.name == 'prod' or target.name == 'fargate-prod' else 'table' }}"
+      +tags: ["marts"]
+      analytics:
+        +tags: ["analytics", "public"]
+      internal:
+        +tags: ["internal", "broker_only"]
+
+# Source freshness defaults — overridden per-source if needed
+seeds:
+  rlsir_analytics:
+    +schema: seed_data

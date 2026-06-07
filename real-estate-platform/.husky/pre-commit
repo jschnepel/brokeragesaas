@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+# Husky pre-commit hook
+# Runs lint-staged + secretlint to enforce per-PR quality gates from
+# docs/superpowers/plans/2026-05-04-execution-playbook.md Section 2.0.
+
+cd real-estate-platform || exit 1
+
+# Lint + format staged files
+pnpm exec lint-staged
+
+# Scan staged content for secrets (warn-only initially; promote to fail in S22)
+git diff --cached --name-only --diff-filter=ACM -- 'real-estate-platform/**' | sed 's|^real-estate-platform/||' | xargs -r pnpm exec secretlint --maskSecrets 2>&1 || {
+  echo ""
+  echo "⚠ secretlint found potential secrets above. Review carefully."
+  echo "  To bypass after manual review: git commit --no-verify"
+  echo "  (--no-verify is discouraged; warns are upgraded to errors in S22)"
+}

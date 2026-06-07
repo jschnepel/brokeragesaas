@@ -1,0 +1,132 @@
+version: 2
+
+# Documents which premium-site pages and SSR artifacts depend on which marts.
+# Used by `dbt ls --resource-type exposure` to understand blast radius
+# when modifying a model.
+
+exposures:
+  - name: phoenix_dashboard_metro
+    type: dashboard
+    maturity: high
+    url: https://yongchoi.com/phoenix
+    description: |
+      Main analytics dashboard — metro view with 5 tabs
+      (Overview, Pricing, Inventory, Activity, Timing).
+      Hero KPIs server-rendered from pre-computed JSON.
+      All drill-downs and tab interactions via DuckDB-WASM in browser.
+    depends_on:
+      # Closed-listing marts
+      - ref('fct_market_pulse')
+      - ref('fct_negotiation')
+      - ref('fct_community_scorecard')
+      - ref('fct_community_yoy')
+      - ref('fct_pricereduction')
+      # Active-inventory marts (unlocked 2026-05-04 in Phase C — enable_active: true)
+      - ref('fct_active_inventory')
+      - ref('fct_active_by_pricetier')
+      - ref('fct_active_dom_distribution')
+      - ref('fct_active_heatmap_h3')
+      - ref('fct_listing_pace')
+      - ref('fct_months_of_supply')
+      - ref('fct_status_velocity')
+      # Dimensions
+      - ref('dim_calendar')
+      - ref('dim_communities')
+    owner:
+      name: Joey Schnepel
+      email: joeyschnepel@gmail.com
+
+  - name: phoenix_dashboard_region
+    type: dashboard
+    maturity: high
+    url: https://yongchoi.com/phoenix/{region}
+    description: |
+      Region drill-down — community scorecards + region-scoped analytics
+      including current active inventory.
+    depends_on:
+      - ref('fct_market_pulse')
+      - ref('fct_community_scorecard')
+      - ref('fct_community_yoy')
+      - ref('fct_active_inventory')
+      - ref('fct_active_by_community')
+      - ref('fct_months_of_supply')
+      - ref('dim_communities')
+    owner:
+      name: Joey Schnepel
+      email: joeyschnepel@gmail.com
+
+  - name: phoenix_dashboard_community
+    type: dashboard
+    maturity: high
+    url: https://yongchoi.com/phoenix/{region}/{community}
+    description: |
+      Community detail — full analytics for a single community,
+      14-year price trend, negotiation card, recent comps.
+    depends_on:
+      - ref('fct_market_pulse')
+      - ref('fct_negotiation')
+      - ref('fct_community_scorecard')
+      - ref('fct_closings')
+      - ref('dim_communities')
+    owner:
+      name: Joey Schnepel
+      email: joeyschnepel@gmail.com
+
+  - name: market_comparison
+    type: dashboard
+    maturity: medium
+    url: https://yongchoi.com/market
+    description: |
+      Market comparison pages — ZIP rankings, hot/cold communities,
+      current-inventory rankings, comparison tools.
+    depends_on:
+      - ref('fct_community_yoy')
+      - ref('fct_market_pulse')
+      # - ref('fct_active_by_community')
+      # - ref('fct_listing_pace')
+      - ref('dim_communities')
+    owner:
+      name: Joey Schnepel
+      email: joeyschnepel@gmail.com
+
+  - name: listing_detail_sidebar
+    type: dashboard
+    maturity: medium
+    url: https://yongchoi.com/listings/{slug}
+    description: |
+      "Local market" sidebar on listing detail pages — community scorecard
+      for the listing's community, recent comps panel.
+    depends_on:
+      - ref('fct_community_scorecard')
+      - ref('fct_closings')
+    owner:
+      name: Joey Schnepel
+      email: joeyschnepel@gmail.com
+
+  - name: prerendered_hero_kpis
+    type: application
+    maturity: high
+    url: https://cdn.echelonpoint.com/analytics/prerendered/hero_kpis.json
+    description: |
+      Pre-rendered JSON for SSR hero KPIs.
+      Written by armls-analytics-prerender Lambda after every dbt build.
+      CloudFront-cached 5 min at edge.
+    depends_on:
+      - ref('fct_market_pulse')
+      - ref('fct_community_scorecard')
+    owner:
+      name: Joey Schnepel
+      email: joeyschnepel@gmail.com
+
+  - name: broker_internal_dashboard
+    type: dashboard
+    maturity: medium
+    url: https://platform.echelonpoint.com/reports
+    description: |
+      Internal broker leaderboard / market-share reports (gated by auth).
+      Buyer-side office market share by year.
+    depends_on:
+      - ref('fct_buyer_office')
+    owner:
+      name: Joey Schnepel
+      email: joeyschnepel@gmail.com

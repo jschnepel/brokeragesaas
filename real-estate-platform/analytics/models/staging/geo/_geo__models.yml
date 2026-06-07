@@ -1,0 +1,13 @@
+# real-estate-platform/analytics/models/staging/geo/_geo__models.yml
+version: 2
+
+models:
+  - name: stg_geo__community_boundaries
+    description: Community boundary polygons from RDS geo_boundaries, parsed to DuckDB geometry.
+    columns:
+      - name: community_slug
+        tests: [not_null, unique]
+      - name: boundary_geom
+        tests: [not_null]
+      - name: area_sq_mi
+        tests: [not_null]

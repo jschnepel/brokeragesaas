@@ -1,0 +1,43 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BronzeRead",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::rlsir-platform-assets-us-east-1",
+        "arn:aws:s3:::rlsir-platform-assets-us-east-1/bronze/*"
+      ]
+    },
+    {
+      "Sid": "AnalyticsWrite",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:DeleteObject", "s3:GetObject"],
+      "Resource": "arn:aws:s3:::rlsir-platform-assets-us-east-1/analytics/*"
+    },
+    {
+      "Sid": "RdsDsnRead",
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:us-east-1:828301486081:secret:rlsir/rds/dbt-readonly-*"
+    },
+    {
+      "Sid": "MetricsPublish",
+      "Effect": "Allow",
+      "Action": "cloudwatch:PutMetricData",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "cloudwatch:namespace": "RLSIR/DataPipeline"
+        }
+      }
+    },
+    {
+      "Sid": "DlqPublish",
+      "Effect": "Allow",
+      "Action": "sns:Publish",
+      "Resource": "arn:aws:sns:us-east-1:828301486081:rlsir-dbt-failures"
+    }
+  ]
+}

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type { FilterState } from './useListingsSearch';
+import { DEFAULT_CITIES, DEFAULT_PROPERTY_TYPE } from './listing-defaults';
 
 interface FilterBarProps {
   filterState: FilterState;
@@ -214,6 +215,70 @@ const CITIES = [
   'Fountain Hills', 'Mesa', 'Tempe', 'Chandler', 'Gilbert',
 ];
 
+function CityCheckbox({
+  city,
+  checked,
+  onChange,
+  className = '',
+}: {
+  city: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  className?: string;
+}) {
+  return (
+    <label
+      onClick={() => onChange(!checked)}
+      className={`flex items-center gap-2.5 cursor-pointer select-none ${className}`}
+    >
+      <span
+        className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${
+          checked
+            ? 'bg-navy border-navy text-white'
+            : 'border-navy/20 bg-white'
+        }`}
+      >
+        {checked && (
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+      </span>
+      <span className="text-sm text-navy">{city}</span>
+    </label>
+  );
+}
+
+function toggleCity(currentCities: string, city: string): string {
+  const list = currentCities
+    ? currentCities.split(',').map((c) => c.trim()).filter(Boolean)
+    : [...DEFAULT_CITIES];
+  const idx = list.findIndex((c) => c.toLowerCase() === city.toLowerCase());
+  if (idx >= 0) {
+    list.splice(idx, 1);
+  } else {
+    list.push(city);
+  }
+  return list.length === 0 ? 'all' : list.join(',');
+}
+
+function getCityList(raw: string): string[] {
+  if (!raw || raw === 'all') return raw === 'all' ? [] : [...DEFAULT_CITIES];
+  return raw.split(',').map((c) => c.trim()).filter(Boolean);
+}
+
+function isCitySelected(raw: string, city: string): boolean {
+  const list = getCityList(raw);
+  return list.some((c) => c.toLowerCase() === city.toLowerCase());
+}
+
+function getCityButtonLabel(raw: string): string {
+  const list = getCityList(raw);
+  if (list.length === 0) return 'All Cities';
+  if (list.length === 1) return list[0];
+  return `${list[0]} +${list.length - 1}`;
+}
+
 export function FilterBar({
   filterState,
   activeFilterCount,
@@ -234,6 +299,7 @@ export function FilterBar({
   const bedsPopover = usePopover();
   const typePopover = usePopover();
   const morePopover = usePopover();
+  const cityPopover = usePopover();
 
   const priceSummary = getPriceSummary(filterState.minPrice, filterState.maxPrice);
   const bedsSummary = filterState.minBeds ? `${filterState.minBeds}+ bd` : '';
@@ -270,16 +336,57 @@ export function FilterBar({
         </div>
 
         {/* City */}
-        <select
-          value={filterState.city}
-          onChange={(e) => debouncedChange({ city: e.target.value })}
-          className={`border ${filterState.city ? 'border-gold bg-gold/5 font-semibold' : 'border-navy/15'} bg-white px-3 py-2 text-sm text-navy focus:border-gold focus:outline-none transition-colors duration-200`}
-        >
-          <option value="">All Cities</option>
-          {CITIES.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
+        <div ref={cityPopover.ref} className="relative">
+          <FilterButton
+            label={getCityButtonLabel(filterState.cities)}
+            active={filterState.cities !== '' && filterState.cities !== DEFAULT_CITIES.join(',')}
+            isOpen={cityPopover.open}
+            onClick={() => cityPopover.setOpen(!cityPopover.open)}
+          />
+          <DropdownPanel open={cityPopover.open} width="w-64">
+            <div className="text-[10px] uppercase tracking-widest text-navy/40 font-bold mb-3">Cities</div>
+            <button
+              type="button"
+              onClick={() => debouncedChange({
+                cities: getCityList(filterState.cities).length === CITIES.length ? 'all' : CITIES.join(','),
+              })}
+              className="flex items-center gap-2.5 cursor-pointer select-none pb-2 mb-2 border-b border-navy/10 w-full text-left"
+            >
+              <span
+                className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${
+                  getCityList(filterState.cities).length === CITIES.length
+                    ? 'bg-navy border-navy text-white'
+                    : 'bg-white border-navy/20'
+                }`}
+              >
+                {getCityList(filterState.cities).length === CITIES.length && (
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </span>
+              <span className="text-sm text-navy">All Cities</span>
+            </button>
+            <div className="flex flex-col gap-1.5 max-h-[280px] overflow-y-auto">
+              {CITIES.map((c) => (
+                <CityCheckbox
+                  key={c}
+                  city={c}
+                  checked={isCitySelected(filterState.cities, c)}
+                  onChange={() => debouncedChange({ cities: toggleCity(filterState.cities, c) })}
+                />
+              ))}
+            </div>
+            {filterState.cities !== '' && filterState.cities !== DEFAULT_CITIES.join(',') && (
+              <button
+                onClick={() => debouncedChange({ cities: '' })}
+                className="text-xs text-navy/40 hover:text-gold mt-3 transition-colors"
+              >
+                Reset to defaults
+              </button>
+            )}
+          </DropdownPanel>
+        </div>
 
         {/* Price — popover with min/max selects */}
         <div ref={pricePopover.ref} className="relative">
@@ -369,20 +476,42 @@ export function FilterBar({
         <div ref={typePopover.ref} className="relative">
           <FilterButton
             label="Home Type"
-            active={!!filterState.propertyType}
-            activeLabel={filterState.propertyType === 'Residential' ? 'Houses' : filterState.propertyType === 'Condo/Townhouse' ? 'Condo' : filterState.propertyType || undefined}
+            active={!!(filterState.propertyType && filterState.propertyType !== DEFAULT_PROPERTY_TYPE)}
+            activeLabel={
+              filterState.propertyType === 'all'
+                ? 'All Types'
+                : filterState.propertyType === 'Residential'
+                ? undefined
+                : filterState.propertyType === 'Condo/Townhouse'
+                ? 'Condo'
+                : filterState.propertyType || undefined
+            }
             isOpen={typePopover.open}
             onClick={() => typePopover.setOpen(!typePopover.open)}
           />
           <DropdownPanel open={typePopover.open} width="w-64">
             <div className="text-[10px] uppercase tracking-widest text-navy/40 font-bold mb-3">Property Type</div>
             <div className="flex flex-col gap-2">
+              <button
+                onClick={() => debouncedChange({ propertyType: 'all' })}
+                className={`w-full text-left px-3 py-2 text-sm border transition-colors duration-150 ${
+                  filterState.propertyType === 'all'
+                    ? 'bg-navy text-white border-navy'
+                    : 'bg-white text-navy/60 border-navy/15 hover:border-navy/30 hover:text-navy'
+                }`}
+              >
+                All Types
+              </button>
               {HOME_TYPES.map((t) => (
                 <button
                   key={t.value}
-                  onClick={() => debouncedChange({ propertyType: filterState.propertyType === t.value ? '' : t.value })}
+                  onClick={() => {
+                    const current = filterState.propertyType || DEFAULT_PROPERTY_TYPE;
+                    if (current === t.value) return;
+                    debouncedChange({ propertyType: t.value });
+                  }}
                   className={`w-full text-left px-3 py-2 text-sm border transition-colors duration-150 ${
-                    filterState.propertyType === t.value
+                    (filterState.propertyType || DEFAULT_PROPERTY_TYPE) === t.value
                       ? 'bg-navy text-white border-navy'
                       : 'bg-white text-navy/60 border-navy/15 hover:border-navy/30 hover:text-navy'
                   }`}
@@ -391,14 +520,6 @@ export function FilterBar({
                 </button>
               ))}
             </div>
-            {filterState.propertyType && (
-              <button
-                onClick={() => debouncedChange({ propertyType: '' })}
-                className="text-xs text-navy/40 hover:text-gold mt-3 transition-colors"
-              >
-                Reset
-              </button>
-            )}
           </DropdownPanel>
         </div>
 
@@ -595,7 +716,7 @@ export function FilterBar({
 
         {/* Sort */}
         <select
-          value={filterState.sortBy || 'price_desc'}
+          value={filterState.sortBy || 'newest'}
           onChange={(e) => debouncedChange({ sortBy: e.target.value })}
           className="border border-navy/15 bg-white px-3 py-2 text-sm text-navy focus:border-gold focus:outline-none transition-colors duration-200 ml-auto"
         >
@@ -698,10 +819,39 @@ export function MobileFilterDrawer({
           </div>
 
           {/* City */}
-          <MobileFilterSelect label="City" value={filterState.city} onChange={(v) => onFilterChange({ city: v })}>
-            <option value="">All Cities</option>
-            {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </MobileFilterSelect>
+          <div>
+            <div className="text-[10px] uppercase tracking-widest text-navy/40 font-bold mb-2">Cities</div>
+            <div className="flex flex-col gap-0.5">
+              <button
+                onClick={() => onFilterChange({ cities: filterState.cities === 'all' ? '' : 'all' })}
+                className={`w-full flex items-center gap-2.5 px-3 py-3 border-b border-navy/10 ${
+                  filterState.cities === 'all' ? 'text-navy font-semibold' : 'text-navy/60'
+                }`}
+              >
+                <span
+                  className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${
+                    filterState.cities === 'all' ? 'bg-navy border-navy text-white' : 'border-navy/20 bg-white'
+                  }`}
+                >
+                  {filterState.cities === 'all' && (
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </span>
+                All Cities
+              </button>
+              {CITIES.map((c) => (
+                <CityCheckbox
+                  key={c}
+                  city={c}
+                  checked={isCitySelected(filterState.cities, c)}
+                  onChange={() => onFilterChange({ cities: toggleCity(filterState.cities, c) })}
+                  className="px-3 py-3"
+                />
+              ))}
+            </div>
+          </div>
 
           {/* Price */}
           <div>
@@ -744,12 +894,26 @@ export function MobileFilterDrawer({
           <div>
             <div className="text-[10px] uppercase tracking-widest text-navy/40 font-bold mb-2">Home Type</div>
             <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => onFilterChange({ propertyType: 'all' })}
+                className={`px-3 py-2.5 text-sm border transition-colors duration-150 ${
+                  filterState.propertyType === 'all'
+                    ? 'bg-navy text-white border-navy'
+                    : 'bg-white text-navy/60 border-navy/15'
+                }`}
+              >
+                All Types
+              </button>
               {HOME_TYPES.map((t) => (
                 <button
                   key={t.value}
-                  onClick={() => onFilterChange({ propertyType: filterState.propertyType === t.value ? '' : t.value })}
+                  onClick={() => {
+                    const current = filterState.propertyType || DEFAULT_PROPERTY_TYPE;
+                    if (current === t.value) return;
+                    onFilterChange({ propertyType: t.value });
+                  }}
                   className={`px-3 py-2.5 text-sm border transition-colors duration-150 ${
-                    filterState.propertyType === t.value
+                    (filterState.propertyType || DEFAULT_PROPERTY_TYPE) === t.value
                       ? 'bg-navy text-white border-navy'
                       : 'bg-white text-navy/60 border-navy/15'
                   }`}
@@ -872,7 +1036,7 @@ export function MobileFilterDrawer({
           </div>
 
           {/* Sort */}
-          <MobileFilterSelect label="Sort By" value={filterState.sortBy || 'price_desc'} onChange={(v) => onFilterChange({ sortBy: v })}>
+          <MobileFilterSelect label="Sort By" value={filterState.sortBy || 'newest'} onChange={(v) => onFilterChange({ sortBy: v })}>
             <option value="price_desc">Price: High to Low</option>
             <option value="price_asc">Price: Low to High</option>
             <option value="newest">Newest</option>

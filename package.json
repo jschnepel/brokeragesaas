@@ -1,4 +1,7 @@
 {
   "name": "rlsir-websites",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "next": "^16.1.6"
+  }
 }

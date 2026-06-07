@@ -1,0 +1,3137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RLSIR Community Boundary Editor</title>
+  <!-- draw control: @geoman-io/maplibre-geoman-free@0.2.10 (last release supporting maplibre-gl@4.x) -->
+  <!-- maplibre-gl and mapbox-gl loaded as UMD globals so geoman UMD can consume them directly. -->
+  <!-- geoman's ES bundle does named imports from mapbox-gl (CJS interop) that break in raw ESM;
+       the UMD build uses globals and avoids that constraint entirely. -->
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/@geoman-io/maplibre-geoman-free@0.2.10/dist/maplibre-geoman.css" rel="stylesheet" />
+  <!-- 1. maplibre-gl global (sets window.maplibregl) -->
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <!-- 2. mapbox-gl global required by geoman dual-adapter (sets window.mapboxgl) -->
+  <script src="https://unpkg.com/mapbox-gl@2.15.0/dist/mapbox-gl.js"></script>
+  <!-- 3. geoman UMD — reads window.maplibregl + window.mapboxgl, sets window.Geoman -->
+  <script src="https://cdn.jsdelivr.net/npm/@geoman-io/maplibre-geoman-free@0.2.10/dist/maplibre-geoman.umd.js"></script>
+  <style>
+    html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+    #left-nav { position: absolute; top: 0; bottom: 0; left: 0; width: 260px; box-sizing: border-box; padding: 16px; background: #0c1c2e; color: #f9f8f6; overflow: auto; border-right: 1px solid rgba(255,255,255,0.06); z-index: 1; }
+    #map { position: absolute; inset: 0 320px 0 260px; }
+    #panel { position: absolute; top: 0; right: 0; bottom: 0; width: 320px; padding: 16px; box-sizing: border-box; background: #0c1c2e; color: #f9f8f6; overflow: auto; }
+    label { display: block; margin: 8px 0 2px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #bfa67a; }
+    input, button { width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 8px; }
+    button { background: #bfa67a; border: 0; color: #0c1c2e; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    /* ── Left-nav chips ── */
+    .nav-chip { padding: 4px 8px; font-size: 11px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #f9f8f6; cursor: pointer; border-radius: 2px; width: auto; margin: 0; }
+    .nav-chip:hover { background: rgba(191,166,122,0.15); }
+    .nav-chip.active { background: #bfa67a; color: #0c1c2e; }
+    /* ── Left-nav tree ── */
+    .nav-region { margin-bottom: 12px; }
+    .nav-region-header { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; padding: 4px 0; }
+    .nav-region-toggle { width: 12px; color: #9fb0c0; font-size: 10px; }
+    .nav-region-name { font-weight: 600; color: #f9f8f6; font-size: 12px; flex: 1; }
+    .nav-region-count { color: #9fb0c0; font-size: 11px; }
+    .nav-region-load-all { background: transparent; border: 0; color: #bfa67a; font-size: 11px; cursor: pointer; padding: 0 4px; width: auto; margin: 0; }
+    .nav-region-load-all:hover { text-decoration: underline; }
+    .nav-community-list { display: flex; flex-direction: column; padding-left: 18px; }
+    .nav-community-row { display: flex; align-items: center; gap: 6px; padding: 4px 4px; cursor: pointer; border-radius: 2px; }
+    .nav-community-row:hover { background: rgba(191,166,122,0.10); }
+    .nav-community-row input[type="checkbox"] { margin: 0; width: auto; }
+    .nav-community-name { flex: 1; font-size: 12px; color: #f9f8f6; }
+    .nav-community-meta { font-size: 11px; color: #9fb0c0; }
+    .nav-community-row.loaded .nav-community-name { color: #bfa67a; }
+    .nav-community-row.dirty .nav-community-name::after { content: ' \25cf'; color: #f97316; }
+    .count { font-size: 28px; font-weight: 700; }
+    .muted { color: #9fb0c0; font-size: 12px; }
+    /* Side-panel community list rows */
+    .shape-row { display: block; width: 100%; text-align: left; padding: 6px 4px; background: transparent; color: #f9f8f6; border: 0; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; font: inherit; }
+    .shape-row:hover { background: rgba(191,166,122,0.12); }
+    .shape-row.selected { background: rgba(191,166,122,0.25); }
+    .shape-row .name { display: block; font-weight: 600; }
+    .shape-row .meta { display: block; font-size: 11px; color: #9fb0c0; }
+    /* Dirty tracking — unsaved / edited features */
+    .shape-row .dirty-dot { color: #f97316; margin-right: 4px; }
+    .shape-row.dirty .name { color: #f97316; }
+    /* Snap indicator: thin gold ring around candidate listing dot */
+    /* Rendered via the snap-candidate geojson layer — no extra CSS needed. */
+    /* T14 — listing hover tooltip */
+    .listing-popup .maplibregl-popup-content { background: #f9f8f6; border: 1px solid #bfa67a; border-radius: 2px; padding: 8px 10px; box-shadow: 0 4px 12px rgba(12,28,46,0.3); }
+    .listing-popup .maplibregl-popup-tip { display: none; }
+    /* T15 — context menu */
+    #ctx-menu .item { padding: 6px 14px; cursor: pointer; user-select: none; }
+    #ctx-menu .item:hover { background: rgba(191,166,122,0.18); color: #bfa67a; }
+    #ctx-menu .item.disabled { color: #6b7280; cursor: not-allowed; }
+    #ctx-menu .item.disabled:hover { background: transparent; color: #6b7280; }
+    #ctx-menu .sep { height: 1px; background: rgba(255,255,255,0.08); margin: 4px 0; }
+    #ctx-menu .label { padding: 4px 14px; font-size: 11px; color: #9fb0c0; text-transform: uppercase; letter-spacing: .08em; }
+    /* T17 — stale-draft inline choice buttons */
+    .stale-choice .link { background: transparent; border: 0; color: #bfa67a; padding: 0 4px; cursor: pointer; width: auto; font: inherit; }
+    .stale-choice .link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <!-- ── Help overlay (Fix 2) ── -->
+  <div id="help-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center;" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div id="help-card" style="background: #0c1c2e; color: #f9f8f6; padding: 24px 28px; border-radius: 4px; max-width: 460px; width: 90vw; box-shadow: 0 12px 40px rgba(0,0,0,0.4); position: relative;">
+      <button id="help-close" aria-label="Close" style="position: absolute; top: 8px; right: 12px; background: transparent; border: 0; color: #9fb0c0; font-size: 20px; cursor: pointer; width: auto; padding: 4px;">×</button>
+      <h2 id="help-title" style="margin: 0 0 12px; font-size: 16px; color: #bfa67a; text-transform: uppercase; letter-spacing: .08em;">Keyboard shortcuts</h2>
+      <table style="border-collapse: collapse; width: 100%; font-size: 13px;">
+        <tbody>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Esc</td><td>Close help / cancel draw / clear selection</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Enter</td><td>Finish current draw (geoman-dependent)</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Delete</td><td>Remove selected shape</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">P</td><td>Polygon tool</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">F</td><td>Freehand tool</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">R</td><td>Rectangle tool</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">V</td><td>Vertex edit mode</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Shift + click</td><td>Multi-select shapes</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">U</td><td>Union (2 selected)</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">C / S</td><td>Subtract (2 selected)</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Cmd / Ctrl + Z</td><td>Undo</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Cmd / Ctrl + Shift + Z</td><td>Redo</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Space (hold)</td><td>Pan the map (while in draw mode)</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Alt (hold)</td><td>Boost snap radius</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Double-click polygon</td><td>Enter vertex edit</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">Right-click</td><td>Context menu</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; font-family: ui-monospace, monospace; color: #bfa67a;">?</td><td>Open this help</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Context menu (T15) ── -->
+  <div id="ctx-menu" style="display: none; position: fixed; z-index: 999; background: #0c1c2e; border: 1px solid #bfa67a; border-radius: 2px; padding: 4px 0; min-width: 200px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); color: #f9f8f6; font: 13px/1.4 system-ui, sans-serif;"></div>
+
+  <!-- ── Left-column catalog picker (T16) ── -->
+  <div id="left-nav">
+    <div id="nav-header" style="margin-bottom: 8px;">
+      <div style="font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #bfa67a; margin-bottom: 8px;">Catalog</div>
+      <!-- T17 - drafts summary line (hidden when no drafts) -->
+      <div id="drafts-summary" class="muted" style="font-size: 11px; margin-bottom: 6px; display: none;"></div>
+      <input id="nav-search" type="text" placeholder="Search communities…" style="width: 100%; padding: 6px 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #f9f8f6; font: 13px system-ui; border-radius: 2px; box-sizing: border-box;" />
+    </div>
+    <div id="nav-filters" style="display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap;">
+      <button class="nav-chip" data-filter="all">All</button>
+      <button class="nav-chip" data-filter="none">None</button>
+      <button class="nav-chip" data-filter="loaded">Loaded</button>
+      <button class="nav-chip" data-filter="dirty">Dirty</button>
+    </div>
+    <div id="nav-tree"></div>
+    <div id="nav-empty" class="muted" style="display:none; font-size: 12px; padding: 12px 4px;">No matches.</div>
+    <div id="nav-error" class="muted" style="display:none; font-size: 12px; padding: 12px 4px; color: #f59e0b;"></div>
+  </div>
+
+  <div id="map"></div>
+  <div id="panel">
+    <!-- ── Connection error banner (Fix 4) ── -->
+    <div id="conn-banner" style="display: none; background: #f59e0b; color: #0c1c2e; padding: 8px 12px; font-size: 12px; font-weight: 600; margin: -16px -16px 12px -16px;"></div>
+    <!-- ── Mismatch overlay toggle ── -->
+    <div id="mismatch-toggle-row" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin: 0; text-transform: none; letter-spacing: 0; font-size: 12px; color: #f9f8f6;">
+        <input type="checkbox" id="mismatch-toggle" style="margin: 0; width: auto;" />
+        Show mismatches
+      </label>
+      <span id="mismatch-count" class="muted" style="font-size: 11px;"></span>
+    </div>
+    <div id="mismatch-legend" class="muted" style="font-size: 11px; display: none; margin-bottom: 8px;">
+      <span style="color:#4ade80">●</span> matched
+      <span style="color:#f97316; margin-left: 8px;">●</span> mismatch
+      <span style="color:#d4654b; margin-left: 8px;">●</span> outside
+    </div>
+
+    <!-- ── Communities list (top of panel) ── -->
+    <div id="dirty-summary" class="muted" style="margin-bottom: 4px; font-size: 11px;"></div>
+    <div id="shape-list-header" class="muted" style="margin-bottom: 4px;">Communities</div>
+    <div id="shape-list" style="max-height: 35vh; overflow-y: auto; margin-bottom: 16px; border-top: 1px solid rgba(255,255,255,0.08); border-bottom: 1px solid rgba(255,255,255,0.08);"></div>
+
+    <!-- ── Boolean Ops panel ── -->
+    <div id="boolops-panel" style="margin-bottom: 16px;">
+      <label>Boolean Ops <span class="muted" style="text-transform: none; letter-spacing: 0; font-size: 11px;">(Shift+click 2 shapes)</span></label>
+      <div id="boolops-status" class="muted" style="margin-bottom: 6px;">0 selected</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px;">
+        <button id="op-union" disabled>Union</button>
+        <button id="op-subtract" disabled>Subtract</button>
+        <button id="op-intersect" disabled>Intersect</button>
+      </div>
+    </div>
+
+    <!-- ── Weld Nearby Vertices panel ── -->
+    <div id="weld-panel" style="margin-bottom: 16px;">
+      <label>Weld nearby vertices <span class="muted" style="text-transform: none; letter-spacing: 0; font-size: 11px;">(select 1 shape)</span></label>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+        <input id="weld-threshold" type="range" min="1" max="50" step="1" value="10" style="flex: 1;" />
+        <span id="weld-threshold-label" class="muted" style="font-variant-numeric: tabular-nums; width: 40px; text-align: right;">10 m</span>
+      </div>
+      <button id="op-weld" disabled>Weld vertices</button>
+    </div>
+
+    <!-- ── Save form (unchanged from v1) ── -->
+    <label>Community slug</label>
+    <input id="slug" placeholder="troon-north" />
+    <label>Display name</label>
+    <input id="name" placeholder="Troon North" />
+    <label>Region slug</label>
+    <input id="region" placeholder="north-scottsdale" />
+    <label>Listings inside polygon</label>
+    <div class="count" id="count">—</div>
+    <div class="muted" id="meta"></div>
+    <button id="save">Save community</button>
+    <div class="muted" id="status"></div>
+    <!-- ── Help link ── -->
+    <button id="help-link" style="background: transparent; border: 0; color: #9fb0c0; padding: 8px 0; font-size: 11px; text-align: left; cursor: pointer; width: auto;">? — keyboard shortcuts</button>
+    <!-- ── Op-status row — boolean ops / weld / undo / keyboard shortcuts ── -->
+    <div id="op-status" class="muted" style="margin-top: 4px;"></div>
+  </div>
+
+  <!-- T17 - auto-save status pill (fixed overlay, bottom-right) -->
+  <div id="autosave-pill" style="position: fixed; right: 16px; bottom: 16px; padding: 6px 10px; background: rgba(12,28,46,0.92); color: #bfa67a; font-size: 11px; border: 1px solid rgba(191,166,122,0.4); border-radius: 12px; display: none; z-index: 700;"></div>
+
+  <script type="module">
+    import booleanPointInPolygon from 'https://esm.sh/@turf/boolean-point-in-polygon@7';
+    import { point, featureCollection } from 'https://esm.sh/@turf/helpers@7';
+    import centroid              from 'https://esm.sh/@turf/centroid@7';
+    import bbox                  from 'https://esm.sh/@turf/bbox@7';
+    // Boolean-op helpers — inlined here because geo-compute.ts is Node/Vitest only
+    // and cannot be imported directly in the browser's ESM context.
+    // Implementations mirror geo-compute.ts exactly; esm.sh serves turf v7 ESM bundles.
+    import turfUnion              from 'https://esm.sh/@turf/union@7';
+    import turfDifference         from 'https://esm.sh/@turf/difference@7';
+    import turfIntersect          from 'https://esm.sh/@turf/intersect@7';
+    import turfDistance           from 'https://esm.sh/@turf/distance@7';
+    // Validation helpers — mirrors geo-compute.ts kinks-based self-intersection check
+    // and sibling-overlap check. esm.sh serves turf v7 ESM bundles.
+    import turfKinks              from 'https://esm.sh/@turf/kinks@7';
+    import turfBooleanIntersects  from 'https://esm.sh/@turf/boolean-intersects@7';
+
+    function _asFeature(geom) {
+      return { type: 'Feature', properties: {}, geometry: geom };
+    }
+
+    // ── Validation helpers — mirrors geo-compute.ts kinks-based checks ──────────
+
+    function asFeature(geom) { return { type: 'Feature', properties: {}, geometry: geom }; }
+
+    // Returns the number of self-intersection points in geom (0 = clean polygon).
+    function selfIntersectionCount(geom) {
+      return turfKinks(asFeature(geom)).features.length;
+    }
+
+    // Returns true if geom self-intersects.
+    function hasSelfIntersection(geom) {
+      return selfIntersectionCount(geom) > 0;
+    }
+
+    // Returns the slug of the first sibling that overlaps candidate, or null.
+    // ownSlug: skip any sibling whose slug matches (in-place edit exclusion).
+    function findSiblingOverlap(candidate, siblings, ownSlug) {
+      for (var _i = 0; _i < siblings.length; _i++) {
+        var s = siblings[_i];
+        if (ownSlug && s.slug === ownSlug) continue;
+        try {
+          if (turfBooleanIntersects(asFeature(candidate), asFeature(s.geometry))) return s.slug;
+        } catch (_err) { /* malformed sibling geometry — skip */ }
+      }
+      return null;
+    }
+
+    // Returns the number of listing points inside geom.
+    function countPointsInside(listingsArr, geom) {
+      var n = 0;
+      var feat = asFeature(geom);
+      for (var _j = 0; _j < listingsArr.length; _j++) {
+        var l = listingsArr[_j];
+        try {
+          if (booleanPointInPolygon(point([l.lng, l.lat]), feat)) n += 1;
+        } catch (_err) { /* skip malformed */ }
+      }
+      return n;
+    }
+
+    // unionPolygons — mirrors geo-compute.ts unionPolygons
+    function unionPolygons(a, b) {
+      var result = turfUnion(featureCollection([_asFeature(a), _asFeature(b)]));
+      return result ? result.geometry : null;
+    }
+    // differencePolygons — mirrors geo-compute.ts differencePolygons (A minus B)
+    function differencePolygons(a, b) {
+      var result = turfDifference(featureCollection([_asFeature(a), _asFeature(b)]));
+      return result ? result.geometry : null;
+    }
+    // intersectPolygons — mirrors geo-compute.ts intersectPolygons
+    function intersectPolygons(a, b) {
+      var result = turfIntersect(featureCollection([_asFeature(a), _asFeature(b)]));
+      return result ? result.geometry : null;
+    }
+
+    // weldNearbyVertices — mirrors geo-compute.ts weldNearbyVertices
+    // Walks each ring, drops vertices within thresholdMeters of the previous kept
+    // vertex (using turf distance in km), preserves ring closure, never degenerates
+    // below 4 points (3 unique + closing repeat).
+    function weldNearbyVertices(geom, thresholdMeters) {
+      var km = thresholdMeters / 1000;
+      var MIN_RING_LEN = 4;
+      var weldRing = function(ring) {
+        if (ring.length < MIN_RING_LEN) return ring;
+        var keep = [ring[0]];
+        for (var i = 1; i < ring.length - 1; i++) {
+          var prev = keep[keep.length - 1];
+          var d = turfDistance(prev, ring[i], { units: 'kilometers' });
+          if (d > km) keep.push(ring[i]);
+        }
+        keep.push(keep[0]);
+        return keep.length >= MIN_RING_LEN ? keep : ring;
+      };
+      return { type: 'Polygon', coordinates: geom.coordinates.map(weldRing) };
+    }
+    // weldGeometry — dispatches to weldNearbyVertices for Polygon or MultiPolygon
+    function weldGeometry(geom, thresholdMeters) {
+      if (geom.type === 'Polygon') return weldNearbyVertices(geom, thresholdMeters);
+      if (geom.type === 'MultiPolygon') {
+        return {
+          type: 'MultiPolygon',
+          coordinates: geom.coordinates.map(function(poly) {
+            return weldNearbyVertices({ type: 'Polygon', coordinates: poly }, thresholdMeters).coordinates;
+          }),
+        };
+      }
+      return geom;
+    }
+    // countVertices — counts all coordinate positions across all rings
+    function countVertices(geom) {
+      if (geom.type === 'Polygon') return geom.coordinates.reduce(function(s, r) { return s + r.length; }, 0);
+      if (geom.type === 'MultiPolygon') return geom.coordinates.reduce(function(s, p) { return s + p.reduce(function(ss, r) { return ss + r.length; }, 0); }, 0);
+      return 0;
+    }
+
+    // ── Mismatch overlay — helpers ──────────────────────────────────────────────
+
+    function slugify(s) {
+      if (!s) return '';
+      return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    }
+
+    // ── Auto-suggest helpers — T11 ──────────────────────────────────────────────
+
+    function looksAllCaps(s) { return s === s.toUpperCase() && /[A-Z]/.test(s); }
+    function toTitleCase(s) {
+      return s.toLowerCase().replace(/\b([a-z])([a-z]*)/g, function(_, a, b) { return a.toUpperCase() + b; });
+    }
+
+    // Scans listings inside geometry, returns the dominant subdivision suggestion
+    // or null if the quality gate isn't met (< 5 total inside, or top name < 30% share).
+    function computeSuggestedNameAndSlug(geometry) {
+      var counts = new Map(); // name -> count
+      var totalInside = 0;
+      var feat = { type: 'Feature', properties: {}, geometry: geometry };
+      for (var _si = 0; _si < listings.length; _si++) {
+        var l = listings[_si];
+        if (!l.subdivision_name) continue;
+        try {
+          if (!booleanPointInPolygon(point([l.lng, l.lat]), feat)) continue;
+        } catch (_err) { continue; }
+        totalInside += 1;
+        var name = String(l.subdivision_name).trim();
+        if (!name) continue;
+        counts.set(name, (counts.get(name) || 0) + 1);
+      }
+      if (totalInside < 5) return null;
+      var topName = null;
+      var topCount = 0;
+      counts.forEach(function(c, n) { if (c > topCount) { topName = n; topCount = c; } });
+      if (!topName) return null;
+      if (topCount / totalInside < 0.30) return null;
+      var display = looksAllCaps(topName) ? toTitleCase(topName) : topName;
+      return { name: display, slug: slugify(display), count: topCount, total: totalInside, share: topCount / totalInside };
+    }
+
+    // Returns Map<listingKey, 'matched' | 'mismatched'>. Listings outside all polygons are absent.
+    function computeMismatches() {
+      const polygons = window.__gm.features.getAll().features
+        .filter(function(f) { return f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'); })
+        .filter(function(f) { return f.properties && f.properties.communitySlug; })
+        .map(function(f) {
+          return {
+            slug:     f.properties.communitySlug,
+            geometry: f.geometry,
+            area:     f.properties.areaSqMi != null ? Number(f.properties.areaSqMi) : Number.MAX_SAFE_INTEGER,
+            bboxArr:  bbox({ type: 'Feature', properties: {}, geometry: f.geometry }),
+          };
+        });
+
+      var result = new Map();
+      for (var _ci = 0; _ci < listings.length; _ci++) {
+        var listing = listings[_ci];
+        var containingSlug = null;
+        var smallestArea = Infinity;
+        for (var _pi = 0; _pi < polygons.length; _pi++) {
+          var p = polygons[_pi];
+          var minLng = p.bboxArr[0], minLat = p.bboxArr[1], maxLng = p.bboxArr[2], maxLat = p.bboxArr[3];
+          if (listing.lng < minLng || listing.lng > maxLng || listing.lat < minLat || listing.lat > maxLat) continue;
+          try {
+            if (booleanPointInPolygon(point([listing.lng, listing.lat]), { type: 'Feature', properties: {}, geometry: p.geometry })) {
+              if (p.area < smallestArea) {
+                containingSlug = p.slug;
+                smallestArea = p.area;
+              }
+            }
+          } catch (_err) { /* malformed geometry — skip */ }
+        }
+        if (containingSlug) {
+          var textSlug = slugify(listing.subdivision_name);
+          result.set(listing.listing_key, textSlug === containingSlug ? 'matched' : 'mismatched');
+        }
+      }
+      return result;
+    }
+
+    // ── Mismatch overlay — paint + source rebuild ──────────────────────────────
+
+    var mismatchMode = false; // module-scope toggle state
+
+    function applyMismatchPaint() {
+      if (!map.getLayer('listings')) return;
+      if (mismatchMode) {
+        map.setPaintProperty('listings', 'circle-color', [
+          'match', ['get', 'category'],
+          'matched',    '#4ade80',
+          'mismatched', '#f97316',
+          /* default */ '#d4654b',
+        ]);
+        map.setPaintProperty('listings', 'circle-radius', [
+          'match', ['get', 'category'],
+          'mismatched', 5,
+          /* default */ 3,
+        ]);
+      } else {
+        map.setPaintProperty('listings', 'circle-color', '#d4654b');
+        map.setPaintProperty('listings', 'circle-radius', 3);
+      }
+    }
+
+    function rebuildListingsSourceData() {
+      var src = map.getSource('listings');
+      if (!src) return;
+      var categoryByKey = null;
+      if (mismatchMode) categoryByKey = computeMismatches();
+      var fc = {
+        type: 'FeatureCollection',
+        features: listings.map(function(l) {
+          return {
+            type: 'Feature',
+            properties: {
+              category:         categoryByKey ? (categoryByKey.get(l.listing_key) || null) : null,
+              listing_key:      l.listing_key      ?? null,
+              list_price:       l.list_price       ?? null,
+              standard_status:  l.standard_status  ?? null,
+              subdivision_name: l.subdivision_name ?? null,
+            },
+            geometry: { type: 'Point', coordinates: [l.lng, l.lat] },
+          };
+        }),
+      };
+      src.setData(fc);
+      if (mismatchMode && categoryByKey) {
+        var matched = 0, mismatched = 0;
+        categoryByKey.forEach(function(v) { if (v === 'matched') matched++; else mismatched++; });
+        var total = matched + mismatched;
+        var countEl = document.getElementById('mismatch-count');
+        if (countEl) countEl.textContent = mismatched + ' mismatched of ' + total + ' inside';
+        if (typeof setOpStatus === 'function') setOpStatus('mismatch overlay: ' + mismatched + '/' + total);
+      } else {
+        var countEl2 = document.getElementById('mismatch-count');
+        if (countEl2) countEl2.textContent = '';
+      }
+    }
+
+    // UMD globals set by the <script> tags in <head>.
+    // geoman UMD assigns its namespace to window.Geoman; the constructor is at .Geoman.
+    const maplibregl = window.maplibregl;
+    const Geoman     = window.Geoman.Geoman;
+
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://api.maptiler.com/maps/streets/style.json?key=6DagWlYgkxoFxL5RaX6S',
+      center: [-111.9, 33.7],
+      zoom: 10,
+    });
+
+    const gm = new Geoman(map, {});
+
+    // ── Snap configuration ──────────────────────────────────────────────────────
+    //
+    // Snap API verified from @geoman-io/maplibre-geoman-free@0.2.10 type defs:
+    //   - enableMode('helper', 'snapping') activates the SnappingHelper
+    //   - SnappingHelper is instantiated and stored at gm.actionInstances['helper__snapping']
+    //   - SnappingHelper.tolerance: number — the snap radius in pixels
+    //   - SnappingHelper.setCustomSnappingCoordinates(sectionKey, lngLats) — registers
+    //     external [lng, lat][] arrays as snap targets (used for listing dots)
+    //
+    // Default tolerance: 12 px.  Space-bar boost: 24 px.
+    // Geoman natively snaps to vertex + edge + midpoint for drawn features.
+    // Listing dots snap via setCustomSnappingCoordinates('listings', [...]).
+    //
+    // Note: snap is enabled here at construction time so the helper instance is
+    // created before the first draw mode starts.  The helper persists while it is
+    // active; listing coordinates are pushed in whenever listings load/refresh.
+
+    const SNAP_RADIUS_DEFAULT = 12; // pixels
+    const SNAP_RADIUS_BOOSTED = 24; // pixels while Alt is held
+
+    // snapStrongMode is toggled by Alt key — exposed on window for Puppeteer tests.
+    let snapStrongMode = false;
+    window.__snapStrongMode = false;
+
+    // T15 — Space-pan state.  Set true while Space is held during an active draw mode.
+    // Exposed on window for Puppeteer.
+    let spacePanActive = false;
+    let _savedDrawMode = null; // the draw mode name to restore when Space is released
+    window.__spacePanActive = false;
+
+    // Helper accessor — populated after enableMode so the instance exists.
+    function getSnappingHelper() {
+      return gm.actionInstances['helper__snapping'] || null;
+    }
+
+    // Push listing coordinates into geoman's native snap engine.
+    // Called whenever the listings array is refreshed.
+    function syncListingsSnapCoords() {
+      const helper = getSnappingHelper();
+      if (!helper || typeof helper.setCustomSnappingCoordinates !== 'function') return;
+      // LngLat format in geoman type defs: [number, number] = [lng, lat]
+      const coords = listings.map(function(l) { return [l.lng, l.lat]; });
+      helper.setCustomSnappingCoordinates('listings', coords);
+    }
+
+    // Expose for headless verification and testing.
+    window.__map = map;
+    window.__gm  = gm;
+
+    // ── T15 — Geoman feature layer ID discovery ────────────────────────────────
+    //
+    // Geoman v0.2.10 renders shapes into maplibre layers prefixed with 'gm_' or 'gm-'.
+    // We query the style layers after map load and cache the matching IDs on window
+    // so context-menu hit-tests and cursor hover can use them.
+    //
+    // Called once after map.on('load') and exposed on window for debugging.
+
+    function getGmFeatureLayerIds() {
+      var layers = map.getStyle().layers;
+      var ids = layers
+        .map(function(l) { return l.id; })
+        .filter(function(id) {
+          return /^gm_main/.test(id) ||
+                 /^gm-main/.test(id) ||
+                 /^maplibre-gl-terradraw-/.test(id) ||
+                 (id.startsWith('gm_') && id !== 'gm_snap');
+        });
+      // Log discovered IDs so developers can verify the prefix in use.
+      if (ids.length > 0) console.debug('[T15] geoman feature layers:', ids);
+      else console.debug('[T15] no geoman feature layers found yet; all style layers:', map.getStyle().layers.map(function(l) { return l.id; }));
+      return ids;
+    }
+
+    window.__getGmFeatureLayerIds = getGmFeatureLayerIds;
+    // __gmLayerIds is populated once on map load (see map.on('load')).
+    window.__gmLayerIds = [];
+
+    // ── T15 — Context menu helpers ─────────────────────────────────────────────
+
+    function showCtxMenu(x, y, items) {
+      var m = document.getElementById('ctx-menu');
+      m.innerHTML = '';
+      for (var _ci = 0; _ci < items.length; _ci++) {
+        var it = items[_ci];
+        if (it.sep) {
+          var s = document.createElement('div');
+          s.className = 'sep';
+          m.appendChild(s);
+          continue;
+        }
+        if (it.label) {
+          var l = document.createElement('div');
+          l.className = 'label';
+          l.textContent = it.label;
+          m.appendChild(l);
+          continue;
+        }
+        var el = document.createElement('div');
+        el.className = 'item' + (it.disabled ? ' disabled' : '');
+        el.textContent = it.text;
+        if (!it.disabled && typeof it.onClick === 'function') {
+          (function(handler) {
+            el.addEventListener('click', function() { hideCtxMenu(); handler(); });
+          })(it.onClick);
+        }
+        m.appendChild(el);
+      }
+      m.style.left = x + 'px';
+      m.style.top  = y + 'px';
+      m.style.display = 'block';
+      // Keep menu on-screen — adjust if it would overflow.
+      requestAnimationFrame(function() {
+        var r = m.getBoundingClientRect();
+        if (r.right > window.innerWidth)   m.style.left = (window.innerWidth  - r.width  - 8) + 'px';
+        if (r.bottom > window.innerHeight) m.style.top  = (window.innerHeight - r.height - 8) + 'px';
+      });
+    }
+
+    function hideCtxMenu() {
+      var m = document.getElementById('ctx-menu');
+      if (m) m.style.display = 'none';
+    }
+
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('#ctx-menu')) hideCtxMenu();
+    });
+    window.addEventListener('blur', hideCtxMenu);
+
+    // Expose for Puppeteer test harness.
+    window.__showCtxMenu = showCtxMenu;
+    window.__hideCtxMenu = hideCtxMenu;
+
+    function showPolygonMenu(e, feature) {
+      var props = feature.properties || {};
+      var featureId = feature.id != null ? String(feature.id) : (props._gmId != null ? String(props._gmId) : null);
+      // Find matching geoman feature by communitySlug or direct id match.
+      var gmFeat = null;
+      try {
+        var allFc = window.__gm.features.getAll();
+        if (allFc && allFc.features) {
+          for (var _pi = 0; _pi < allFc.features.length; _pi++) {
+            var _pf = allFc.features[_pi];
+            var _pid = String(_pf.id);
+            if (featureId && _pid === featureId) { gmFeat = _pf; break; }
+            if (props.communitySlug && _pf.properties && _pf.properties.communitySlug === props.communitySlug) { gmFeat = _pf; break; }
+          }
+        }
+      } catch (_err) {}
+      var slug = (gmFeat && gmFeat.properties && gmFeat.properties.communitySlug) || props.communitySlug || null;
+      var gmId = gmFeat ? String(gmFeat.id) : featureId;
+      var dirty_ = gmId != null && isDirty(gmId);
+      showCtxMenu(e.originalEvent.clientX, e.originalEvent.clientY, [
+        { label: slug || '(unsaved polygon)' },
+        {
+          text: 'Edit vertices',
+          onClick: function() {
+            try { window.__gm.enableMode('edit', 'change'); setOpStatus('vertex edit'); } catch (_err) {}
+            if (slug) selectCommunityInGeoman(slug);
+          },
+        },
+        {
+          text: 'Center on polygon',
+          onClick: function() {
+            try {
+              var geom = gmFeat ? gmFeat.geometry : feature.geometry;
+              var b = bbox({ type: 'Feature', properties: {}, geometry: geom });
+              map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, duration: 600 });
+            } catch (_err) {}
+          },
+        },
+        {
+          text: 'Copy GeoJSON',
+          onClick: function() {
+            try {
+              var geom = gmFeat ? gmFeat.geometry : feature.geometry;
+              var gj = JSON.stringify({ type: 'Feature', properties: props, geometry: geom }, null, 2);
+              navigator.clipboard.writeText(gj).then(function() { setOpStatus('GeoJSON copied'); }).catch(function() { setOpStatus('clipboard unavailable'); });
+            } catch (_err) { setOpStatus('copy failed'); }
+          },
+        },
+        { sep: true },
+        // T17: 'Discard local draft' -- only shown when a draft exists for this slug.
+        ...(slug && getDraft(slug) ? [{
+          text: 'Discard local draft',
+          onClick: (function(capturedSlug, capturedGmId) {
+            return function() {
+              clearDraft(capturedSlug);
+              if (capturedGmId) {
+                var dfd = window.__gm.features.getAll().features
+                  .find(function(x) { return String(x.id) === String(capturedGmId); });
+                if (dfd && dfd.properties) {
+                  dfd.properties.staleDraft = false;
+                  dfd.properties.hasDraft   = false;
+                }
+              }
+              if (confirm('Draft discarded. Reload ' + capturedSlug + ' from server?')) {
+                removeCommunityFromGeoman(capturedSlug, { force: true }).then(function() {
+                  addCommunityToGeoman(capturedSlug);
+                  refreshDraftUI();
+                  renderNav();
+                  setOpStatus('reloaded ' + capturedSlug + ' from server');
+                });
+              } else {
+                refreshDraftUI();
+                renderNav();
+                setOpStatus('draft discarded for ' + capturedSlug);
+              }
+            };
+          })(slug, gmId),
+        }] : []),
+        {
+          text: 'Delete polygon',
+          onClick: function() {
+            if (!gmId) { setOpStatus('cannot delete — feature id unknown'); return; }
+            if (!confirm('Delete this polygon? This cannot be undone without using Undo.')) return;
+            window.__snapshot?.();
+            clearDirty(gmId);
+            var fd = window.__gm.features.get('gm_main', gmId);
+            if (fd) { window.__gm.features.delete(fd); snapshot(); }
+            setOpStatus('deleted polygon');
+          },
+        },
+        {
+          text: 'Save now',
+          disabled: !dirty_,
+          onClick: function() {
+            if (!gmFeat) { setOpStatus('feature not found'); return; }
+            // Pre-fill the save form from feature properties then click Save.
+            if (slug) document.getElementById('slug').value = slug;
+            var cname = (gmFeat.properties && gmFeat.properties.communityName) || '';
+            if (cname) document.getElementById('name').value = cname;
+            var rslug = (gmFeat.properties && gmFeat.properties.regionSlug) || '';
+            if (rslug) document.getElementById('region').value = rslug;
+            document.getElementById('save').click();
+          },
+        },
+      ]);
+    }
+
+    function showListingMenu(e, feature) {
+      var props = feature.properties || {};
+      var key   = props.listing_key   != null ? String(props.listing_key)   : null;
+      var price = formatListingPrice(props.list_price);
+      var sub   = props.subdivision_name != null ? String(props.subdivision_name) : '—';
+      showCtxMenu(e.originalEvent.clientX, e.originalEvent.clientY, [
+        { label: sub + ' · ' + price },
+        {
+          text: 'Copy listing key',
+          disabled: !key,
+          onClick: function() {
+            if (!key) return;
+            navigator.clipboard.writeText(key)
+              .then(function() { setOpStatus('copied key ' + key); })
+              .catch(function() { setOpStatus('clipboard unavailable'); });
+          },
+        },
+        {
+          text: 'Center on listing',
+          onClick: function() {
+            try {
+              var coords = feature.geometry.coordinates;
+              map.flyTo({ center: coords, zoom: Math.max(map.getZoom(), 14), duration: 600 });
+            } catch (_err) {}
+          },
+        },
+      ]);
+    }
+
+    function showEmptyMenu(e) {
+      showCtxMenu(e.originalEvent.clientX, e.originalEvent.clientY, [
+        {
+          text: 'Reset selection',
+          onClick: function() {
+            selected = [];
+            updateBoolopsUI();
+            setOpStatus('cleared selection');
+          },
+        },
+        {
+          text: 'Toggle mismatch overlay',
+          onClick: function() {
+            document.getElementById('mismatch-toggle').click();
+          },
+        },
+        {
+          text: 'Fit to all communities',
+          onClick: function() {
+            try {
+              var allFc2 = window.__gm.features.getAll();
+              if (!allFc2 || !allFc2.features || !allFc2.features.length) { setOpStatus('no features to fit'); return; }
+              var b2 = bbox(allFc2);
+              map.fitBounds([[b2[0], b2[1]], [b2[2], b2[3]]], { padding: 60, duration: 600 });
+            } catch (_err) { setOpStatus('fit failed'); }
+          },
+        },
+        { sep: true },
+        {
+          text: 'Open keyboard help',
+          onClick: function() { openHelp(); },
+        },
+      ]);
+    }
+
+    // Expose menu functions for Puppeteer.
+    window.__showPolygonMenu = showPolygonMenu;
+    window.__showListingMenu = showListingMenu;
+    window.__showEmptyMenu   = showEmptyMenu;
+
+    // ── Undo / Redo stack ───────────────────────────────────────────────────────
+    //
+    // Snapshots the geoman FeatureCollection on every committed change.
+    // Cap: 50 entries.  Cmd+Z (or Ctrl+Z) undoes; Cmd+Shift+Z (or Ctrl+Shift+Z) redoes.
+    //
+    // isRestoring guards against re-entrant snapshots: while restore() is clearing
+    // and re-adding features it temporarily fires gm:create / gm:remove events —
+    // those are suppressed so the stack does not corrupt.
+
+    const undoStack = [];
+    const redoStack = [];
+    const UNDO_CAP  = 50;
+    let isRestoring = false;
+
+    // ── Dirty tracking — T12 ────────────────────────────────────────────────────
+    //
+    // `dirty` tracks geoman feature ids that are unsaved or have been edited
+    // since the last save.  Used for:
+    //   - beforeunload warning (user has unsaved work)
+    //   - Side-panel ● indicator + orange row name
+    //   - Dashed gold outline layer on the map
+    //
+    // `isImportingFromDb` suppresses markDirty during loadCommunities() so that
+    // features loaded from the DB are never considered dirty on initial load.
+
+    const dirty = new Set(); // string feature ids
+    let isImportingFromDb = false;
+
+    // ── T16 — Catalog model + loaded-slugs state ────────────────────────────────
+    //
+    // catalog: Map<slug, {slug, name, regionSlug, regionName, geometry, areaSqMi}>
+    // loadedSlugs: Set<slug> of communities currently in geoman
+    // navFilter / navSearch: left-panel UI state only (not destructive to geoman)
+
+    const catalog = new Map();
+    const loadedSlugs = new Set();
+    let navFilter = 'all';
+    let navSearch = '';
+
+    // -- T17 DraftStore: auto-save drafts to localStorage -------------------
+    //
+    // Keys: 'editorDraft:<slug>' for named communities,
+    //       'editorDraft:_unsaved:<gmId>' for fresh polygons without a slug.
+    // Draft record: { geometry, baseGeometryHash, savedAt, propertiesSnapshot }
+    // baseGeometryHash: FNV-1a hex of server geometry at load time.
+    // Stale-draft: if hash mismatches server current state, show inline choice.
+
+    var DRAFT_KEY_PREFIX     = 'editorDraft:';
+    var DRAFT_UNSAVED_PREFIX = 'editorDraft:_unsaved:';
+    var AUTO_SAVE_DEBOUNCE_MS = 2000;
+
+    var autoSaveTimers   = new Map();
+    var lastAutoSaveAt   = 0;
+    var autoSavePillTimer = null;
+
+    function geometryHash(geom) {
+      var str = JSON.stringify((geom && geom.coordinates) ? geom.coordinates : []);
+      var h = 2166136261;
+      for (var _fni = 0; _fni < str.length; _fni++) {
+        h ^= str.charCodeAt(_fni);
+        h = (h * 16777619) >>> 0;
+      }
+      return h.toString(16);
+    }
+
+    function getDraft(slug) {
+      if (!slug) return null;
+      try {
+        var raw = localStorage.getItem(DRAFT_KEY_PREFIX + slug);
+        if (!raw) return null;
+        var parsed = JSON.parse(raw);
+        if (!parsed || !parsed.geometry) return null;
+        return parsed;
+      } catch (_ge) { return null; }
+    }
+
+    function saveDraft(slug, geometry, baseGeometryHash, propertiesSnapshot) {
+      if (!slug) return;
+      try {
+        var draftPayload = JSON.stringify({
+          geometry:           geometry,
+          baseGeometryHash:   baseGeometryHash != null ? baseGeometryHash : null,
+          savedAt:            Date.now(),
+          propertiesSnapshot: propertiesSnapshot != null ? propertiesSnapshot : null,
+        });
+        localStorage.setItem(DRAFT_KEY_PREFIX + slug, draftPayload);
+      } catch (_se) {
+        if (typeof setOpStatus === 'function') setOpStatus('auto-save failed (storage full?)');
+      }
+    }
+
+    function clearDraft(slug) {
+      if (!slug) return;
+      try { localStorage.removeItem(DRAFT_KEY_PREFIX + slug); } catch (_ce) {}
+    }
+
+    function listDrafts() {
+      var out = [];
+      try {
+        for (var _ldi = 0; _ldi < localStorage.length; _ldi++) {
+          var lk = localStorage.key(_ldi);
+          if (!lk || !lk.startsWith(DRAFT_KEY_PREFIX)) continue;
+          var lslug = lk.slice(DRAFT_KEY_PREFIX.length);
+          if (lslug.startsWith('_unsaved:')) continue;
+          var ld = getDraft(lslug);
+          if (ld) out.push({ slug: lslug, draft: ld });
+        }
+      } catch (_lde) {}
+      return out;
+    }
+
+    window.__drafts = { getDraft: getDraft, saveDraft: saveDraft, clearDraft: clearDraft, listDrafts: listDrafts, geometryHash: geometryHash };
+
+    function showAutoSavePill(text) {
+      var pillEl = document.getElementById('autosave-pill');
+      if (!pillEl) return;
+      pillEl.textContent = text;
+      pillEl.style.display = 'block';
+      if (autoSavePillTimer) clearTimeout(autoSavePillTimer);
+      autoSavePillTimer = setTimeout(function() {
+        var p2 = document.getElementById('autosave-pill');
+        if (p2) p2.textContent = 'all changes auto-saved';
+        autoSavePillTimer = setTimeout(function() {
+          var p3 = document.getElementById('autosave-pill');
+          if (p3) p3.style.display = 'none';
+          autoSavePillTimer = null;
+        }, 2500);
+      }, 1500);
+    }
+
+    function runAutoSaveFor(feature) {
+      if (!feature) return;
+      var aslug = (feature.properties && feature.properties.communitySlug) ? feature.properties.communitySlug : null;
+      var asbaseHash = (feature.properties && feature.properties.serverGeometryHash) ? feature.properties.serverGeometryHash : null;
+      if (aslug) {
+        saveDraft(aslug, feature.geometry, asbaseHash, {
+          name:       (feature.properties && feature.properties.communityName) ? feature.properties.communityName : null,
+          regionSlug: (feature.properties && feature.properties.regionSlug)    ? feature.properties.regionSlug    : null,
+        });
+      } else {
+        try {
+          var astempKey = DRAFT_UNSAVED_PREFIX + String(feature.id);
+          localStorage.setItem(astempKey, JSON.stringify({
+            geometry:           feature.geometry,
+            baseGeometryHash:   null,
+            savedAt:            Date.now(),
+            propertiesSnapshot: null,
+          }));
+        } catch (_ase) {
+          if (typeof setOpStatus === 'function') setOpStatus('auto-save failed (storage full?)');
+        }
+      }
+      lastAutoSaveAt = Date.now();
+      showAutoSavePill(aslug ? ('auto-saved ' + aslug) : 'auto-saved draft');
+      if (typeof refreshDraftUI === 'function') refreshDraftUI();
+    }
+
+    function scheduleAutoSave(featureId) {
+      if (featureId == null) return;
+      var sasAll = window.__gm && window.__gm.features ? window.__gm.features.getAll() : null;
+      var sasF   = sasAll && sasAll.features
+        ? sasAll.features.find(function(x) { return String(x.id) === String(featureId); })
+        : null;
+      if (!sasF) return;
+      var sasSlug = (sasF.properties && sasF.properties.communitySlug) ? sasF.properties.communitySlug : null;
+      var sasKey  = sasSlug ? (DRAFT_KEY_PREFIX + sasSlug) : (DRAFT_UNSAVED_PREFIX + String(featureId));
+      if (autoSaveTimers.has(sasKey)) clearTimeout(autoSaveTimers.get(sasKey));
+      var sasCapturedId = featureId;
+      var sasTimer = setTimeout(function() {
+        autoSaveTimers.delete(sasKey);
+        var latestAll = window.__gm && window.__gm.features ? window.__gm.features.getAll() : null;
+        var latestF   = latestAll && latestAll.features
+          ? latestAll.features.find(function(x) { return String(x.id) === String(sasCapturedId); })
+          : null;
+        runAutoSaveFor(latestF || sasF);
+      }, AUTO_SAVE_DEBOUNCE_MS);
+      autoSaveTimers.set(sasKey, sasTimer);
+    }
+
+    // refreshDraftUI: update banner + nav indicators after any draft state change.
+    function refreshDraftUI() {
+      var rdDrafts = listDrafts();
+      var rdEl = document.getElementById('drafts-summary');
+      if (rdEl) {
+        if (rdDrafts.length === 0) {
+          rdEl.style.display = 'none';
+          rdEl.textContent = '';
+        } else {
+          rdEl.style.display = 'block';
+          while (rdEl.firstChild) rdEl.removeChild(rdEl.firstChild);
+          rdEl.appendChild(document.createTextNode('Drafts: ' + rdDrafts.length + ' '));
+          var rdBtn = document.createElement('button');
+          rdBtn.id = 'discard-all-drafts';
+          rdBtn.textContent = 'discard all';
+          rdBtn.style.cssText = 'background:transparent;border:0;color:#bfa67a;cursor:pointer;width:auto;font:inherit;padding:0 4px;';
+          rdBtn.addEventListener('click', function() {
+            var rdCopy = listDrafts();
+            if (!confirm('Discard ' + rdCopy.length + ' local draft(s)? Their server copies are untouched.')) return;
+            for (var _rdx = 0; _rdx < rdCopy.length; _rdx++) clearDraft(rdCopy[_rdx].slug);
+            refreshDraftUI();
+            if (typeof renderNav === 'function') renderNav();
+            if (typeof setOpStatus === 'function') setOpStatus('drafts discarded');
+          });
+          rdEl.appendChild(rdBtn);
+        }
+      }
+    }
+
+    window.__refreshDraftUI   = function() { refreshDraftUI(); };
+    window.__getDraft         = getDraft;
+    window.__clearDraft       = clearDraft;
+    window.__listDrafts       = listDrafts;
+    window.__geometryHash     = geometryHash;
+    window.__scheduleAutoSave = scheduleAutoSave;
+
+    function persistLoadedSlugs() {
+      try { localStorage.setItem('editorLoadedSlugs', JSON.stringify(Array.from(loadedSlugs))); } catch (_e) {}
+    }
+    function restoreLoadedSlugs() {
+      try {
+        var raw = localStorage.getItem('editorLoadedSlugs');
+        if (!raw) return [];
+        var arr = JSON.parse(raw);
+        return Array.isArray(arr) ? arr.filter(function(x) { return typeof x === 'string'; }) : [];
+      } catch (_e) { return []; }
+    }
+
+    // Expose for Puppeteer test harness.
+    window.__catalog = catalog;
+    window.__loadedSlugs = loadedSlugs;
+
+    function markDirty(featureId) {
+      if (featureId == null) return;
+      dirty.add(String(featureId));
+      refreshDirtyUI();
+    }
+
+    function clearDirty(featureId) {
+      if (featureId == null) { dirty.clear(); }
+      else { dirty.delete(String(featureId)); }
+      refreshDirtyUI();
+    }
+
+    function isDirty(featureId) { return dirty.has(String(featureId)); }
+
+    // Expose for Puppeteer test harness.
+    window.__dirty = dirty;
+    window.__markDirty = markDirty;
+    window.__clearDirty = clearDirty;
+    window.__isDirty = isDirty;
+    // isImportingFromDb exposed so tests can wait for the initial load to finish
+    Object.defineProperty(window, '__isImportingFromDb', {
+      get: function() { return isImportingFromDb; },
+    });
+
+    // ── Dirty outline layer ──────────────────────────────────────────────────────
+
+    function ensureDirtyOutlineLayer() {
+      if (!map.getSource('dirty-outline')) {
+        map.addSource('dirty-outline', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        map.addLayer({
+          id: 'dirty-outline',
+          type: 'line',
+          source: 'dirty-outline',
+          paint: { 'line-color': '#bfa67a', 'line-width': 2, 'line-dasharray': [3, 2], 'line-opacity': 0.9 },
+        });
+      }
+    }
+
+    function updateDirtyOutline() {
+      if (!map.getSource('dirty-outline')) return;
+      var all = window.__gm.features.getAll();
+      var dirtyFeats = all.features.filter(function(f) { return isDirty(f.id); });
+      map.getSource('dirty-outline').setData({ type: 'FeatureCollection', features: dirtyFeats });
+    }
+
+    function refreshDirtyUI() {
+      // Update the unsaved-changes counter above the community list.
+      var summaryEl = document.getElementById('dirty-summary');
+      if (summaryEl) {
+        summaryEl.textContent = dirty.size === 0
+          ? ''
+          : dirty.size + ' unsaved change' + (dirty.size === 1 ? '' : 's');
+      }
+      // Re-render the shape list so ● indicators update.
+      if (window.__gm) {
+        var all = window.__gm.features.getAll().features
+          .filter(function(f) { return f.properties && f.properties.communitySlug; })
+          .map(function(f) {
+            return {
+              slug:      f.properties.communitySlug,
+              name:      f.properties.communityName || f.properties.communitySlug,
+              regionSlug: f.properties.regionSlug,
+              areaSqMi:  f.properties.areaSqMi,
+              geometry:  f.geometry,
+              _gmId:     f.id,
+            };
+          });
+        // Also include unsaved shapes (no communitySlug) in the re-render pool
+        // but renderShapeList also handles those internally — just pass the saved list.
+        if (typeof renderShapeList === 'function') renderShapeList(all);
+      }
+      updateDirtyOutline();
+    }
+
+    // ── beforeunload warning ─────────────────────────────────────────────────────
+    window.addEventListener('beforeunload', function(e) {
+      if (dirty.size === 0) return;
+      e.preventDefault();
+      e.returnValue = ''; // most browsers ignore custom messages; the prompt still appears
+    });
+
+    function deepCloneFC(fc) {
+      return structuredClone(fc);
+    }
+
+    function snapshot() {
+      if (isRestoring) return;
+      const fc = window.__gm.features.getAll();
+      undoStack.push(deepCloneFC(fc));
+      if (undoStack.length > UNDO_CAP) undoStack.shift();
+      redoStack.length = 0;
+    }
+
+    async function restore(fc) {
+      isRestoring = true;
+      try {
+        const current = window.__gm.features.getAll();
+        for (const f of current.features) {
+          const fd = window.__gm.features.get('gm_main', f.id);
+          if (fd) window.__gm.features.delete(fd);
+        }
+        if (typeof window.__gm.features.importGeoJson === 'function') {
+          window.__gm.features.importGeoJson(fc);
+        } else {
+          for (const f of fc.features) window.__gm.features.addGeoJsonFeature(f);
+        }
+      } finally {
+        isRestoring = false;
+      }
+      // T17: undo/redo = new edit state — schedule auto-save for all restored features.
+      if (!isRestoring) {
+        try {
+          var restFc = window.__gm.features.getAll();
+          if (restFc && restFc.features) {
+            restFc.features.forEach(function(rf) {
+              if (rf && rf.id != null) scheduleAutoSave(rf.id);
+            });
+          }
+        } catch (_rae) { /* never break restore flow */ }
+      }
+      // Clear boolops selection — restored IDs may no longer match.
+      if (typeof selected !== 'undefined') { selected = []; }
+      if (typeof updateBoolopsUI === 'function') updateBoolopsUI();
+      if (typeof renderShapeList === 'function') {
+        const all = window.__gm.features.getAll().features
+          .filter(function(f) { return f.properties && f.properties.communitySlug; })
+          .map(function(f) { return {
+            slug:       f.properties.communitySlug,
+            name:       f.properties.communityName || f.properties.communitySlug,
+            regionSlug: f.properties.regionSlug,
+            areaSqMi:   f.properties.areaSqMi,
+            geometry:   f.geometry,
+          }; });
+        renderShapeList(all);
+      }
+    }
+
+    // Expose stacks for Puppeteer test harness.
+    window.__snapshot   = snapshot;
+    window.__undoStack  = undoStack;
+    window.__redoStack  = redoStack;
+    window.__syncListingsSnapCoords = syncListingsSnapCoords;
+    window.__getSnappingHelper = getSnappingHelper;
+
+    let listings = []; // [{lng, lat, ...}]
+
+    // ── Fix 1 — Persist last-used region in localStorage ──────────────────────
+    // Pre-fill the region input from localStorage on page load (if present).
+    (function() {
+      var savedRegion = localStorage.getItem('editorLastRegion');
+      if (savedRegion) {
+        var regionEl = document.getElementById('region');
+        if (regionEl) regionEl.value = savedRegion;
+      }
+    })();
+
+    // ── Fix 2 — Help overlay open/close ────────────────────────────────────────
+    function openHelp() { var o = document.getElementById('help-overlay'); o.style.display = 'flex'; }
+    function closeHelp() { var o = document.getElementById('help-overlay'); o.style.display = 'none'; }
+    document.getElementById('help-close').addEventListener('click', closeHelp);
+    document.getElementById('help-overlay').addEventListener('click', function(e) { if (e.target.id === 'help-overlay') closeHelp(); });
+    document.getElementById('help-link').addEventListener('click', openHelp);
+
+    // ── Fix 4 — Connection error banner helpers ─────────────────────────────────
+    function showConnBanner(text) {
+      var b = document.getElementById('conn-banner');
+      b.style.display = 'block';
+      b.textContent = text;
+    }
+    function hideConnBanner() { document.getElementById('conn-banner').style.display = 'none'; }
+
+    // Expose for Puppeteer test harness.
+    window.__openHelp  = openHelp;
+    window.__closeHelp = closeHelp;
+    window.__showConnBanner = showConnBanner;
+    window.__hideConnBanner = hideConnBanner;
+
+    // Expose listings array + setter for Puppeteer test harness.
+    // Tests set window.__setListings([...]) to inject synthetic listing data into
+    // the module-level closure without going through loadListings().
+    window.__setListings = function(arr) {
+      listings = arr;
+      // Bump the version and clear the memo cache so computeInsideCount recomputes.
+      _listingsVersion++;
+      _insideCountCache = new Map();
+    };
+
+    // ── T14 — Listing hover tooltip ─────────────────────────────────────────────
+    //
+    // A maplibregl.Popup is created once and reused for every mousemove event over
+    // the 'listings' layer.  Creating a new Popup per move would allocate DOM nodes
+    // on every frame — reusing with setLngLat+setHTML is cheap.
+    //
+    // popupSuppressed is set true while a geoman draw mode is active.  We detect
+    // draw mode via two mechanisms:
+    //
+    //   PRIMARY: map.on('gm:control') — geoman fires this when any mode changes.
+    //     We inspect gm.activeMode() when available to check if the active mode
+    //     category is 'draw'.  This is the cleanest signal.
+    //
+    //   FALLBACK: If gm.activeMode is not a function (v0.2.10 may or may not expose
+    //     it), we wrap gm.enableMode / gm.disableMode to track the category ourselves.
+    //     The flag is cleared on gm:create (draw finished) and gm:control with no
+    //     active draw mode.
+    //
+    // mousemove/mouseleave only — no click capture (clicks belong to T5 selection).
+
+    const listingPopup = new maplibregl.Popup({
+      closeButton:  false,
+      closeOnClick: false,
+      className:    'listing-popup',
+      offset:       8,
+      maxWidth:     '260px',
+    });
+
+    // Exposed on window so Puppeteer tests can inspect state.
+    window.__listingPopup = listingPopup;
+
+    let popupSuppressed = false;
+    // Exposed for Puppeteer: set true to simulate an active draw mode.
+    window.__setPopupSuppressed = function(v) { popupSuppressed = !!v; };
+
+    function formatListingPrice(n) {
+      if (n == null || Number.isNaN(Number(n))) return '—';
+      var v = Number(n);
+      if (v >= 1000000) return '$' + (v / 1000000).toFixed(2).replace(/\.00$/, '') + 'M';
+      if (v >= 1000)    return '$' + Math.round(v / 1000) + 'K';
+      return '$' + v.toLocaleString();
+    }
+
+    function listingPopupHTML(props) {
+      var price  = formatListingPrice(props.list_price);
+      var status = props.standard_status  != null ? String(props.standard_status)  : '—';
+      var sub    = props.subdivision_name != null ? String(props.subdivision_name) : '—';
+      var key    = props.listing_key      != null ? String(props.listing_key)      : '—';
+      return '<div style="font: 12px/1.4 system-ui, sans-serif; color: #0c1c2e;">' +
+        '<div style="font-weight: 700; font-size: 13px;">' + price +
+          ' <span style="color: #6b7280; font-weight: 500;">• ' + status + '</span></div>' +
+        '<div style="margin-top: 4px;"><span style="color: #6b7280;">Subdivision:</span> ' + sub + '</div>' +
+        '<div style="color: #9ca3af; font-size: 11px; margin-top: 2px;">#' + key + '</div>' +
+        '</div>';
+    }
+
+    // Guard: attachListingHover is called inside loadListings() right after the
+    // layer is created.  The guard ensures handlers are registered exactly once.
+    let _listingHoverAttached = false;
+
+    function attachListingHover() {
+      if (_listingHoverAttached) return;
+      if (!map.getLayer('listings')) return;
+      _listingHoverAttached = true;
+
+      function _onListingMousemove(e) {
+        if (popupSuppressed) return;
+        if (!e.features || e.features.length === 0) return;
+        map.getCanvas().style.cursor = 'pointer';
+        var f = e.features[0];
+        listingPopup
+          .setLngLat(f.geometry.coordinates)
+          .setHTML(listingPopupHTML(f.properties || {}))
+          .addTo(map);
+      }
+
+      function _onListingMouseleave() {
+        map.getCanvas().style.cursor = '';
+        listingPopup.remove();
+      }
+
+      map.on('mousemove',  'listings', _onListingMousemove);
+      map.on('mouseleave', 'listings', _onListingMouseleave);
+
+      // Expose handlers for Puppeteer test harness.
+      window.__listingMousemove  = _onListingMousemove;
+      window.__listingMouseleave = _onListingMouseleave;
+    }
+
+    // ── Draw-mode suppression for T14 popup ─────────────────────────────────────
+    //
+    // gm:control fires whenever a mode is enabled or disabled.
+    // We check gm.activeMode() if it is a function (preferred path).
+    // If not available (v0.2.10 type defs do not guarantee it), we fall back to
+    // wrapping gm.enableMode / gm.disableMode below.
+
+    var _activeModeCategory = null; // tracks the current geoman mode category
+
+    function _updateSuppression() {
+      popupSuppressed = (_activeModeCategory === 'draw');
+      if (popupSuppressed) listingPopup.remove();
+    }
+
+    map.on('gm:control', function() {
+      // Attempt 1: gm.activeMode() API (may or may not be present in v0.2.10).
+      if (typeof gm.activeMode === 'function') {
+        var md = null;
+        try { md = gm.activeMode(); } catch (_err) {}
+        _activeModeCategory = (md && md.category) ? md.category : null;
+        _updateSuppression();
+        return;
+      }
+      // Attempt 2: fall back to the _activeModeCategory set by the enableMode wrap below.
+      _updateSuppression();
+    });
+
+    // Fallback: wrap gm.enableMode / gm.disableMode so we can track the active category
+    // when gm.activeMode() is not available.  The wrapping happens here (after gm is
+    // constructed) and is safe to apply even if gm:control is the primary path.
+    // T15 — also updates cursor to 'crosshair' when entering draw mode, clears on exit.
+    (function() {
+      var _origEnable  = gm.enableMode.bind(gm);
+      var _origDisable = gm.disableMode.bind(gm);
+
+      gm.enableMode = function(category, mode) {
+        _activeModeCategory = category || null;
+        _updateSuppression();
+        // T15 — crosshair cursor in draw mode.
+        if (category === 'draw') {
+          map.getCanvas().style.cursor = 'crosshair';
+        }
+        return _origEnable(category, mode);
+      };
+
+      gm.disableMode = function(category, mode) {
+        // Only clear if the category being disabled is the one we're tracking.
+        if (!category || category === _activeModeCategory) _activeModeCategory = null;
+        _updateSuppression();
+        // T15 — clear crosshair when leaving draw mode (unless Space-pan is active).
+        if (!spacePanActive) {
+          map.getCanvas().style.cursor = '';
+        }
+        return _origDisable(category, mode);
+      };
+    })();
+
+    // gm:create fires when a draw is completed — clear suppression and cursor.
+    // Wired further below alongside other gm:create logic; we use a second listener
+    // so T14 is self-contained and doesn't require modifying the existing handler.
+    map.on('gm:create', function() {
+      _activeModeCategory = null;
+      _updateSuppression();
+      // T15 — clear draw cursor (unless Space-pan is active).
+      if (!spacePanActive) map.getCanvas().style.cursor = '';
+    });
+
+    // ── Listings layer ──────────────────────────────────────────────────────────
+
+    // Track per-resource load success for the connection banner (Fix 4).
+    // Both must succeed before we hide the banner.
+    var _listingsLoaded = false;
+    var _communitiesLoaded = false;
+    var _listingsErrText = '';
+    var _communitiesErrText = '';
+
+    function _updateConnBanner() {
+      var msgs = [];
+      if (_listingsErrText) msgs.push(_listingsErrText);
+      if (_communitiesErrText) msgs.push(_communitiesErrText);
+      if (msgs.length > 0) {
+        showConnBanner(msgs.join(' | '));
+      } else if (_listingsLoaded && _communitiesLoaded) {
+        hideConnBanner();
+      }
+    }
+
+    async function loadListings() {
+      const b = map.getBounds();
+      const bboxStr = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',');
+      try {
+        const res = await fetch('/api/listings?bbox=' + bboxStr);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        // Guard: server returns {error:...} on DB failure — treat as empty list
+        listings = Array.isArray(data) ? data : [];
+        _listingsLoaded = true;
+        _listingsErrText = '';
+        _updateConnBanner();
+      } catch (_err) {
+        // RDS_DATABASE_URL missing or unreachable — listings stays empty, editor
+        // still loads and the polygon tools function normally.
+        listings = [];
+        _listingsErrText = "Couldn't load listings — check RDS_DATABASE_URL.";
+        _updateConnBanner();
+      }
+      // Fix 2 — bump version + invalidate memo so next renderShapeList recomputes.
+      _listingsVersion++;
+      _insideCountCache = new Map();
+      const src = map.getSource('listings');
+      if (!src) {
+        // First load — add source + layer with an empty FC; rebuildListingsSourceData fills it.
+        map.addSource('listings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        map.addLayer({ id: 'listings', type: 'circle', source: 'listings',
+          paint: { 'circle-radius': 3, 'circle-color': '#d4654b', 'circle-opacity': 0.7 } });
+        // T14 — attach hover tooltip handlers exactly once, right after layer creation.
+        attachListingHover();
+      }
+      // Rebuild source data (respects mismatch mode) then apply the right paint.
+      rebuildListingsSourceData();
+      applyMismatchPaint();
+      // Push new listing coordinates into geoman's native snap engine so the
+      // snapping helper targets the current viewport's listing dots.
+      syncListingsSnapCoords();
+      // Refresh inside-counts in the list whenever the viewport's listings update.
+      renderShapeList(getLoadedCommunitiesFromGm());
+    }
+
+    // ── Hover-highlight source + layer ──────────────────────────────────────────
+
+    function initHoverLayer() {
+      if (!map.getSource('community-hover')) {
+        map.addSource('community-hover', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+        });
+        map.addLayer({
+          id: 'community-hover',
+          type: 'line',
+          source: 'community-hover',
+          paint: { 'line-color': '#bfa67a', 'line-width': 4, 'line-opacity': 0.9 },
+        });
+      }
+    }
+
+    // ── Snap-candidate ring source + layer ──────────────────────────────────────
+    //
+    // A thin gold ring drawn around the nearest listing dot when it is within
+    // snap range.  Empty FeatureCollection by default; set to a 1-feature FC
+    // during mousemove when a snap candidate exists.
+    //
+    // Layer sits above 'listings' so the ring is always visible.
+
+    const SNAP_CANDIDATE_EMPTY = { type: 'FeatureCollection', features: [] };
+
+    function initSnapCandidateLayer() {
+      if (!map.getSource('snap-candidate')) {
+        map.addSource('snap-candidate', {
+          type: 'geojson',
+          data: SNAP_CANDIDATE_EMPTY,
+        });
+        // Outer ring: gold stroke
+        map.addLayer({
+          id: 'snap-candidate',
+          type: 'circle',
+          source: 'snap-candidate',
+          paint: {
+            'circle-radius': 9,
+            'circle-color': 'transparent',
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#bfa67a',
+            'circle-opacity': 1,
+          },
+        });
+      }
+    }
+
+    // Active snap candidate: {lng, lat} or null.
+    // Exposed on window for Puppeteer testing.
+    let _snapCandidate = null;
+    window.__snapCandidate = null;
+
+    function setSnapCandidate(lngLat) {
+      _snapCandidate = lngLat;
+      window.__snapCandidate = lngLat;
+      const src = map.getSource('snap-candidate');
+      if (!src) return;
+      if (!lngLat) {
+        src.setData(SNAP_CANDIDATE_EMPTY);
+        return;
+      }
+      src.setData({
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          properties: {},
+          geometry: { type: 'Point', coordinates: [lngLat.lng, lngLat.lat] },
+        }],
+      });
+    }
+
+    // ── Mousemove snap-candidate detection ─────────────────────────────────────
+    //
+    // On each mousemove, find the listing dot nearest to the cursor (in pixels).
+    // If it falls within the active snap radius, show the gold ring overlay.
+    // This is a pure visual aid — geoman's snap engine handles the actual vertex
+    // correction via setCustomSnappingCoordinates.
+    //
+    // Fix 1 — RAF throttle + bbox prefilter:
+    //   - All mousemove events are coalesced: only the LAST pending event is run
+    //     per animation frame, so rapid pixel-level moves don't stack O(N) work.
+    //   - Before iterating, we unproject a cursor±24px screen bbox to lng/lat and
+    //     filter `listings` to that small rectangle first, then do the px-distance
+    //     check only on survivors.  At Phoenix density (~60K points) this reduces
+    //     the hot loop to a handful of candidates on almost every frame.
+
+    let _snapRafPending = false;
+    let _snapLastEvent  = null;
+
+    // Expose frame counter for Puppeteer instrumentation.
+    window.__snapFrameCount = 0;
+
+    function _runSnapCandidate(e) {
+      window.__snapFrameCount++;
+      _snapRafPending = false;
+      _snapLastEvent  = null;
+
+      if (!listings.length) return;
+
+      const helper = getSnappingHelper();
+      const radius = (helper && helper.tolerance) ? helper.tolerance : SNAP_RADIUS_DEFAULT;
+
+      const cursorPx = e.point; // {x, y} in screen pixels
+
+      // bbox prefilter: unproject the cursor ±24 px rectangle to lng/lat.
+      // If unproject fails (map not ready) fall back to full scan.
+      const PAD = 24;
+      let candidates = listings;
+      try {
+        const sw = map.unproject([cursorPx.x - PAD, cursorPx.y + PAD]);
+        const ne = map.unproject([cursorPx.x + PAD, cursorPx.y - PAD]);
+        const minLng = sw.lng, maxLng = ne.lng;
+        const minLat = sw.lat, maxLat = ne.lat;
+        candidates = listings.filter(function(l) {
+          return l.lng >= minLng && l.lng <= maxLng && l.lat >= minLat && l.lat <= maxLat;
+        });
+      } catch (_err) { /* unproject failed — fall back to full scan */ }
+
+      let bestDist = Infinity;
+      let bestListing = null;
+
+      for (let i = 0; i < candidates.length; i++) {
+        const l = candidates[i];
+        const dotPx = map.project([l.lng, l.lat]);
+        const dx = dotPx.x - cursorPx.x;
+        const dy = dotPx.y - cursorPx.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestListing = l;
+        }
+      }
+
+      if (bestListing && bestDist <= radius) {
+        setSnapCandidate({ lng: bestListing.lng, lat: bestListing.lat });
+      } else {
+        setSnapCandidate(null);
+      }
+    }
+
+    function onMapMouseMove(e) {
+      // Coalesce: store the latest event; schedule one RAF if not already pending.
+      _snapLastEvent = e;
+      if (_snapRafPending) return; // a frame is already queued — it will use _snapLastEvent
+      _snapRafPending = true;
+      requestAnimationFrame(function() {
+        if (_snapLastEvent) _runSnapCandidate(_snapLastEvent);
+        // _snapRafPending and _snapLastEvent are cleared inside _runSnapCandidate
+      });
+    }
+
+    // ── Polygon helpers ─────────────────────────────────────────────────────────
+
+    function currentPolygon() {
+      // gm.features.getAll() returns a GeoJSON FeatureCollection of all drawn features.
+      // Filter to Polygons; last one wins (consistent with v1 behaviour).
+      const fc = gm.features.getAll();
+      if (!fc) return null;
+      const polys = fc.features.filter(function(f) {
+        return f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon');
+      });
+      return polys.length ? polys[polys.length - 1] : null;
+    }
+
+    function updateCount() {
+      const poly = currentPolygon();
+      if (!poly) { document.getElementById('count').textContent = '—'; return; }
+      let n = 0;
+      for (const l of listings) {
+        if (booleanPointInPolygon(point([l.lng, l.lat]), poly)) n += 1;
+      }
+      document.getElementById('count').textContent = String(n);
+      document.getElementById('meta').textContent = poly.geometry.coordinates[0].length + ' vertices';
+      // Also re-render list so the unsaved row gets updated
+      renderShapeList(getLoadedCommunitiesFromGm());
+    }
+
+    // ── T16 — Communities catalog + on-demand load/unload ──────────────────────
+
+    // Holds the last-fetched communities array so list rerenders can reuse it.
+    // Now populated from geoman's live features rather than the bulk-fetched catalog.
+    let _loadedCommunities = [];
+
+    // Derive the current "loaded communities" list from geoman's live feature collection.
+    // This is what renderShapeList consumes for the right-panel rows.
+    function getLoadedCommunitiesFromGm() {
+      if (!window.__gm) return [];
+      return window.__gm.features.getAll().features
+        .filter(function(f) { return f.properties && f.properties.communitySlug; })
+        .map(function(f) {
+          return {
+            slug:       f.properties.communitySlug,
+            name:       f.properties.communityName || f.properties.communitySlug,
+            regionSlug: f.properties.regionSlug,
+            areaSqMi:   f.properties.areaSqMi,
+            geometry:   f.geometry,
+            _gmId:      f.id,
+          };
+        });
+    }
+
+    // Low-level: add a single catalog entry into geoman (if not already loaded).
+    // T17: checks for a local draft and either restores it (hash matches server)
+    // or marks the feature staleDraft=true (hash mismatch) for the inline choice.
+    function addCommunityToGeoman(slug) {
+      var c = catalog.get(slug);
+      if (!c) return;
+      if (loadedSlugs.has(slug)) return;
+
+      var serverHash    = geometryHash(c.geometry);
+      var draft         = getDraft(slug);
+      var geometryToLoad = c.geometry;
+      var useDraft       = false;
+      var staleDraft     = false;
+
+      if (draft) {
+        if (draft.baseGeometryHash === serverHash) {
+          geometryToLoad = draft.geometry;
+          useDraft = true;
+        } else {
+          staleDraft = true;
+        }
+      }
+
+      var feature = {
+        type: 'Feature',
+        properties: {
+          communitySlug:       c.slug,
+          communityName:       c.name,
+          regionSlug:          c.regionSlug,
+          areaSqMi:            c.areaSqMi,
+          serverGeometryHash:  serverHash,
+          hasDraft:            useDraft,
+          staleDraft:          staleDraft,
+        },
+        geometry: geometryToLoad,
+      };
+      try {
+        window.__gm.features.addGeoJsonFeature(feature);
+      } catch (_e1) {
+        try {
+          window.__gm.features.importGeoJson({ type: 'FeatureCollection', features: [feature] });
+        } catch (_e2) {
+          // Could not add to geoman — skip, operator can redraw
+        }
+      }
+      loadedSlugs.add(slug);
+      persistLoadedSlugs();
+
+      if (useDraft) {
+        var allAfterAdd = window.__gm.features.getAll();
+        var addedF = allAfterAdd && allAfterAdd.features
+          ? allAfterAdd.features.find(function(x) { return x.properties && x.properties.communitySlug === slug; })
+          : null;
+        if (addedF && !isImportingFromDb) markDirty(addedF.id);
+      }
+    }
+
+    // Low-level: remove a single community from geoman with dirty guard.
+    // opts.force = true skips the confirm prompt (used during isImportingFromDb restore).
+    // Returns true if removed, false if operator cancelled.
+    async function removeCommunityFromGeoman(slug, opts) {
+      opts = opts || {};
+      var all = window.__gm.features.getAll();
+      var feat = all.features.find(function(f) {
+        return f.properties && f.properties.communitySlug === slug;
+      });
+      if (!feat) {
+        loadedSlugs.delete(slug);
+        persistLoadedSlugs();
+        return true;
+      }
+      var id = feat.id;
+      if (!opts.force && isDirty(id)) {
+        var ok = confirm('"' + slug + '" has unsaved changes. Discard them?');
+        if (!ok) return false;
+      }
+      var fd = window.__gm.features.get('gm_main', id);
+      if (fd) window.__gm.features.delete(fd);
+      loadedSlugs.delete(slug);
+      clearDirty(id);
+      persistLoadedSlugs();
+      return true;
+    }
+
+    // Expose for Puppeteer test harness.
+    window.__addCommunityToGeoman    = addCommunityToGeoman;
+    window.__removeCommunityFromGeoman = removeCommunityFromGeoman;
+
+    // Main entry point — fetches catalog, restores previously loaded slugs, renders nav.
+    // Replaces the old loadCommunities() single-step bulk-add.
+    async function loadCatalog() {
+      try {
+        const res = await fetch('/api/boundaries');
+        if (!res.ok) throw new Error('boundaries fetch failed: ' + res.status);
+        const all = await res.json();
+        catalog.clear();
+        for (var _bi = 0; _bi < (Array.isArray(all) ? all.length : 0); _bi++) {
+          var b = all[_bi];
+          if (b.type !== 'community') continue;
+          catalog.set(b.slug, {
+            slug:       b.slug,
+            name:       b.name,
+            regionSlug: b.regionSlug != null ? b.regionSlug : '(none)',
+            regionName: b.regionSlug != null ? b.regionSlug : '(none)',
+            geometry:   b.geometry,
+            areaSqMi:   b.areaSqMi != null ? b.areaSqMi : null,
+          });
+        }
+        _communitiesLoaded = true;
+        _communitiesErrText = '';
+        _updateConnBanner();
+      } catch (_err) {
+        _communitiesErrText = "Couldn't load communities — check RDS_DATABASE_URL.";
+        _updateConnBanner();
+        catalog.clear();
+      }
+
+      // Restore the previously-loaded set (intersect with what exists in catalog today).
+      isImportingFromDb = true;
+      try {
+        var toLoad = restoreLoadedSlugs().filter(function(s) { return catalog.has(s); });
+        for (var _ri = 0; _ri < toLoad.length; _ri++) {
+          addCommunityToGeoman(toLoad[_ri]);
+        }
+      } finally {
+        isImportingFromDb = false;
+        dirty.clear();
+        refreshDirtyUI();
+      }
+
+      renderNav();
+      refreshDraftUI(); // T17: update banner after catalog restore
+    }
+
+    // Backward-compat alias so existing callers (save handler etc.) keep working.
+    // The save handler calls loadCommunities() to reload after a save — we keep that
+    // working by delegating to loadCatalog().
+    async function loadCommunities() {
+      return loadCatalog();
+    }
+
+    // Expose for Puppeteer test harness.
+    window.__loadCatalog = loadCatalog;
+
+    // Find a geoman feature by community slug (helper used by renderNav + toggles).
+    function findGmFeatureBySlug(slug) {
+      if (!window.__gm) return null;
+      var all = window.__gm.features.getAll();
+      return (all.features.find(function(f) {
+        return f.properties && f.properties.communitySlug === slug;
+      }) || null);
+    }
+
+    // Toggle an entire region in or out (load all / unload all for that region).
+    async function toggleRegion(regionKey, loadIt) {
+      for (var _c of catalog.values()) {
+        var cRegion = _c.regionSlug || '(unassigned)';
+        if (cRegion !== regionKey) continue;
+        if (loadIt && !loadedSlugs.has(_c.slug)) {
+          addCommunityToGeoman(_c.slug);
+        } else if (!loadIt && loadedSlugs.has(_c.slug)) {
+          var ok = await removeCommunityFromGeoman(_c.slug);
+          if (!ok) break; // operator cancelled dirty-discard prompt — stop batch
+        }
+      }
+      refreshDirtyUI();
+      renderNav();
+    }
+
+    // ── T16 — Left-nav render ───────────────────────────────────────────────────
+
+    function renderNav() {
+      var tree  = document.getElementById('nav-tree');
+      var empty = document.getElementById('nav-empty');
+      if (!tree) return;
+      // Remove all children
+      while (tree.firstChild) tree.removeChild(tree.firstChild);
+      empty.style.display = 'none';
+
+      // Group communities by regionSlug.
+      var byRegion = new Map();
+      for (var _cv of catalog.values()) {
+        var rkey = (_cv.regionSlug && _cv.regionSlug !== '(none)') ? _cv.regionSlug : '(unassigned)';
+        if (!byRegion.has(rkey)) byRegion.set(rkey, []);
+        byRegion.get(rkey).push(_cv);
+      }
+
+      // Sort regions A→Z; communities A→Z within each region.
+      var regionKeys = Array.from(byRegion.keys()).sort();
+      for (var _rk of regionKeys) {
+        byRegion.get(_rk).sort(function(a, b) { return a.name.localeCompare(b.name); });
+      }
+
+      var q = navSearch.trim().toLowerCase();
+      var shownCount = 0;
+
+      for (var _rki = 0; _rki < regionKeys.length; _rki++) {
+        var region = regionKeys[_rki];
+        var communities = byRegion.get(region);
+
+        // Apply search + filter
+        var visibleCommunities = communities.filter(function(c) {
+          if (q && !(c.name.toLowerCase().indexOf(q) !== -1 || c.slug.indexOf(q) !== -1)) return false;
+          if (navFilter === 'loaded' && !loadedSlugs.has(c.slug)) return false;
+          if (navFilter === 'dirty') {
+            var feat = findGmFeatureBySlug(c.slug);
+            if (!feat || !isDirty(feat.id)) return false;
+          }
+          return true;
+        });
+
+        if (visibleCommunities.length === 0) continue;
+        shownCount += visibleCommunities.length;
+
+        var regionEl = document.createElement('div');
+        regionEl.className = 'nav-region';
+
+        // Region header
+        var header = document.createElement('div');
+        header.className = 'nav-region-header';
+
+        var tog = document.createElement('span');
+        tog.className = 'nav-region-toggle';
+        tog.textContent = '▼'; // ▼
+
+        var nameEl = document.createElement('span');
+        nameEl.className = 'nav-region-name';
+        nameEl.textContent = region;
+
+        var countEl = document.createElement('span');
+        countEl.className = 'nav-region-count';
+        countEl.textContent = '(' + visibleCommunities.length + ')';
+
+        var loadAllBtn = document.createElement('button');
+        loadAllBtn.className = 'nav-region-load-all';
+        loadAllBtn.textContent = 'load all';
+        (function(rk) {
+          loadAllBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleRegion(rk, true);
+          });
+        })(region);
+
+        var unloadAllBtn = document.createElement('button');
+        unloadAllBtn.className = 'nav-region-load-all';
+        unloadAllBtn.textContent = 'unload';
+        (function(rk) {
+          unloadAllBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleRegion(rk, false);
+          });
+        })(region);
+
+        header.appendChild(tog);
+        header.appendChild(nameEl);
+        header.appendChild(countEl);
+        header.appendChild(loadAllBtn);
+        header.appendChild(unloadAllBtn);
+        regionEl.appendChild(header);
+
+        // Community list
+        var list = document.createElement('div');
+        list.className = 'nav-community-list';
+
+        // Collapsible region — IIFE captures list + tog per iteration
+        (function(capturedList, capturedTog) {
+          var collapsed = false;
+          header.addEventListener('click', function() {
+            collapsed = !collapsed;
+            capturedList.style.display = collapsed ? 'none' : 'flex';
+            capturedTog.textContent = collapsed ? '▶' : '▼'; // ▶ or ▼
+          });
+        })(list, tog);
+
+        for (var _vci = 0; _vci < visibleCommunities.length; _vci++) {
+          (function(c) {
+            var row = document.createElement('label');
+            row.className = 'nav-community-row';
+            if (loadedSlugs.has(c.slug)) row.classList.add('loaded');
+            var feat = findGmFeatureBySlug(c.slug);
+            if (feat && isDirty(feat.id)) row.classList.add('dirty');
+
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = loadedSlugs.has(c.slug);
+            cb.addEventListener('change', function(e) {
+              if (e.target.checked) {
+                addCommunityToGeoman(c.slug);
+                row.classList.add('loaded');
+                refreshDirtyUI();
+                renderNav();
+              } else {
+                removeCommunityFromGeoman(c.slug).then(function(ok) {
+                  if (!ok) {
+                    e.target.checked = true; // user cancelled the discard prompt
+                    return;
+                  }
+                  row.classList.remove('loaded');
+                  row.classList.remove('dirty');
+                  refreshDirtyUI();
+                  renderNav();
+                });
+              }
+            });
+
+            var nm = document.createElement('span');
+            nm.className = 'nav-community-name';
+            nm.textContent = c.name;
+
+            // T17: draft pencil indicator
+            var navDraft = getDraft(c.slug);
+            if (navDraft) {
+              var draftSpan = document.createElement('span');
+              draftSpan.title = 'local draft';
+              draftSpan.textContent = ' ✎';
+              draftSpan.style.color = '#facc15';
+              draftSpan.style.fontSize = '11px';
+              nm.appendChild(draftSpan);
+            }
+
+            var meta = document.createElement('span');
+            meta.className = 'nav-community-meta';
+            meta.textContent = c.areaSqMi != null ? c.areaSqMi.toFixed(1) + ' mi²' : '';
+
+            row.appendChild(cb);
+            row.appendChild(nm);
+            row.appendChild(meta);
+            list.appendChild(row);
+
+            // T17: stale-draft inline choice row
+            var navFeat = findGmFeatureBySlug(c.slug);
+            var navStaleDraft = navFeat && navFeat.properties && navFeat.properties.staleDraft;
+            if (navStaleDraft && navDraft) {
+              var staleRow = document.createElement('div');
+              staleRow.className = 'stale-choice';
+              staleRow.style.cssText = 'font-size:11px; padding: 2px 8px 6px 24px; color: #9fb0c0;';
+              staleRow.appendChild(document.createTextNode('Server changed since draft. '));
+
+              var useBtn = document.createElement('button');
+              useBtn.className = 'link';
+              useBtn.textContent = 'Use draft';
+              (function(captSlug, captDraft) {
+                useBtn.addEventListener('click', function(ev) {
+                  ev.stopPropagation();
+                  var uf = findGmFeatureBySlug(captSlug);
+                  if (!uf) { setOpStatus('feature not found'); return; }
+                  var srvHash = (uf.properties && uf.properties.serverGeometryHash) ? uf.properties.serverGeometryHash : null;
+                  var fd2 = window.__gm.features.get('gm_main', uf.id);
+                  if (fd2) window.__gm.features.delete(fd2);
+                  window.__gm.features.addGeoJsonFeature({
+                    type: 'Feature',
+                    properties: {
+                      communitySlug:      captSlug,
+                      communityName:      (uf.properties && uf.properties.communityName) ? uf.properties.communityName : captSlug,
+                      regionSlug:         (uf.properties && uf.properties.regionSlug)    ? uf.properties.regionSlug    : '',
+                      areaSqMi:           (uf.properties && uf.properties.areaSqMi)      ? uf.properties.areaSqMi      : null,
+                      serverGeometryHash: srvHash,
+                      hasDraft:           true,
+                      staleDraft:         false,
+                    },
+                    geometry: captDraft.geometry,
+                  });
+                  if (!isImportingFromDb) {
+                    var updatedF = findGmFeatureBySlug(captSlug);
+                    if (updatedF) markDirty(updatedF.id);
+                  }
+                  refreshDirtyUI();
+                  refreshDraftUI();
+                  renderNav();
+                  setOpStatus('draft applied for ' + captSlug);
+                });
+              })(c.slug, navDraft);
+
+              var discardBtn = document.createElement('button');
+              discardBtn.className = 'link';
+              discardBtn.textContent = 'Discard';
+              (function(captSlug2) {
+                discardBtn.addEventListener('click', function(ev) {
+                  ev.stopPropagation();
+                  clearDraft(captSlug2);
+                  var df2 = findGmFeatureBySlug(captSlug2);
+                  if (df2 && df2.properties) {
+                    df2.properties.staleDraft = false;
+                    df2.properties.hasDraft   = false;
+                  }
+                  refreshDraftUI();
+                  renderNav();
+                  setOpStatus('draft discarded for ' + captSlug2);
+                });
+              })(c.slug);
+
+              staleRow.appendChild(useBtn);
+              staleRow.appendChild(discardBtn);
+              list.appendChild(staleRow);
+            }
+          })(visibleCommunities[_vci]);
+        }
+
+        regionEl.appendChild(list);
+        tree.appendChild(regionEl);
+      }
+
+      if (shownCount === 0) empty.style.display = 'block';
+    }
+
+    // Expose for Puppeteer test harness.
+    window.__renderNav = renderNav;
+
+    // ── T16 — Wire search + filter chips ───────────────────────────────────────
+
+    (function() {
+      var searchEl = document.getElementById('nav-search');
+      if (searchEl) {
+        searchEl.addEventListener('input', function(e) {
+          navSearch = e.target.value;
+          renderNav();
+        });
+      }
+
+      document.querySelectorAll('.nav-chip').forEach(function(chip) {
+        chip.addEventListener('click', async function() {
+          var f = chip.dataset.filter;
+          if (f === 'all') {
+            // Load every community in catalog into geoman.
+            for (var _c of catalog.values()) addCommunityToGeoman(_c.slug);
+            navFilter = 'all';
+          } else if (f === 'none') {
+            // Unload everything (with dirty guard).
+            var slugsToRemove = Array.from(loadedSlugs);
+            for (var _i = 0; _i < slugsToRemove.length; _i++) {
+              var ok = await removeCommunityFromGeoman(slugsToRemove[_i]);
+              if (!ok) break;
+            }
+            navFilter = 'all'; // return to "show all" filter view after unloading
+          } else {
+            navFilter = f; // 'loaded' | 'dirty' — UI filter only
+          }
+          refreshDirtyUI();
+          document.querySelectorAll('.nav-chip').forEach(function(c) {
+            c.classList.toggle('active', c.dataset.filter === navFilter);
+          });
+          renderNav();
+        });
+      });
+
+      // Initialize active chip state
+      var defaultChip = document.querySelector('.nav-chip[data-filter="all"]');
+      if (defaultChip) defaultChip.classList.add('active');
+    })();
+
+    // ── Side-panel list ─────────────────────────────────────────────────────────
+
+    // Fix 2 — Inside-count memoization.
+    //
+    // With 50 communities × 60K listings = 3M pip ops per render, fired on every
+    // gm:create/edit/remove and every loadListings(), this is the hottest path in
+    // the side panel.  We memoize by (listingsVersion, geomKey) where:
+    //   - listingsVersion is bumped on every loadListings() call
+    //   - geomKey is a cheap structural fingerprint of the geometry object
+    //
+    // The cache is a plain Map; it is fully replaced on each listingsVersion bump so
+    // it cannot grow unboundedly.
+
+    let _listingsVersion = 0;   // bumped in loadListings() after the array is replaced
+    let _insideCountCache = new Map(); // key: `${listingsVersion}:${geomKey}` → count
+
+    // Expose for Puppeteer instrumentation.
+    window.__insideCountCacheHits  = 0;
+    window.__insideCountCacheMisses = 0;
+
+    // Cheap geometry fingerprint — not cryptographic, ~99% collision-free for the
+    // community boundary editing use-case where geometry strings churn rarely.
+    function _geomKey(geometry) {
+      var coords0 = geometry.coordinates && geometry.coordinates[0];
+      var ringLen = Array.isArray(coords0) ? coords0.length : 0;
+      // Include type + outer ring length + first coordinate as disambiguation.
+      var firstPt = (ringLen > 0 && Array.isArray(coords0[0]))
+        ? (coords0[0][0] + ',' + coords0[0][1])
+        : '';
+      return geometry.type + ':' + ringLen + ':' + firstPt;
+    }
+
+    function computeInsideCount(geometry) {
+      var cacheKey = _listingsVersion + ':' + _geomKey(geometry);
+      if (_insideCountCache.has(cacheKey)) {
+        window.__insideCountCacheHits++;
+        return _insideCountCache.get(cacheKey);
+      }
+      window.__insideCountCacheMisses++;
+      let n = 0;
+      const feat = { type: 'Feature', properties: {}, geometry: geometry };
+      for (const l of listings) {
+        try {
+          if (booleanPointInPolygon(point([l.lng, l.lat]), feat)) n += 1;
+        } catch (_err) { /* non-polygon geometry — skip */ }
+      }
+      _insideCountCache.set(cacheKey, n);
+      return n;
+    }
+
+    function makeShapeRow(c) {
+      const inside = c.geometry ? computeInsideCount(c.geometry) : 0;
+      const area   = c.areaSqMi != null ? Number(c.areaSqMi).toFixed(2) : '—';
+
+      // Resolve the geoman feature id for this row so we can check isDirty.
+      // Prefer the pre-computed _gmId (set by refreshDirtyUI); fall back to a
+      // slug-based scan when called from other code paths.
+      var gmId = c._gmId != null ? c._gmId : null;
+      if (gmId == null && c.slug && window.__gm) {
+        var allFc = window.__gm.features.getAll();
+        if (allFc && allFc.features) {
+          for (var _ri = 0; _ri < allFc.features.length; _ri++) {
+            var _rf = allFc.features[_ri];
+            if (_rf.properties && _rf.properties.communitySlug === c.slug) {
+              gmId = _rf.id;
+              break;
+            }
+          }
+        }
+      }
+      var rowIsDirty = gmId != null && isDirty(gmId);
+
+      const row  = document.createElement('button');
+      row.className = 'shape-row' + (rowIsDirty ? ' dirty' : '');
+      if (c.slug) row.dataset.slug = c.slug;
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'name';
+      // Prepend ● indicator for dirty rows
+      if (rowIsDirty) {
+        const dotSpan = document.createElement('span');
+        dotSpan.className = 'dirty-dot';
+        dotSpan.textContent = '● ';
+        nameSpan.appendChild(dotSpan);
+        nameSpan.appendChild(document.createTextNode(c.name));
+      } else {
+        nameSpan.textContent = c.name;
+      }
+      // T17: draft pencil indicator on right-panel row
+      if (c.slug && getDraft(c.slug)) {
+        var rspDraftSpan = document.createElement('span');
+        rspDraftSpan.title = 'local draft';
+        rspDraftSpan.textContent = ' ✎';
+        rspDraftSpan.style.color = '#facc15';
+        rspDraftSpan.style.fontSize = '11px';
+        nameSpan.appendChild(rspDraftSpan);
+      }
+
+      const metaSpan = document.createElement('span');
+      metaSpan.className = 'meta';
+      metaSpan.textContent = area + ' sq mi · ' + inside + ' listings inside';
+
+      row.appendChild(nameSpan);
+      row.appendChild(metaSpan);
+
+      row.addEventListener('mouseenter', function() {
+        if (c.geometry) {
+          map.getSource('community-hover').setData({
+            type: 'FeatureCollection',
+            features: [{ type: 'Feature', properties: {}, geometry: c.geometry }],
+          });
+        }
+      });
+      row.addEventListener('mouseleave', function() {
+        map.getSource('community-hover').setData({ type: 'FeatureCollection', features: [] });
+      });
+      row.addEventListener('click', function() {
+        if (!c.geometry) return;
+        const b = bbox({ type: 'Feature', properties: {}, geometry: c.geometry });
+        map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, duration: 600 });
+        if (c.slug) selectCommunityInGeoman(c.slug);
+      });
+
+      return row;
+    }
+
+    function renderShapeList(communities) {
+      const list = document.getElementById('shape-list');
+      // Remove all existing children without innerHTML
+      while (list.firstChild) list.removeChild(list.firstChild);
+
+      // Also collect any in-geoman shapes that have no communitySlug (freshly
+      // drawn, not yet saved) and append them as "(unsaved)" rows.
+      const allRows = communities.slice();
+      const gmFc = gm.features.getAll();
+      if (gmFc && gmFc.features) {
+        for (const f of gmFc.features) {
+          const slug = f.properties && f.properties.communitySlug;
+          if (slug) continue; // already in communities list
+          if (!f.geometry || (f.geometry.type !== 'Polygon' && f.geometry.type !== 'MultiPolygon')) continue;
+          allRows.push({ slug: null, name: '(unsaved)', areaSqMi: null, geometry: f.geometry, _gmId: f.id });
+        }
+      }
+
+      if (!allRows.length) {
+        var hint = document.createElement('div');
+        hint.className = 'muted';
+        if (listings.length > 0) {
+          // DB is reachable but no communities saved yet — show structured guidance (Fix 3)
+          hint.style.cssText = 'padding: 12px 8px; line-height: 1.5;';
+          hint.innerHTML = 'No saved communities yet.<br/>' +
+            '1. Click the <strong style="color:#bfa67a;">polygon tool</strong> in the top-left toolbar.<br/>' +
+            '2. Draw around a cluster of listing dots.<br/>' +
+            '3. The name + slug fill from the dominant subdivision.<br/>' +
+            '4. Click Save.';
+        } else {
+          hint.style.padding = '8px 4px';
+          hint.textContent = 'No communities yet — draw one.';
+        }
+        list.appendChild(hint);
+        return;
+      }
+
+      for (const c of allRows) {
+        list.appendChild(makeShapeRow(c));
+      }
+    }
+
+    // Expose for Puppeteer testing so the harness can inject and verify the list.
+    window.__renderShapeList = renderShapeList;
+
+    // ── Programmatic selection ──────────────────────────────────────────────────
+    //
+    // geoman 0.2.10 type defs confirm there is NO public gm.features.select(id)
+    // method.  Fallback path used:
+    //   1. Enable the vertex-edit mode ('edit', 'change') so the operator can
+    //      immediately start editing the clicked shape.
+    //   2. Walk gm.features.getAll() to find the matching feature.
+    //   3. Compute its centroid and fire a synthetic map 'click' at that screen
+    //      point so geoman's internal hit-test can select the right feature.
+    //
+    // FALLBACK — if a future geoman version exposes a direct select API,
+    // swap it in here.
+    function selectCommunityInGeoman(slug) {
+      // Enable change/vertex-edit mode so clicks activate vertex handles.
+      try {
+        gm.enableMode('edit', 'change');
+      } catch (_err) { /* mode may already be active */ }
+
+      const fc = gm.features.getAll();
+      if (!fc || !fc.features) return;
+
+      const match = fc.features.find(function(f) {
+        return f.properties && f.properties.communitySlug === slug;
+      });
+      if (!match || !match.geometry) return;
+
+      // Compute centroid and fire a synthetic click so geoman's pointer
+      // handler selects the shape.
+      try {
+        const ctr = centroid({ type: 'Feature', properties: {}, geometry: match.geometry });
+        const coords = ctr.geometry.coordinates;
+        const lng = coords[0];
+        const lat = coords[1];
+        const screenPt = map.project([lng, lat]);
+        // map.fire routes through maplibre's event system — geoman listens here.
+        map.fire('click', { lngLat: { lng: lng, lat: lat }, point: screenPt, originalEvent: {} });
+      } catch (_err) {
+        // Projection error — skip; shape is already visible from fitBounds.
+      }
+    }
+
+    // ── Boolean Ops — selection state ──────────────────────────────────────────
+    //
+    // `selected` holds up to two geoman feature IDs in tap/click order.
+    // Order matters: Subtract = selected[0] minus selected[1].
+    //
+    // Delete API (verified from @geoman-io/maplibre-geoman-free@0.2.10 type defs):
+    //   gm.features.get('gm_main', featureId) → FeatureData | null
+    //   gm.features.delete(featureData, keepMarkers?)
+    // 'gm_main' is the primary drawn-feature source (featureSourceNames = ['main',
+    // 'temporary', 'standby']; the library prepends the 'gm' prefix automatically
+    // so the key is 'gm_main').
+
+    var selected = []; // string[], geoman feature IDs in selection order
+
+    function updateBoolopsUI() {
+      var statusEl = document.getElementById('boolops-status');
+      var btnUnion      = document.getElementById('op-union');
+      var btnSubtract   = document.getElementById('op-subtract');
+      var btnIntersect  = document.getElementById('op-intersect');
+
+      // Build display names from selected feature slugs/names
+      var displayNames = selected.map(function(id) {
+        var fc = window.__gm.features.getAll();
+        var f = fc && fc.features && fc.features.find(function(feat) {
+          return String(feat.id) === String(id);
+        });
+        if (!f) return id;
+        var p = f.properties;
+        return (p && (p.communityName || p.communitySlug)) || '(unsaved)';
+      });
+
+      if (selected.length === 0) {
+        statusEl.textContent = '0 selected';
+      } else if (selected.length === 1) {
+        statusEl.textContent = '1 selected — ' + displayNames[0];
+      } else {
+        statusEl.textContent = '2 selected — ' + displayNames[0] + ' + ' + displayNames[1];
+      }
+
+      // Union and Intersect require ≥2 selected; Subtract requires exactly 2.
+      var canOp = selected.length >= 2;
+      btnUnion.disabled     = !canOp;
+      btnSubtract.disabled  = selected.length !== 2;
+      btnIntersect.disabled = !canOp;
+
+      // Weld requires exactly 1 selected feature.
+      document.getElementById('op-weld').disabled = !(selected.length === 1);
+
+      // Highlight matching side-panel rows
+      var list = document.getElementById('shape-list');
+      var rows = list ? list.querySelectorAll('.shape-row') : [];
+      rows.forEach(function(row) {
+        row.classList.remove('selected');
+      });
+
+      // For each selected ID, find the slug on that feature, then highlight the row
+      var fc2 = window.__gm.features.getAll();
+      selected.forEach(function(id) {
+        var f = fc2 && fc2.features && fc2.features.find(function(feat) {
+          return String(feat.id) === String(id);
+        });
+        if (!f) return;
+        var slug = f.properties && f.properties.communitySlug;
+        if (slug) {
+          rows.forEach(function(row) {
+            if (row.dataset.slug === slug) row.classList.add('selected');
+          });
+        }
+      });
+    }
+
+    // Expose for Puppeteer test harness
+    window.__updateBoolopsUI = updateBoolopsUI;
+    Object.defineProperty(window, '__selected', {
+      get: function() { return selected; },
+      set: function(v) { selected = v; },
+    });
+
+    // Toggle a feature ID in the selection array (shift+click behaviour)
+    function toggleSelected(id) {
+      var strId = String(id);
+      var idx = selected.indexOf(strId);
+      if (idx !== -1) {
+        // Already selected — deselect
+        selected = selected.filter(function(s) { return s !== strId; });
+      } else {
+        // Add (cap at 2 — drop oldest if already at 2)
+        if (selected.length >= 2) {
+          selected = [selected[1], strId];
+        } else {
+          selected = selected.concat([strId]);
+        }
+      }
+    }
+
+    // ── Map click — polygon hit-test for boolops selection ─────────────────────
+    //
+    // On shift+click: toggle the hit feature in `selected`.
+    // On plain click (no shift): clear selection (single-select is outside boolops
+    // scope; non-shift clicks are forwarded to geoman's own edit/select logic).
+    // Hit-test uses booleanPointInPolygon against every Polygon/MultiPolygon in
+    // geoman's feature collection.
+
+    map.on('click', function(e) {
+      // If the event was fired synthetically by selectCommunityInGeoman, skip.
+      if (!e.originalEvent || !e.originalEvent.shiftKey) {
+        // Plain click — clear boolean-ops selection and update UI
+        if (selected.length > 0) {
+          selected = [];
+          updateBoolopsUI();
+        }
+        return;
+      }
+
+      // Shift+click — find topmost polygon under cursor
+      var lngLat = e.lngLat;
+      var clickPt = point([lngLat.lng, lngLat.lat]);
+      var fc = window.__gm.features.getAll();
+      if (!fc || !fc.features) return;
+
+      // Walk in reverse order so the "topmost" (last-drawn) feature wins
+      var hit = null;
+      for (var i = fc.features.length - 1; i >= 0; i--) {
+        var f = fc.features[i];
+        if (!f.geometry) continue;
+        var type = f.geometry.type;
+        if (type !== 'Polygon' && type !== 'MultiPolygon') continue;
+        try {
+          if (booleanPointInPolygon(clickPt, f)) {
+            hit = f;
+            break;
+          }
+        } catch (_err) {
+          // malformed geometry — skip
+        }
+      }
+
+      if (!hit) return; // shift+clicked empty map area — no change
+      toggleSelected(hit.id);
+      updateBoolopsUI();
+    });
+
+    // ── Boolean op execution ────────────────────────────────────────────────────
+
+    function setStatus(text) {
+      document.getElementById('status').textContent = text;
+    }
+
+    // Fix 4 — Dedicated op-status row for boolean ops / weld / undo / shortcuts.
+    // Writes to #op-status (below the weld panel) with a 4-second auto-clear.
+    // #status is reserved for save-flow messages only.
+    var _opStatusCurrentText = '';
+    function setOpStatus(text) {
+      _opStatusCurrentText = text;
+      var el = document.getElementById('op-status');
+      if (el) el.textContent = text;
+      var captured = text;
+      setTimeout(function() {
+        if (_opStatusCurrentText === captured) {
+          var el2 = document.getElementById('op-status');
+          if (el2) el2.textContent = '';
+          _opStatusCurrentText = '';
+        }
+      }, 4000);
+    }
+
+    async function runBoolOp(opName) {
+      if (selected.length < 2) return;
+
+      var fc = window.__gm.features.getAll();
+      var f0 = fc && fc.features && fc.features.find(function(f) {
+        return String(f.id) === String(selected[0]);
+      });
+      var f1 = fc && fc.features && fc.features.find(function(f) {
+        return String(f.id) === String(selected[1]);
+      });
+
+      if (!f0 || !f1) {
+        setOpStatus('selected features no longer exist');
+        selected = [];
+        updateBoolopsUI();
+        return;
+      }
+
+      var result = null;
+      if (opName === 'union') {
+        result = unionPolygons(f0.geometry, f1.geometry);
+      } else if (opName === 'subtract') {
+        result = differencePolygons(f0.geometry, f1.geometry);
+      } else if (opName === 'intersect') {
+        result = intersectPolygons(f0.geometry, f1.geometry);
+      }
+
+      if (!result) {
+        setOpStatus(opName + ' produced no geometry — nothing to do');
+        return;
+      }
+
+      var opLabel = opName === 'union' ? 'Union' :
+                    opName === 'subtract' ? 'Subtract' : 'Intersect';
+
+      if (!confirm(opLabel + ' will replace 2 shapes with 1 result. Continue?')) return;
+
+      // Snapshot hook for T6 undo — T6 will wire the actual stack.
+      if (typeof window.__snapshot === 'function') window.__snapshot();
+
+      // Delete originals.
+      // API: gm.features.get('gm_main', id) → FeatureData | null
+      //      gm.features.delete(featureData)
+      var fd0 = window.__gm.features.get('gm_main', f0.id);
+      var fd1 = window.__gm.features.get('gm_main', f1.id);
+      if (fd0) window.__gm.features.delete(fd0);
+      if (fd1) window.__gm.features.delete(fd1);
+
+      // Add result.
+      // The result carries f0's properties so subsequent Save updates the correct
+      // DB row. If f0 had no communitySlug (unsaved), the result is also unsaved.
+      var slug       = f0.properties && f0.properties.communitySlug;
+      var name       = f0.properties && f0.properties.communityName;
+      var regionSlug = f0.properties && f0.properties.regionSlug;
+
+      window.__gm.features.addGeoJsonFeature({
+        type: 'Feature',
+        properties: {
+          communitySlug: slug       || undefined,
+          communityName: name       || undefined,
+          regionSlug:    regionSlug || undefined,
+        },
+        geometry: result,
+      });
+
+      selected = [];
+      updateBoolopsUI();
+      setOpStatus(opLabel + ' ok — replaced 2 with 1');
+    }
+
+    // ── Mismatch toggle — wire checkbox ─────────────────────────────────────────
+    document.getElementById('mismatch-toggle').addEventListener('change', function(e) {
+      mismatchMode = e.target.checked;
+      document.getElementById('mismatch-legend').style.display = mismatchMode ? '' : 'none';
+      rebuildListingsSourceData();
+      applyMismatchPaint();
+    });
+
+    // Wire the three buttons
+    document.getElementById('op-union').addEventListener('click', function() {
+      runBoolOp('union');
+    });
+    document.getElementById('op-subtract').addEventListener('click', function() {
+      runBoolOp('subtract');
+    });
+    document.getElementById('op-intersect').addEventListener('click', function() {
+      runBoolOp('intersect');
+    });
+
+    // ── Weld Nearby Vertices — slider label + handler ───────────────────────────
+
+    var weldThresholdEl      = document.getElementById('weld-threshold');
+    var weldThresholdLabelEl = document.getElementById('weld-threshold-label');
+
+    weldThresholdEl.addEventListener('input', function() {
+      weldThresholdLabelEl.textContent = weldThresholdEl.value + ' m';
+    });
+
+    document.getElementById('op-weld').addEventListener('click', function() {
+      if (selected.length !== 1) return;
+      var all = window.__gm.features.getAll();
+      var f = all.features.find(function(x) { return String(x.id) === String(selected[0]); });
+      if (!f) {
+        setOpStatus('selected feature no longer exists');
+        selected = [];
+        updateBoolopsUI();
+        return;
+      }
+      if (f.geometry.type !== 'Polygon' && f.geometry.type !== 'MultiPolygon') {
+        setOpStatus('weld only applies to polygons');
+        return;
+      }
+
+      var threshold = Number(weldThresholdEl.value);
+      var before = countVertices(f.geometry);
+      var result = weldGeometry(f.geometry, threshold);
+      var after = countVertices(result);
+      if (after === before) {
+        setOpStatus('weld at ' + threshold + ' m removed 0 vertices — no change');
+        return;
+      }
+
+      window.__snapshot?.();
+
+      var fd = window.__gm.features.get('gm_main', f.id);
+      if (fd) window.__gm.features.delete(fd);
+      window.__gm.features.addGeoJsonFeature({
+        type: 'Feature',
+        properties: Object.assign({}, f.properties || {}),
+        geometry: result,
+      });
+
+      selected = [];
+      updateBoolopsUI();
+      setOpStatus('welded — removed ' + (before - after) + ' vertices (' + before + ' → ' + after + ') at ' + threshold + ' m');
+    });
+
+    // Clear selection when geoman adds or removes features (e.g. user deletes a
+    // selected shape, or a new draw is started).
+    // These are wired below alongside the existing gm:create / gm:remove handlers.
+
+    // ── Event wiring ────────────────────────────────────────────────────────────
+
+    map.on('load', function() {
+      initHoverLayer();
+      initSnapCandidateLayer();
+      ensureDirtyOutlineLayer();
+
+      // ── Enable geoman snapping (vertex + edge + midpoint) ──────────────────
+      //
+      // enableMode('helper', 'snapping') instantiates SnappingHelper and stores
+      // it at gm.actionInstances['helper__snapping'].  It must be called before
+      // we try to set tolerance or push listing coordinates.
+      //
+      // Vertex/edge/midpoint snapping is geoman's default behaviour — the library
+      // handles all three target types internally without per-flag options (none
+      // exist in the GmOptionsData schema).
+      try {
+        gm.enableMode('helper', 'snapping');
+        const helper = getSnappingHelper();
+        if (helper) {
+          helper.tolerance = SNAP_RADIUS_DEFAULT;
+        }
+      } catch (_err) {
+        // Snap helper failed to activate — editor still functional, just no snap.
+      }
+
+      // ── T15 — Discover geoman feature layer IDs ────────────────────────────
+      // geoman adds its layers synchronously during construction; they exist in
+      // the style by map load time.  We cache them now and again after a short
+      // delay to catch any layers added during the first draw init.
+      window.__gmLayerIds = getGmFeatureLayerIds();
+      setTimeout(function() {
+        window.__gmLayerIds = getGmFeatureLayerIds();
+        attachPolygonCursorHover();
+        attachPolygonDblClick();
+      }, 500);
+
+      // ── T15 — Context menu on right-click ──────────────────────────────────
+      map.on('contextmenu', function(e) {
+        e.originalEvent.preventDefault();
+        // Priority 1: listing hit (small targets, check first).
+        var listingHits = map.getLayer('listings')
+          ? map.queryRenderedFeatures(e.point, { layers: ['listings'] })
+          : [];
+        if (listingHits.length) { showListingMenu(e, listingHits[0]); return; }
+        // Priority 2: polygon hit.
+        var layerIds = window.__gmLayerIds || [];
+        var gmHits = layerIds.length
+          ? map.queryRenderedFeatures(e.point, { layers: layerIds })
+          : [];
+        if (gmHits.length) { showPolygonMenu(e, gmHits[0]); return; }
+        // Priority 3: empty map.
+        showEmptyMenu(e);
+      });
+
+      // ── T15 — Space mousedown/mouseup cursor update ─────────────────────────
+      map.on('mousedown', function() {
+        if (spacePanActive) map.getCanvas().style.cursor = 'grabbing';
+      });
+      map.on('mouseup', function() {
+        if (spacePanActive) map.getCanvas().style.cursor = 'grab';
+      });
+
+      loadListings();
+      // Push the initial state as the baseline undo entry after catalog loads,
+      // so the operator can undo all the way back to the loaded state.
+      loadCatalog().then(function() { snapshot(); });
+    });
+
+    // ── T15 — Polygon hover cursor ─────────────────────────────────────────────
+    //
+    // Attaches mouseenter/mouseleave handlers to each discovered geoman layer so
+    // the cursor shows 'pointer' on polygon hover.  Safe to call multiple times —
+    // each call replaces the previous handlers (maplibre deduplicates by reference,
+    // but we use named wrappers to ensure clean removal).
+
+    var _polygonHoverHandlersAttached = false;
+
+    function attachPolygonCursorHover() {
+      if (_polygonHoverHandlersAttached) return;
+      var ids = window.__gmLayerIds || [];
+      if (!ids.length) return;
+      _polygonHoverHandlersAttached = true;
+      for (var _hi = 0; _hi < ids.length; _hi++) {
+        (function(layerId) {
+          if (!map.getLayer(layerId)) return;
+          map.on('mouseenter', layerId, function() {
+            if (!spacePanActive && _activeModeCategory !== 'draw') {
+              map.getCanvas().style.cursor = 'pointer';
+            }
+          });
+          map.on('mouseleave', layerId, function() {
+            if (!spacePanActive && _activeModeCategory !== 'draw') {
+              map.getCanvas().style.cursor = '';
+            }
+          });
+        })(ids[_hi]);
+      }
+    }
+
+    // ── T15 — Double-click polygon → vertex edit ───────────────────────────────
+    //
+    // We attach a single dblclick listener on the map.  If the click hits a
+    // geoman feature layer, we enter vertex-edit mode and suppress the default
+    // maplibre double-click zoom.
+
+    var _dblClickAttached = false;
+
+    function attachPolygonDblClick() {
+      if (_dblClickAttached) return;
+      var ids = window.__gmLayerIds || [];
+      if (!ids.length) return;
+      _dblClickAttached = true;
+
+      map.on('dblclick', function(e) {
+        var layerIds = window.__gmLayerIds || [];
+        if (!layerIds.length) return;
+        var hits = map.queryRenderedFeatures(e.point, { layers: layerIds });
+        if (!hits.length) return;
+        // Prevent maplibre's default zoom-in on double-click over a polygon.
+        e.preventDefault();
+        try { window.__gm.enableMode('edit', 'change'); } catch (_err) {}
+        // Best-effort: try to select the polygon via the synthetic-click path.
+        var feat = hits[0];
+        var props = feat.properties || {};
+        var slug = props.communitySlug;
+        if (slug) {
+          selectCommunityInGeoman(slug);
+        }
+        setOpStatus('vertex edit');
+      });
+    }
+
+    // Snap-candidate ring tracks the cursor while the map is interactive.
+    map.on('mousemove', onMapMouseMove);
+    map.on('mouseout', function() { setSnapCandidate(null); });
+
+    map.on('moveend', loadListings);
+
+    // ── Space key — momentary snap-radius boost ─────────────────────────────
+    //
+    // keydown Space (not in input/textarea): boost tolerance to SNAP_RADIUS_BOOSTED
+    // and set snapStrongMode = true so the visual ring also uses the wider radius.
+    // keyup Space: restore SNAP_RADIUS_DEFAULT.
+    //
+    // If the geoman SnappingHelper is not available (e.g. snap was disabled or
+    // helper not yet instantiated), the flags still flip — the mousemove handler
+    // reads SNAP_RADIUS_DEFAULT/BOOSTED directly when helper.tolerance is absent.
+
+    document.addEventListener('keydown', function(e) {
+      const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+      const inInput = (tag === 'input' || tag === 'textarea');
+
+      // ── Space: hold-to-pan (T15) ─────────────────────────────────────────────
+      // If a draw mode is active, Space temporarily disables draw so maplibre's
+      // native dragPan can handle the mouse.  Without an active draw mode the map
+      // already pans on drag — no special handling needed, just prevent scroll.
+      if (e.code === 'Space') {
+        if (inInput) return; // let the user type spaces
+        e.preventDefault();   // always prevent page scroll
+        if (spacePanActive) return; // already panning
+        if (_activeModeCategory === 'draw') {
+          // Save the current draw mode name for restoration on keyup.
+          // _activeModeCategory is the category; we can't cheaply get the sub-mode
+          // name but disabling the category is sufficient to free mouse events.
+          _savedDrawMode = _activeModeCategory;
+          spacePanActive = true;
+          window.__spacePanActive = true;
+          try { window.__gm.disableMode('draw'); } catch (_err) {}
+          map.getCanvas().style.cursor = 'grab';
+        }
+        // When no draw mode is active, Space does nothing extra — map drags naturally.
+        return;
+      }
+
+      // ── Alt: snap-radius boost (T15 — moved from Space) ─────────────────────
+      if (e.key === 'Alt') {
+        if (inInput) return;
+        if (snapStrongMode) return; // already boosted
+        snapStrongMode = true;
+        window.__snapStrongMode = true;
+        const helper = getSnappingHelper();
+        if (helper) helper.tolerance = SNAP_RADIUS_BOOSTED;
+        return;
+      }
+
+      // ── Additional keyboard shortcuts (non-meta) ─────────────────────────────
+      // All handlers respect the inInput escape hatch (skip when typing in a field).
+
+      if (!inInput) {
+        if (e.key === 'Escape') {
+          // T15 Esc cascade:
+          // 1. Help open? Close it.
+          var helpOverlay = document.getElementById('help-overlay');
+          if (helpOverlay && helpOverlay.style.display !== 'none') {
+            closeHelp();
+            return;
+          }
+          // 2. Context menu open? Close it.
+          var ctxMenu = document.getElementById('ctx-menu');
+          if (ctxMenu && ctxMenu.style.display !== 'none') {
+            hideCtxMenu();
+            return;
+          }
+          // 3. Draw mode active? Cancel it.
+          if (_activeModeCategory === 'draw') {
+            try { window.__gm.disableMode('draw'); } catch (_err) {}
+            map.getCanvas().style.cursor = '';
+            setOpStatus('cancelled draw');
+            return;
+          }
+          // 4. Selection non-empty? Deselect.
+          if (selected && selected.length) {
+            selected = [];
+            if (typeof updateBoolopsUI === 'function') updateBoolopsUI();
+            setOpStatus('cleared selection');
+            return;
+          }
+          // 5. No-op.
+          return;
+        }
+
+        // Enter — best-effort: geoman v0.2.10 doesn't expose a programmatic finish-draw API;
+        // skip gracefully (operator can double-click to finish as normal).
+        if (e.key === 'Enter') {
+          // geoman v0.2.10 doesn't expose this; best-effort no-op
+          return;
+        }
+
+        if (e.key === 'Delete') {
+          if (selected.length > 0) {
+            window.__snapshot?.();
+            var delCount = selected.length;
+            for (var _di = 0; _di < selected.length; _di++) {
+              var fd = window.__gm.features.get('gm_main', selected[_di]);
+              if (fd) window.__gm.features.delete(fd);
+            }
+            selected = [];
+            updateBoolopsUI();
+            setOpStatus('deleted ' + delCount + ' feature(s)');
+          }
+          return;
+        }
+
+        if (e.key === 'Backspace') {
+          // Remove last vertex via geoman's edit mode — geoman v0.2.10 doesn't expose this;
+          // best-effort no-op (use Ctrl/Cmd+Z to undo the last vertex instead).
+          return;
+        }
+
+        const k = e.key.toLowerCase();
+        const isMeta2 = e.metaKey || e.ctrlKey;
+
+        if (k === 'v' && !isMeta2) {
+          // Enter vertex-edit mode
+          try { window.__gm.enableMode('edit', 'change'); setOpStatus('vertex edit mode'); } catch (_err) {}
+          return;
+        }
+
+        // ── T15 — Tool letter keys (P / F / R) ──────────────────────────────
+        // geoman v0.2.10 draw mode names verified against type defs:
+        //   'polygon'   — standard click-to-draw polygon
+        //   'freehand'  — freehand draw (drag)
+        //   'rectangle' — rectangle by drag
+        // Note: 'line' / 'polyline' also exists but is not wired here (no boundary use-case).
+        if (k === 'p' && !isMeta2) {
+          try { window.__gm.enableMode('draw', 'polygon');   setOpStatus('polygon tool'); } catch (_err) {}
+          return;
+        }
+        if (k === 'f' && !isMeta2) {
+          // 'freehand' — if geoman v0.2.10 uses a different name this no-ops gracefully.
+          try { window.__gm.enableMode('draw', 'freehand');  setOpStatus('freehand tool'); } catch (_err) {}
+          return;
+        }
+        if (k === 'r' && !isMeta2) {
+          try { window.__gm.enableMode('draw', 'rectangle'); setOpStatus('rectangle tool'); } catch (_err) {}
+          return;
+        }
+
+        if (k === 'u' && !isMeta2) {
+          // Trigger union if exactly 2 shapes are selected
+          if (selected.length === 2) document.getElementById('op-union').click();
+          return;
+        }
+
+        if ((k === 'c' || k === 's') && !isMeta2) {
+          // Trigger subtract if exactly 2 shapes are selected
+          if (selected.length === 2) document.getElementById('op-subtract').click();
+          return;
+        }
+      }
+
+      // ── ? key: open help overlay ────────────────────────────────────────────
+      // e.key === '?' is what browsers report for Shift+/ — respect inInput.
+      const isMeta = e.metaKey || e.ctrlKey;
+      if (e.key === '?' && !isMeta && !inInput) { e.preventDefault(); openHelp(); return; }
+
+      // ── Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z: undo / redo ──────────────────────────
+      if (!isMeta) return;
+      if (e.key !== 'z' && e.key !== 'Z') return;
+      if (inInput) return; // don't capture undo while typing
+
+      e.preventDefault();
+
+      if (!e.shiftKey) {
+        // Undo
+        // The last entry in undoStack IS the current committed state.
+        // We need at least 2 entries to have a "previous" state to return to.
+        if (undoStack.length <= 1) { setOpStatus('nothing to undo'); return; }
+        var current = undoStack.pop();   // remove current-state snapshot
+        redoStack.push(current);         // save it for redo
+        // Restore the new top of the stack (the previous committed state)
+        void restore(undoStack[undoStack.length - 1]);
+        setOpStatus('undid (' + (undoStack.length - 1) + ' more in history)');
+      } else {
+        // Redo
+        if (redoStack.length === 0) { setOpStatus('nothing to redo'); return; }
+        var next = redoStack.pop();
+        undoStack.push(next);     // re-push to undo stack as the new current state
+        void restore(next);
+        setOpStatus('redid (' + redoStack.length + ' more available)');
+      }
+    });
+
+    document.addEventListener('keyup', function(e) {
+      // ── Space keyup: restore draw mode after space-pan (T15) ─────────────────
+      if (e.code === 'Space') {
+        if (!spacePanActive) return;
+        spacePanActive = false;
+        window.__spacePanActive = false;
+        map.getCanvas().style.cursor = '';
+        // Restore the draw mode that was active before Space was pressed.
+        if (_savedDrawMode === 'draw') {
+          // Re-enable polygon draw as the default; if operator had freehand/rectangle
+          // active that info isn't tracked at this granularity — they can re-press P/F/R.
+          // This is a best-effort restore; the map is operational regardless.
+          try { window.__gm.enableMode('draw', 'polygon'); } catch (_err) {}
+        }
+        _savedDrawMode = null;
+        return;
+      }
+
+      // ── Alt keyup: restore default snap radius (T15 — moved from Space) ──────
+      if (e.key === 'Alt') {
+        snapStrongMode = false;
+        window.__snapStrongMode = false;
+        const helper = getSnappingHelper();
+        if (helper) helper.tolerance = SNAP_RADIUS_DEFAULT;
+        return;
+      }
+    });
+
+    // geoman fires these on the map instance via mapAdapter.fire():
+    //   gm:create  — feature_created (polygon finished)
+    //   gm:remove  — feature_removed (polygon deleted)
+    //   gm:edit    — feature_updated (vertex dragged / geometry changed)
+    map.on('gm:create', function() {
+      // New feature drawn — clear selection so stale IDs don't linger.
+      selected = [];
+      updateBoolopsUI();
+      updateCount();
+      snapshot(); // push undo entry after the feature is committed
+      // Recompute mismatch overlay: a new polygon may reclassify dots.
+      if (mismatchMode) { rebuildListingsSourceData(); }
+      // T12 — Mark freshly drawn features dirty (they are not yet in the DB).
+      // Skip during DB import (isImportingFromDb guard).
+      (function() {
+        if (isImportingFromDb) return;
+        try {
+          var allFc = window.__gm.features.getAll();
+          if (!allFc || !allFc.features || !allFc.features.length) return;
+          var last = allFc.features[allFc.features.length - 1];
+          if (!last) return;
+          // Only mark dirty if the feature has no communitySlug — loaded features
+          // carry the slug; fresh draws do not.
+          if (last.properties && last.properties.communitySlug) return;
+          markDirty(last.id);
+        } catch (_err) { /* never break the create flow */ }
+      })();
+      // T17 — Schedule auto-save for the newly created feature.
+      (function() {
+        if (isImportingFromDb) return;
+        try {
+          var acAll = window.__gm.features.getAll();
+          if (!acAll || !acAll.features || !acAll.features.length) return;
+          var acLast = acAll.features[acAll.features.length - 1];
+          if (acLast) scheduleAutoSave(acLast.id);
+        } catch (_ace) { /* never break create flow */ }
+      })();
+
+      // T11 — Auto-suggest name + slug from dominant subdivision.
+      // Wrapped in an IIFE so early-return doesn't affect the outer handler.
+      (function() {
+        try {
+          var all = window.__gm.features.getAll();
+          if (!all || !all.features || !all.features.length) return;
+          var last = all.features[all.features.length - 1];
+          if (!last || (last.geometry.type !== 'Polygon' && last.geometry.type !== 'MultiPolygon')) return;
+          if (last.properties && last.properties.communitySlug) return; // editing an existing community — skip
+          var slugEl = document.getElementById('slug');
+          var nameEl = document.getElementById('name');
+          if ((slugEl.value && slugEl.value.trim()) || (nameEl.value && nameEl.value.trim())) return; // operator already typed something
+          var sug = computeSuggestedNameAndSlug(last.geometry);
+          if (!sug) {
+            if (typeof setOpStatus === 'function') setOpStatus('drew a polygon — no dominant subdivision to suggest');
+            return;
+          }
+          nameEl.value = sug.name;
+          slugEl.value = sug.slug;
+          if (typeof setOpStatus === 'function') setOpStatus('suggested "' + sug.name + '" (' + sug.count + '/' + sug.total + ' listings, ' + Math.round(sug.share * 100) + '%)');
+        } catch (_err) {
+          // never break the create flow over a suggestion error
+        }
+      })();
+    });
+    map.on('gm:remove', function(e) {
+      // Feature removed — clear selection in case a selected feature was deleted.
+      selected = [];
+      updateBoolopsUI();
+      updateCount();
+      snapshot(); // push undo entry after the removal is committed
+      // Recompute mismatch overlay: a removed polygon changes containment.
+      if (mismatchMode) { rebuildListingsSourceData(); }
+      // T12 — Remove from dirty set; if the feature was dirty (fresh draw deleted
+      // before saving), this prevents a stale beforeunload nag.
+      if (!isImportingFromDb) {
+        try {
+          var removedId = e && e.feature && e.feature.id;
+          if (removedId != null) {
+            clearDirty(String(removedId));
+            // T17: clear draft for removed feature
+            var removedSlug = e.feature.properties && e.feature.properties.communitySlug;
+            if (removedSlug) clearDraft(removedSlug);
+            try { localStorage.removeItem(DRAFT_UNSAVED_PREFIX + String(removedId)); } catch (_rme) {}
+          } else {
+            // Event doesn't carry the id — attempt a best-effort sync:
+            // any id in dirty that no longer exists in geoman should be removed.
+            var stillPresent = new Set(
+              (window.__gm.features.getAll().features || []).map(function(f) { return String(f.id); })
+            );
+            dirty.forEach(function(id) {
+              if (!stillPresent.has(id)) dirty.delete(id);
+            });
+            refreshDirtyUI();
+          }
+        } catch (_err) { /* never break the remove flow */ }
+      }
+      refreshDraftUI(); // T17
+    });
+    map.on('gm:edit', function(e) {
+      updateCount();
+      snapshot(); // push undo entry after the vertex edit is committed
+      // Recompute mismatch overlay: boundary change may reclassify dots.
+      if (mismatchMode) { rebuildListingsSourceData(); }
+      // T12 — Vertex/geometry changes always dirty the feature, even DB-loaded ones
+      // (operator changed the boundary since last save).
+      if (!isImportingFromDb) {
+        try {
+          var editedId = e && e.feature && e.feature.id;
+          if (editedId != null) {
+            markDirty(String(editedId));
+            scheduleAutoSave(String(editedId)); // T17
+          } else {
+            // geoman fires gm:edit without the feature id in some versions —
+            // mark the currently-selected feature dirty as a best-effort fallback.
+            if (selected.length > 0) {
+              markDirty(selected[0]);
+              scheduleAutoSave(selected[0]); // T17
+            }
+          }
+        } catch (_err) { /* never break the edit flow */ }
+      }
+    });
+
+    // ── Save handler ─────────────────────────────────────────────────────────────
+    // Three pre-flight validations gate the POST:
+    //   1. Self-intersection  — kinks-based, mirrors geo-compute.ts
+    //   2. Sibling overlap    — turfBooleanIntersects against all other community polys
+    //   3. Zero listings      — countPointsInside must be > 0
+
+    document.getElementById('save').addEventListener('click', async function() {
+      const poly = currentPolygon();
+      const slug = document.getElementById('slug').value.trim();
+      const name = document.getElementById('name').value.trim();
+      const region = document.getElementById('region').value.trim();
+      const status = document.getElementById('status');
+      if (!poly || !slug || !name || !region) {
+        status.textContent = 'slug, name, region, and a polygon are required';
+        return;
+      }
+
+      const polygon = poly.geometry;
+
+      // 1. Self-intersection
+      const kn = selfIntersectionCount(polygon);
+      if (kn > 0) { setStatus('cannot save: polygon self-intersects at ' + kn + ' point(s)'); return; }
+
+      // 2. Sibling overlap (exclude self-by-slug — the shape currently being edited)
+      var allFeats = window.__gm.features.getAll().features
+        .filter(function(f) { return (f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon')); })
+        .filter(function(f) { return f.properties && f.properties.communitySlug; });
+      // Exclude by feature id first; fall back to slug exclusion if id is absent
+      var siblings = allFeats
+        .filter(function(f) { return typeof poly.id !== 'undefined' ? String(f.id) !== String(poly.id) : f.properties.communitySlug !== slug; })
+        .map(function(f) { return { slug: f.properties.communitySlug, geometry: f.geometry }; });
+      var overlap = findSiblingOverlap(polygon, siblings, slug);
+      if (overlap) { setStatus('cannot save: overlaps "' + overlap + '"'); return; }
+
+      // 3. Zero listings inside
+      var inside = countPointsInside(listings, polygon);
+      if (inside === 0) { setStatus('cannot save: no listings inside the polygon (check geometry?)'); return; }
+
+      status.textContent = 'saving…';
+      // Capture the feature id before POSTing so we can clearDirty on success
+      // (loadCommunities will re-stamp the slug, clearing the id from geoman's
+      // perspective, so we must clear before the reload).
+      var savedFeatureId = poly.id != null ? String(poly.id) : null;
+      const res = await fetch('/api/community', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ slug: slug, name: name, regionSlug: region, geometry: poly.geometry }),
+      });
+      const body = await res.json();
+      if (res.ok) {
+        // Fix 1/3 — clear slug + name so operator can start the next community,
+        // but KEEP region (persisted) so they don't retype it for every community.
+        // Do NOT clear on validation rejection or HTTP error so the operator can retry.
+        document.getElementById('slug').value   = '';
+        document.getElementById('name').value   = '';
+        // Persist the region to localStorage so it survives a page reload (Fix 1).
+        localStorage.setItem('editorLastRegion', region);
+        status.textContent = 'saved — ' + body.areaSqMi.toFixed(2) + ' sq mi, ' + body.vertexCount + ' verts (region kept)';
+        // T12 — mark the saved feature clean before reloading (loadCommunities
+        // calls dirty.clear() internally via the isImportingFromDb guard).
+        if (savedFeatureId != null) clearDirty(savedFeatureId);
+        // T17 — clear the local draft: operator just formally saved.
+        clearDraft(slug);
+        // Refresh serverGeometryHash so future edits debit against the correct base.
+        if (savedFeatureId != null) {
+          try {
+            var savedFeatNow = window.__gm.features.getAll().features
+              .find(function(f) { return String(f.id) === String(savedFeatureId); });
+            if (savedFeatNow) {
+              savedFeatNow.properties.serverGeometryHash = geometryHash(savedFeatNow.geometry);
+              savedFeatNow.properties.staleDraft = false;
+              savedFeatNow.properties.hasDraft   = false;
+            }
+          } catch (_she) { /* non-critical */ }
+        }
+        showAutoSavePill('saved ' + slug + ' to source of truth');
+        refreshDraftUI();
+        // Reload communities so the saved shape appears in the list with its slug.
+        await loadCommunities();
+      } else {
+        status.textContent = 'error: ' + body.error;
+      }
+    });
+  </script>
+</body>
+</html>

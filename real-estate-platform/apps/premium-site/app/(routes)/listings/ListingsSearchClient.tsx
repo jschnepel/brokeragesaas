@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useTransition, useCallback, useRef } from 'react';
 import { useListingsSearch, filtersToSearchFilters } from './useListingsSearch';
-import type { MapBounds } from './useListingsSearch';
+import type { FilterState, MapBounds } from './useListingsSearch';
+import { DEFAULT_CITIES, DEFAULT_PROPERTY_TYPE, PROPERTY_TYPE_LABELS } from './listing-defaults';
+import { ActiveFilterPills } from './ActiveFilterPills';
 import { FilterBar, MobileFilterButton, MobileFilterDrawer } from './FilterBar';
 import { ListingsMap } from './ListingsMap';
 import { ListingCard } from './ListingCard';
@@ -42,6 +44,48 @@ function SkeletonCard() {
       </div>
     </div>
   );
+}
+
+function buildResultsHeader(
+  filterState: FilterState,
+  total: number,
+  currentPage: number,
+  polygon: [number, number][] | null,
+  mapBounds: MapBounds | null
+): { label: string; count: string } {
+  const propertyType = filterState.propertyType || DEFAULT_PROPERTY_TYPE;
+  const typeLabel = PROPERTY_TYPE_LABELS[propertyType] ?? 'Properties';
+
+  let locationLabel: string;
+  if (polygon) {
+    locationLabel = 'Drawn Area';
+  } else if (mapBounds) {
+    locationLabel = 'Map Area';
+  } else {
+    const citiesRaw = filterState.cities;
+    const cities = citiesRaw
+      ? citiesRaw === 'all'
+        ? []
+        : citiesRaw.split(',').map((c) => c.trim()).filter(Boolean)
+      : [...DEFAULT_CITIES];
+
+    if (cities.length === 0) {
+      locationLabel = 'Arizona';
+    } else if (cities.length === 1) {
+      locationLabel = cities[0];
+    } else if (cities.length === 2) {
+      locationLabel = `${cities[0]} & ${cities[1]}`;
+    } else {
+      locationLabel = `${cities[0]}, ${cities[1]} & ${cities.length - 2} more`;
+    }
+  }
+
+  const label = `${typeLabel} in ${locationLabel}`;
+  const countText = `${total.toLocaleString()} ${total === 1 ? 'result' : 'results'}${
+    currentPage > 1 && !polygon && !mapBounds ? ` · Page ${currentPage}` : ''
+  }`;
+
+  return { label, count: countText };
 }
 
 export function ListingsSearchClient({
@@ -126,6 +170,15 @@ export function ListingsSearchClient({
         />
       </div>
 
+      {/* Active filter pills — desktop */}
+      <div className="hidden md:block shrink-0">
+        <ActiveFilterPills
+          filterState={filterState}
+          onFilterChange={setFilters}
+          onClearAll={clearFilters}
+        />
+      </div>
+
       {/* Mobile/Tablet Top Bar — visible below md breakpoint */}
       <div className="md:hidden flex items-center justify-between px-4 sm:px-6 py-2 bg-white border-b border-navy/10 shrink-0">
         <MobileFilterButton
@@ -159,6 +212,15 @@ export function ListingsSearchClient({
         </span>
       </div>
 
+      {/* Active filter pills — mobile */}
+      <div className="md:hidden shrink-0">
+        <ActiveFilterPills
+          filterState={filterState}
+          onFilterChange={setFilters}
+          onClearAll={clearFilters}
+        />
+      </div>
+
       {/* Main split pane */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Map Panel — md+ always visible, mobile toggle */}
@@ -189,41 +251,39 @@ export function ListingsSearchClient({
           } md:flex flex-col w-full md:w-1/2 lg:w-1/2 h-full overflow-y-auto bg-cream`}
         >
           {/* Results header */}
-          <div className="sticky top-0 z-10 bg-cream/95 backdrop-blur-sm px-5 py-4 sm:px-6 lg:px-8 border-b border-navy/10">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-[10px] uppercase tracking-widest text-navy/40 font-bold">
-                  {polygon
-                    ? 'Drawn Area'
-                    : mapBounds
-                    ? 'Map Area'
-                    : 'All Properties'}
-                </span>
-                <p className="text-sm text-navy mt-0.5">
-                  <span className="font-serif text-base font-semibold">{total.toLocaleString()}</span>
-                  <span className="text-navy/50 ml-1.5">
-                    {total === 1 ? 'result' : 'results'}
-                    {currentPage > 1 && !polygon && !mapBounds && ` · Page ${currentPage}`}
-                  </span>
-                </p>
-              </div>
-              {polygon && (
-                <button
-                  onClick={clearPolygon}
-                  className="text-[10px] uppercase tracking-widest font-bold text-navy/30 hover:text-gold transition-colors"
-                >
-                  Clear Area
-                </button>
-              )}
-              {!polygon && mapBounds && (
-                <button
-                  onClick={clearMapBounds}
-                  className="text-[10px] uppercase tracking-widest font-bold text-navy/30 hover:text-gold transition-colors"
-                >
-                  Remove Boundary
-                </button>
-              )}
-            </div>
+          <div className="sticky top-0 z-10 bg-cream/95 backdrop-blur-sm px-5 py-3 sm:px-6 lg:px-8 border-b border-navy/10">
+            {(() => {
+              const header = buildResultsHeader(filterState, total, currentPage, polygon, mapBounds);
+              return (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] uppercase tracking-widest text-navy/40 font-bold">
+                      {header.label}
+                    </span>
+                    <p className="text-sm text-navy mt-0.5">
+                      <span className="font-serif text-base font-semibold">{total.toLocaleString()}</span>
+                      <span className="text-navy/50 ml-1.5">{header.count.replace(/^[\d,]+\s*/, '')}</span>
+                    </p>
+                  </div>
+                  {polygon && (
+                    <button
+                      onClick={clearPolygon}
+                      className="text-[10px] uppercase tracking-widest font-bold text-navy/30 hover:text-gold transition-colors"
+                    >
+                      Clear Area
+                    </button>
+                  )}
+                  {!polygon && mapBounds && (
+                    <button
+                      onClick={clearMapBounds}
+                      className="text-[10px] uppercase tracking-widest font-bold text-navy/30 hover:text-gold transition-colors"
+                    >
+                      Remove Boundary
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Listing cards or skeletons */}

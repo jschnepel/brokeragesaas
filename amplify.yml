@@ -1,6 +1,7 @@
 version: 1
 applications:
-  - frontend:
+  - appRoot: prototypes/yong
+    frontend:
       phases:
         preBuild:
           commands:
@@ -15,4 +16,24 @@ applications:
       cache:
         paths:
           - node_modules/**/*
-    appRoot: prototypes/yong
+  - appRoot: real-estate-platform/apps/platform
+    frontend:
+      buildPath: /real-estate-platform
+      phases:
+        preBuild:
+          commands:
+            - npm install -g pnpm@8.15.0
+            - NODE_ENV=development pnpm install
+        build:
+          commands:
+            - pnpm --filter @real-estate/platform build
+            - echo "Copying node_modules into .next for Amplify runtime..."
+            - cp -a node_modules apps/platform/.next/node_modules
+      artifacts:
+        baseDirectory: apps/platform/.next
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+          - apps/platform/.next/cache/**/*

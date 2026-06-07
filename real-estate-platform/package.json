@@ -15,16 +15,35 @@
     "lint:fix": "turbo run lint -- --fix",
     "type-check": "turbo run type-check",
     "clean": "turbo run clean && rm -rf node_modules",
-    "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "geo:editor": "tsx scripts/geo/editor/server.ts",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.5.3",
+    "@commitlint/config-conventional": "^20.5.3",
+    "@duckdb/node-api": "1.5.3-r.2",
+    "@secretlint/secretlint-rule-preset-recommend": "^12.3.1",
+    "@turf/area": "^7.3.5",
+    "@turf/bbox": "^7.3.5",
+    "@turf/boolean-intersects": "^7.3.5",
+    "@turf/boolean-point-in-polygon": "^7.3.5",
+    "@turf/centroid": "^7.3.5",
+    "@turf/difference": "^7.3.5",
+    "@turf/distance": "^7.3.5",
+    "@turf/helpers": "^7.3.5",
+    "@turf/intersect": "^7.3.5",
+    "@turf/kinks": "^7.3.5",
+    "@turf/union": "^7.3.5",
     "@types/node": "^20.10.0",
     "eslint": "^8.55.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.0",
     "prettier": "^3.1.1",
+    "secretlint": "^12.3.1",
     "turbo": "^1.11.2",
     "typescript": "^5.3.3",
-    "husky": "^8.0.3",
-    "lint-staged": "^15.2.0"
+    "vitest": "^3.2.4"
   },
   "engines": {
     "node": ">=20.0.0",

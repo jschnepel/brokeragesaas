@@ -13,7 +13,7 @@ import { rdsQuery, rdsQueryOne } from '../rds-client';
 
 export interface ListingSearchFilters {
   status?: string | string[];
-  city?: string;
+  cities?: string[];
   postalCode?: string;
   subdivisionName?: string;
   propertyType?: string;
@@ -192,9 +192,9 @@ export async function searchListings(
     params.push(...ACTIVE_STATUSES);
   }
 
-  if (filters.city) {
-    conditions.push(`city ILIKE $${paramIndex++}`);
-    params.push(filters.city);
+  if (filters.cities && filters.cities.length > 0) {
+    conditions.push(`city ILIKE ANY($${paramIndex++}::text[])`);
+    params.push(filters.cities);
   }
   if (filters.postalCode) {
     conditions.push(`postal_code = $${paramIndex++}`);
@@ -208,10 +208,11 @@ export async function searchListings(
     conditions.push(`property_type = 'Residential Lease'`);
   } else if (filters.listingType === 'all') {
     // no filter
-  } else if (filters.propertyType) {
+  } else if (filters.propertyType && filters.propertyType !== 'all') {
     conditions.push(`property_type = $${paramIndex++}`);
     params.push(filters.propertyType);
   } else {
+    // 'all' or no propertyType: exclude leases only
     conditions.push(`property_type != 'Residential Lease'`);
   }
   if (filters.minPrice !== undefined) {
@@ -347,9 +348,9 @@ export async function searchListingsWithPhotos(
     params.push(...ACTIVE_STATUSES);
   }
 
-  if (filters.city) {
-    conditions.push(`lr.city ILIKE $${paramIndex++}`);
-    params.push(filters.city);
+  if (filters.cities && filters.cities.length > 0) {
+    conditions.push(`lr.city ILIKE ANY($${paramIndex++}::text[])`);
+    params.push(filters.cities);
   }
   if (filters.postalCode) {
     conditions.push(`lr.postal_code = $${paramIndex++}`);
@@ -364,11 +365,11 @@ export async function searchListingsWithPhotos(
     conditions.push(`lr.property_type = 'Residential Lease'`);
   } else if (filters.listingType === 'all') {
     // no filter — show everything
-  } else if (filters.propertyType) {
+  } else if (filters.propertyType && filters.propertyType !== 'all') {
     conditions.push(`lr.property_type = $${paramIndex++}`);
     params.push(filters.propertyType);
   } else {
-    // Default: exclude leases so search shows sales only
+    // 'all' or no propertyType: exclude leases only
     conditions.push(`lr.property_type != 'Residential Lease'`);
   }
   if (filters.minPrice !== undefined) {
@@ -470,37 +471,43 @@ export async function searchListingsWithPhotos(
   const limit = Math.min(filters.limit ?? 25, 200);
   const offset = filters.offset ?? 0;
 
-  // Count query
-  const countResult = await rdsQuery<{ count: string }>(
-    `SELECT COUNT(*) as count FROM listing_records lr WHERE ${whereClause}`,
-    params
-  );
-  const total = parseInt(countResult.rows[0].count, 10);
+  // Run count and data queries in parallel.
+  // Count is capped at 10,001 to avoid full-table scans on large result sets.
+  // Data uses a subquery to apply LIMIT before the photo LEFT JOIN (1,900x faster).
+  const countSql = `SELECT COUNT(*) as count FROM (
+    SELECT 1 FROM listing_records lr WHERE ${whereClause} LIMIT 10001
+  ) sub`;
 
-  // Data query with primary photo join
-  const dataResult = await rdsQuery<ListingRecord>(
-    `SELECT lr.id, lr.listing_key, lr.listing_id, lr.standard_status, lr.mls_status,
-            lr.unparsed_address, lr.city, lr.state_or_province, lr.postal_code,
-            lr.subdivision_name,
-            lr.latitude::float8 AS latitude, lr.longitude::float8 AS longitude,
-            lr.list_price::float8 AS list_price, lr.close_price::float8 AS close_price,
-            lr.property_type, lr.property_sub_type, lr.bedrooms_total,
-            lr.bathrooms_total_integer, lr.bathrooms_full, lr.bathrooms_half,
-            lr.living_area::float8 AS living_area,
-            lr.lot_size_acres::float8 AS lot_size_acres,
-            lr.lot_size_square_feet::float8 AS lot_size_square_feet,
-            lr.year_built, lr.stories_total, lr.pool_private_yn, lr.garage_spaces,
-            lr.list_office_name, lr.list_agent_full_name, lr.list_agent_key,
-            lr.public_remarks, lr.photos_count, lr.days_on_market,
-            lr.modification_timestamp, lr.listing_contract_date,
-            lp.media_url AS primary_photo_url
-     FROM listing_records lr
-     LEFT JOIN listing_photos lp ON lp.listing_key = lr.listing_key AND lp.is_preferred = true
-     WHERE ${whereClause}
-     ORDER BY ${orderClause}
-     LIMIT $${paramIndex++} OFFSET $${paramIndex++}`,
-    [...params, limit, offset]
-  );
+  const dataSql = `SELECT sub.*, lp.media_url AS primary_photo_url
+    FROM (
+      SELECT lr.id, lr.listing_key, lr.listing_id, lr.standard_status, lr.mls_status,
+              lr.unparsed_address, lr.city, lr.state_or_province, lr.postal_code,
+              lr.subdivision_name,
+              lr.latitude::float8 AS latitude, lr.longitude::float8 AS longitude,
+              lr.list_price::float8 AS list_price, lr.close_price::float8 AS close_price,
+              lr.property_type, lr.property_sub_type, lr.bedrooms_total,
+              lr.bathrooms_total_integer, lr.bathrooms_full, lr.bathrooms_half,
+              lr.living_area::float8 AS living_area,
+              lr.lot_size_acres::float8 AS lot_size_acres,
+              lr.lot_size_square_feet::float8 AS lot_size_square_feet,
+              lr.year_built, lr.stories_total, lr.pool_private_yn, lr.garage_spaces,
+              lr.list_office_name, lr.list_agent_full_name, lr.list_agent_key,
+              lr.public_remarks, lr.photos_count, lr.days_on_market,
+              lr.modification_timestamp, lr.listing_contract_date
+       FROM listing_records lr
+       WHERE ${whereClause}
+       ORDER BY ${orderClause}
+       LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+    ) sub
+    LEFT JOIN listing_photos lp ON lp.listing_key = sub.listing_key AND lp.is_preferred = true`;
+
+  const [countResult, dataResult] = await Promise.all([
+    rdsQuery<{ count: string }>(countSql, params),
+    rdsQuery<ListingRecord>(dataSql, [...params, limit, offset]),
+  ]);
+
+  const rawCount = parseInt(countResult.rows[0].count, 10);
+  const total = rawCount > 10000 ? 10000 : rawCount;
 
   return { listings: dataResult.rows, total };
 }

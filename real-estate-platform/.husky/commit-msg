@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+# Husky commit-msg hook
+# Enforces Conventional Commits format on every commit.
+# Per docs/superpowers/plans/2026-05-04-execution-playbook.md Section 2.0.
+
+cd real-estate-platform || exit 1
+pnpm exec commitlint --edit "$1"

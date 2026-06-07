@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   description: "Agent Platform — Marketing Intake",
 };
 
+// Authenticated admin app — every page is dynamic (DB-backed theme + auth).
+// Skipping static page generation also avoids build-time DB connections in CI
+// (where AWS creds for SSM lookup aren't configured).
+export const dynamic = "force-dynamic";
+
 export default async function RootLayout({
   children,
 }: {

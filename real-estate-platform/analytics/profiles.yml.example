@@ -1,0 +1,54 @@
+# Copy this file to ~/.dbt/profiles.yml (or set DBT_PROFILES_DIR=. and use as-is locally).
+# Credentials are loaded from environment variables — see .env.local at repo root.
+
+rlsir_analytics:
+  target: dev
+  outputs:
+    # Local development: in-memory DuckDB, reads from RDS via postgres extension,
+    # writes Parquet to a local folder for fast iteration.
+    dev:
+      type: duckdb
+      path: ':memory:'
+      external_root: '{{ env_var("ANALYTICS_DEV_OUTPUT_ROOT", "./_local_output") }}'
+      extensions:
+        - httpfs
+        - parquet
+        - postgres
+        - spatial
+      attach:
+        - path: 'host={{ env_var("RDS_HOST") }} port=5432 user={{ env_var("RDS_USER") }} password={{ env_var("RDS_PASSWORD") }} dbname={{ env_var("RDS_DATABASE") }} sslmode=require'
+          type: postgres
+          alias: rds
+          options:
+            read_only: true
+
+    # Production: Lambda runtime. Writes Parquet to S3.
+    prod:
+      type: duckdb
+      path: ':memory:'
+      external_root: 's3://rlsir-platform-assets-us-east-1/analytics'
+      extensions:
+        - httpfs
+        - parquet
+        - postgres
+        - spatial
+      settings:
+        s3_region: us-east-1
+        # AWS credentials loaded automatically from Lambda execution role
+      attach:
+        - path: 'host={{ env_var("RDS_HOST") }} port=5432 user={{ env_var("RDS_USER") }} password={{ env_var("RDS_PASSWORD") }} dbname={{ env_var("RDS_DATABASE") }} sslmode=require'
+          type: postgres
+          alias: rds
+          options:
+            read_only: true
+
+    # CI: --empty / state:modified+ runs against a small sandbox
+    ci:
+      type: duckdb
+      path: ':memory:'
+      external_root: '{{ env_var("ANALYTICS_CI_OUTPUT_ROOT", "/tmp/ci_output") }}'
+      extensions:
+        - httpfs
+        - parquet
+        - postgres
+        - spatial

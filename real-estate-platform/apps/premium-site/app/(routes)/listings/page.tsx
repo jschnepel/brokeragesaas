@@ -3,9 +3,11 @@ import type { Metadata } from 'next';
 import { fetchListings } from './actions';
 import type { ListingSearchFilters } from '@platform/database/src/queries/listings';
 import { ListingsSearchClient } from './ListingsSearchClient';
+import { DEFAULT_CITIES, DEFAULT_PROPERTY_TYPE, DEFAULT_SORT, PROPERTY_TYPE_LABELS } from './listing-defaults';
 
 interface SearchParams {
-  city?: string;
+  cities?: string;
+  city?: string; // backward compat — old bookmarks use ?city=
   minPrice?: string;
   maxPrice?: string;
   minBeds?: string;
@@ -39,14 +41,28 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const params = await searchParams;
 
+  const citiesParam = params.cities ?? params.city ?? '';
+  const cities = citiesParam ? citiesParam.split(',').map((c) => c.trim()).filter(Boolean) : DEFAULT_CITIES;
+  const isAllCities = citiesParam === 'all';
+  const propertyType = params.propertyType ?? DEFAULT_PROPERTY_TYPE;
+  const typeLabel = PROPERTY_TYPE_LABELS[propertyType] ?? 'Properties';
+
   const parts: string[] = [];
-  if (params.city) parts.push(params.city);
+
+  if (isAllCities) {
+    parts.push(`Arizona Luxury ${typeLabel}`);
+  } else if (cities.length === 1) {
+    parts.push(`${cities[0]} Luxury ${typeLabel} for Sale`);
+  } else if (cities.length <= 2) {
+    parts.push(`Luxury ${typeLabel} for Sale | ${cities.join(' & ')}`);
+  } else {
+    parts.push(`Luxury ${typeLabel} for Sale | ${cities[0]} & ${cities[1]}`);
+  }
+
   if (params.minPrice) parts.push(`Over ${formatPriceLabel(params.minPrice)}`);
   if (params.maxPrice && !params.minPrice) parts.push(`Under ${formatPriceLabel(params.maxPrice)}`);
 
-  const title = parts.length > 0
-    ? `${parts.join(' ')} Luxury Listings | Yong Choi`
-    : 'Luxury Listings | Scottsdale & Paradise Valley';
+  const title = parts.join(' ');
 
   return {
     title,
@@ -119,16 +135,25 @@ export default async function ListingsPage({
     status: ['Active', 'Active Under Contract', 'Coming Soon'],
     limit: perPage,
     offset: (polygonPoints || hasBounds) ? 0 : (page - 1) * perPage,
-    sortBy: (params.sortBy as ListingSearchFilters['sortBy']) ?? 'price_desc',
+    sortBy: (params.sortBy as ListingSearchFilters['sortBy']) ?? DEFAULT_SORT,
   };
 
-  if (params.city) filters.city = params.city;
+  // Cities: backward compat for old ?city= param
+  const citiesParam = params.cities ?? params.city ?? '';
+  if (citiesParam && citiesParam !== 'all') {
+    filters.cities = citiesParam.split(',').map((c) => c.trim()).filter(Boolean);
+  } else if (!citiesParam) {
+    filters.cities = DEFAULT_CITIES;
+  }
+  // citiesParam === 'all' → filters.cities stays undefined → no city filter
+
+  filters.propertyType = params.propertyType ?? DEFAULT_PROPERTY_TYPE;
+
   if (params.minPrice) filters.minPrice = parseInt(params.minPrice, 10);
   if (params.maxPrice) filters.maxPrice = parseInt(params.maxPrice, 10);
   if (params.minBeds) filters.minBeds = parseInt(params.minBeds, 10);
   if (params.minBaths) filters.minBaths = parseInt(params.minBaths, 10);
   if (params.minSqft) filters.minSqft = parseInt(params.minSqft, 10);
-  if (params.propertyType) filters.propertyType = params.propertyType;
   if (params.hasPool === 'true') filters.hasPool = true;
   if (params.hasGarage === 'true') filters.hasGarage = true;
   if (params.minYearBuilt) filters.minYearBuilt = parseInt(params.minYearBuilt, 10);

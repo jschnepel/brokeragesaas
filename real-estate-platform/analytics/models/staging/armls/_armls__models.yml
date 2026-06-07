@@ -1,0 +1,146 @@
+version: 2
+
+models:
+  - name: stg_armls__listing_records
+    description: |
+      Deduplicated latest observation per listing from bronze NDJSON +
+      monthly compacted Parquet. Materialized as TABLE (not view) — see
+      §4.3 of analytics-comprehensive-plan.md for rationale.
+      Grain: listing_key.
+    config:
+      materialized: table
+    columns:
+      - name: listing_key
+        description: Stable Spark/RESO listing key
+        data_tests: [unique, not_null]
+      - name: standard_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['Active','Pending','Active Under Contract','Coming Soon','Closed','Expired','Withdrawn','Cancelled','Hold']
+      - name: county
+        description: county_or_parish renamed
+      - name: list_price
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 1
+                  max_value: 1000000000
+              config:
+                where: "list_price IS NOT NULL"
+      - name: close_price
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 1
+                  max_value: 1000000000
+              config:
+                where: "close_price IS NOT NULL"
+      - name: latitude
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 31
+                  max_value: 37
+              config:
+                where: "latitude IS NOT NULL"
+      - name: longitude
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: -115
+                  max_value: -108
+              config:
+                where: "longitude IS NOT NULL"
+      - name: sync_run_id
+        description: Provenance — the bronze sync run that produced this row
+        data_tests: [not_null]
+      - name: sync_observed_at
+        description: When our Lambda received this row from Spark
+        data_tests: [not_null]
+
+  - name: stg_armls__listing_change_log
+    description: |
+      Field-change log staged with old_value/new_value cast where the
+      field_name is known to be numeric or date. Materialized as TABLE
+      to avoid repeated S3 scans. Grain: id.
+    config:
+      materialized: table
+    columns:
+      - name: id
+        data_tests: [unique, not_null]
+      - name: listing_key
+        data_tests: [not_null]
+      - name: source_timestamp
+        data_tests: [not_null]
+      - name: changed_at
+        data_tests: [not_null]
+      - name: field_name
+        data_tests: [not_null]
+
+  - name: stg_armls__listing_geography
+    description: |
+      Per-listing region/community classification from PostGIS join.
+      Materialized as TABLE. Grain: listing_key.
+    config:
+      materialized: table
+    columns:
+      - name: listing_key
+        data_tests: [unique, not_null]
+
+  - name: stg_armls__active_listings
+    description: |
+      Hourly snapshot of every active+pending+AUC+coming-soon listing,
+      from the Spark-API-direct active-snapshot Lambda. No dedup needed
+      (single overwritten file). Materialized as TABLE.
+      Grain: listing_key.
+    config:
+      materialized: table
+    columns:
+      - name: listing_key
+        data_tests: [unique, not_null]
+      - name: standard_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                  values: ['Active', 'Active Under Contract', 'Pending', 'Coming Soon']
+              # Demoted error → warn 2026-05-27. The source-level twin on
+              # armls_active.active_snapshot.StandardStatus is already warn.
+              # Symptom: Spark feed occasionally surfaces a status outside the
+              # MLS-active envelope (transient mid-cycle states); fail-severity
+              # here aborted dbt build on every cycle and skipped the entire
+              # downstream active branch — int_listings_active_cleaned +
+              # 5 active marts — preventing fct_active_heatmap_h3 et al. from
+              # publishing. Match the source severity so DQ surfaces the row
+              # without blocking the publish gate.
+              config:
+                severity: warn
+      - name: list_price
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 1
+                  max_value: 1000000000
+      - name: latitude
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 31
+                  max_value: 37
+              config:
+                where: "latitude IS NOT NULL"
+      - name: longitude
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: -115
+                  max_value: -108
+              config:
+                where: "longitude IS NOT NULL"
+      - name: sync_run_id
+        data_tests: [not_null]
+      - name: sync_observed_at
+        data_tests: [not_null]
