@@ -20,3 +20,9 @@ infra/lambda/dist
 **/.env.production
 **/playwright-report
 **/test-results
+analytics/_local_output
+analytics/target
+analytics/logs
+analytics/dbt_packages
+**/*.duckdb
+**/*.duckdb.wal
