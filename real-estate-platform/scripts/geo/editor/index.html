@@ -32,6 +32,9 @@
     .shape-row.selected { background: rgba(191,166,122,0.25); }
     .shape-row .name { display: block; font-weight: 600; }
     .shape-row .meta { display: block; font-size: 11px; color: #9fb0c0; }
+    /* Dirty tracking — unsaved / edited features */
+    .shape-row .dirty-dot { color: #f97316; margin-right: 4px; }
+    .shape-row.dirty .name { color: #f97316; }
     /* Snap indicator: thin gold ring around candidate listing dot */
     /* Rendered via the snap-candidate geojson layer — no extra CSS needed. */
   </style>
@@ -54,6 +57,7 @@
     </div>
 
     <!-- ── Communities list (top of panel) ── -->
+    <div id="dirty-summary" class="muted" style="margin-bottom: 4px; font-size: 11px;"></div>
     <div id="shape-list-header" class="muted" style="margin-bottom: 4px;">Communities</div>
     <div id="shape-list" style="max-height: 35vh; overflow-y: auto; margin-bottom: 16px; border-top: 1px solid rgba(255,255,255,0.08); border-bottom: 1px solid rgba(255,255,255,0.08);"></div>
 
@@ -416,6 +420,101 @@
     const UNDO_CAP  = 50;
     let isRestoring = false;
 
+    // ── Dirty tracking — T12 ────────────────────────────────────────────────────
+    //
+    // `dirty` tracks geoman feature ids that are unsaved or have been edited
+    // since the last save.  Used for:
+    //   - beforeunload warning (user has unsaved work)
+    //   - Side-panel ● indicator + orange row name
+    //   - Dashed gold outline layer on the map
+    //
+    // `isImportingFromDb` suppresses markDirty during loadCommunities() so that
+    // features loaded from the DB are never considered dirty on initial load.
+
+    const dirty = new Set(); // string feature ids
+    let isImportingFromDb = false;
+
+    function markDirty(featureId) {
+      if (featureId == null) return;
+      dirty.add(String(featureId));
+      refreshDirtyUI();
+    }
+
+    function clearDirty(featureId) {
+      if (featureId == null) { dirty.clear(); }
+      else { dirty.delete(String(featureId)); }
+      refreshDirtyUI();
+    }
+
+    function isDirty(featureId) { return dirty.has(String(featureId)); }
+
+    // Expose for Puppeteer test harness.
+    window.__dirty = dirty;
+    window.__markDirty = markDirty;
+    window.__clearDirty = clearDirty;
+    window.__isDirty = isDirty;
+    // isImportingFromDb exposed so tests can wait for the initial load to finish
+    Object.defineProperty(window, '__isImportingFromDb', {
+      get: function() { return isImportingFromDb; },
+    });
+
+    // ── Dirty outline layer ──────────────────────────────────────────────────────
+
+    function ensureDirtyOutlineLayer() {
+      if (!map.getSource('dirty-outline')) {
+        map.addSource('dirty-outline', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        map.addLayer({
+          id: 'dirty-outline',
+          type: 'line',
+          source: 'dirty-outline',
+          paint: { 'line-color': '#bfa67a', 'line-width': 2, 'line-dasharray': [3, 2], 'line-opacity': 0.9 },
+        });
+      }
+    }
+
+    function updateDirtyOutline() {
+      if (!map.getSource('dirty-outline')) return;
+      var all = window.__gm.features.getAll();
+      var dirtyFeats = all.features.filter(function(f) { return isDirty(f.id); });
+      map.getSource('dirty-outline').setData({ type: 'FeatureCollection', features: dirtyFeats });
+    }
+
+    function refreshDirtyUI() {
+      // Update the unsaved-changes counter above the community list.
+      var summaryEl = document.getElementById('dirty-summary');
+      if (summaryEl) {
+        summaryEl.textContent = dirty.size === 0
+          ? ''
+          : dirty.size + ' unsaved change' + (dirty.size === 1 ? '' : 's');
+      }
+      // Re-render the shape list so ● indicators update.
+      if (window.__gm) {
+        var all = window.__gm.features.getAll().features
+          .filter(function(f) { return f.properties && f.properties.communitySlug; })
+          .map(function(f) {
+            return {
+              slug:      f.properties.communitySlug,
+              name:      f.properties.communityName || f.properties.communitySlug,
+              regionSlug: f.properties.regionSlug,
+              areaSqMi:  f.properties.areaSqMi,
+              geometry:  f.geometry,
+              _gmId:     f.id,
+            };
+          });
+        // Also include unsaved shapes (no communitySlug) in the re-render pool
+        // but renderShapeList also handles those internally — just pass the saved list.
+        if (typeof renderShapeList === 'function') renderShapeList(all);
+      }
+      updateDirtyOutline();
+    }
+
+    // ── beforeunload warning ─────────────────────────────────────────────────────
+    window.addEventListener('beforeunload', function(e) {
+      if (dirty.size === 0) return;
+      e.preventDefault();
+      e.returnValue = ''; // most browsers ignore custom messages; the prompt still appears
+    });
+
     function deepCloneFC(fc) {
       return structuredClone(fc);
     }
@@ -700,47 +799,59 @@
     let _loadedCommunities = [];
 
     async function loadCommunities() {
-      let all = [];
+      // Suppress dirty-marking for all gm:create/gm:edit events fired during the
+      // bulk import below.  Any stale dirty ids are cleared after load so the
+      // beforeunload guard starts fresh.
+      isImportingFromDb = true;
       try {
-        const res = await fetch('/api/boundaries');
-        const data = await res.json();
-        // Guard: server returns {error:...} on DB failure — treat as empty list
-        all = Array.isArray(data) ? data : [];
-      } catch (_err) {
-        // DB unavailable — empty list, no error shown
-      }
-      _loadedCommunities = all.filter(function(b) { return b.type === 'community'; });
-
-      for (const c of _loadedCommunities) {
-        if (!c.geometry) continue;
-        const feature = {
-          type: 'Feature',
-          // gm.features.addGeoJsonFeature accepts ImportGeoJsonProperties which
-          // allows arbitrary [key: string]: unknown extra properties — we stamp
-          // communitySlug so we can look the feature up later via getAll().
-          properties: {
-            communitySlug: c.slug,
-            communityName: c.name,
-            regionSlug:    c.regionSlug,
-            areaSqMi:      c.areaSqMi,
-          },
-          geometry: c.geometry,
-        };
-        // Verified API (maplibre-geoman 0.2.10 type defs):
-        //   gm.features.addGeoJsonFeature(GeoJsonImportFeature) → FeatureData | null
-        // Fallback: gm.features.importGeoJson(FeatureCollection)
+        let all = [];
         try {
-          gm.features.addGeoJsonFeature(feature);
-        } catch (_e1) {
+          const res = await fetch('/api/boundaries');
+          const data = await res.json();
+          // Guard: server returns {error:...} on DB failure — treat as empty list
+          all = Array.isArray(data) ? data : [];
+        } catch (_err) {
+          // DB unavailable — empty list, no error shown
+        }
+        _loadedCommunities = all.filter(function(b) { return b.type === 'community'; });
+
+        for (const c of _loadedCommunities) {
+          if (!c.geometry) continue;
+          const feature = {
+            type: 'Feature',
+            // gm.features.addGeoJsonFeature accepts ImportGeoJsonProperties which
+            // allows arbitrary [key: string]: unknown extra properties — we stamp
+            // communitySlug so we can look the feature up later via getAll().
+            properties: {
+              communitySlug: c.slug,
+              communityName: c.name,
+              regionSlug:    c.regionSlug,
+              areaSqMi:      c.areaSqMi,
+            },
+            geometry: c.geometry,
+          };
+          // Verified API (maplibre-geoman 0.2.10 type defs):
+          //   gm.features.addGeoJsonFeature(GeoJsonImportFeature) → FeatureData | null
+          // Fallback: gm.features.importGeoJson(FeatureCollection)
           try {
-            gm.features.importGeoJson({ type: 'FeatureCollection', features: [feature] });
-          } catch (_e2) {
-            // Could not add to geoman — skip, operator can redraw
+            gm.features.addGeoJsonFeature(feature);
+          } catch (_e1) {
+            try {
+              gm.features.importGeoJson({ type: 'FeatureCollection', features: [feature] });
+            } catch (_e2) {
+              // Could not add to geoman — skip, operator can redraw
+            }
           }
         }
-      }
 
-      renderShapeList(_loadedCommunities);
+        renderShapeList(_loadedCommunities);
+      } finally {
+        isImportingFromDb = false;
+        // Clear any ids that might have leaked in (shouldn't happen with the
+        // guard, but belt-and-suspenders for geoman firing sync events).
+        dirty.clear();
+        refreshDirtyUI();
+      }
     }
 
     // ── Side-panel list ─────────────────────────────────────────────────────────
@@ -797,13 +908,40 @@
       const inside = c.geometry ? computeInsideCount(c.geometry) : 0;
       const area   = c.areaSqMi != null ? Number(c.areaSqMi).toFixed(2) : '—';
 
+      // Resolve the geoman feature id for this row so we can check isDirty.
+      // Prefer the pre-computed _gmId (set by refreshDirtyUI); fall back to a
+      // slug-based scan when called from other code paths.
+      var gmId = c._gmId != null ? c._gmId : null;
+      if (gmId == null && c.slug && window.__gm) {
+        var allFc = window.__gm.features.getAll();
+        if (allFc && allFc.features) {
+          for (var _ri = 0; _ri < allFc.features.length; _ri++) {
+            var _rf = allFc.features[_ri];
+            if (_rf.properties && _rf.properties.communitySlug === c.slug) {
+              gmId = _rf.id;
+              break;
+            }
+          }
+        }
+      }
+      var rowIsDirty = gmId != null && isDirty(gmId);
+
       const row  = document.createElement('button');
-      row.className = 'shape-row';
+      row.className = 'shape-row' + (rowIsDirty ? ' dirty' : '');
       if (c.slug) row.dataset.slug = c.slug;
 
       const nameSpan = document.createElement('span');
       nameSpan.className = 'name';
-      nameSpan.textContent = c.name;
+      // Prepend ● indicator for dirty rows
+      if (rowIsDirty) {
+        const dotSpan = document.createElement('span');
+        dotSpan.className = 'dirty-dot';
+        dotSpan.textContent = '● ';
+        nameSpan.appendChild(dotSpan);
+        nameSpan.appendChild(document.createTextNode(c.name));
+      } else {
+        nameSpan.textContent = c.name;
+      }
 
       const metaSpan = document.createElement('span');
       metaSpan.className = 'meta';
@@ -847,7 +985,7 @@
           const slug = f.properties && f.properties.communitySlug;
           if (slug) continue; // already in communities list
           if (!f.geometry || (f.geometry.type !== 'Polygon' && f.geometry.type !== 'MultiPolygon')) continue;
-          allRows.push({ slug: null, name: '(unsaved)', areaSqMi: null, geometry: f.geometry });
+          allRows.push({ slug: null, name: '(unsaved)', areaSqMi: null, geometry: f.geometry, _gmId: f.id });
         }
       }
 
@@ -1221,6 +1359,7 @@
     map.on('load', function() {
       initHoverLayer();
       initSnapCandidateLayer();
+      ensureDirtyOutlineLayer();
 
       // ── Enable geoman snapping (vertex + edge + midpoint) ──────────────────
       //
@@ -1392,6 +1531,21 @@
       snapshot(); // push undo entry after the feature is committed
       // Recompute mismatch overlay: a new polygon may reclassify dots.
       if (mismatchMode) { rebuildListingsSourceData(); }
+      // T12 — Mark freshly drawn features dirty (they are not yet in the DB).
+      // Skip during DB import (isImportingFromDb guard).
+      (function() {
+        if (isImportingFromDb) return;
+        try {
+          var allFc = window.__gm.features.getAll();
+          if (!allFc || !allFc.features || !allFc.features.length) return;
+          var last = allFc.features[allFc.features.length - 1];
+          if (!last) return;
+          // Only mark dirty if the feature has no communitySlug — loaded features
+          // carry the slug; fresh draws do not.
+          if (last.properties && last.properties.communitySlug) return;
+          markDirty(last.id);
+        } catch (_err) { /* never break the create flow */ }
+      })();
       // T11 — Auto-suggest name + slug from dominant subdivision.
       // Wrapped in an IIFE so early-return doesn't affect the outer handler.
       (function() {
@@ -1417,7 +1571,7 @@
         }
       })();
     });
-    map.on('gm:remove', function() {
+    map.on('gm:remove', function(e) {
       // Feature removed — clear selection in case a selected feature was deleted.
       selected = [];
       updateBoolopsUI();
@@ -1425,12 +1579,46 @@
       snapshot(); // push undo entry after the removal is committed
       // Recompute mismatch overlay: a removed polygon changes containment.
       if (mismatchMode) { rebuildListingsSourceData(); }
+      // T12 — Remove from dirty set; if the feature was dirty (fresh draw deleted
+      // before saving), this prevents a stale beforeunload nag.
+      if (!isImportingFromDb) {
+        try {
+          var removedId = e && e.feature && e.feature.id;
+          if (removedId != null) {
+            clearDirty(String(removedId));
+          } else {
+            // Event doesn't carry the id — attempt a best-effort sync:
+            // any id in dirty that no longer exists in geoman should be removed.
+            var stillPresent = new Set(
+              (window.__gm.features.getAll().features || []).map(function(f) { return String(f.id); })
+            );
+            dirty.forEach(function(id) {
+              if (!stillPresent.has(id)) dirty.delete(id);
+            });
+            refreshDirtyUI();
+          }
+        } catch (_err) { /* never break the remove flow */ }
+      }
     });
-    map.on('gm:edit', function() {
+    map.on('gm:edit', function(e) {
       updateCount();
       snapshot(); // push undo entry after the vertex edit is committed
       // Recompute mismatch overlay: boundary change may reclassify dots.
       if (mismatchMode) { rebuildListingsSourceData(); }
+      // T12 — Vertex/geometry changes always dirty the feature, even DB-loaded ones
+      // (operator changed the boundary since last save).
+      if (!isImportingFromDb) {
+        try {
+          var editedId = e && e.feature && e.feature.id;
+          if (editedId != null) {
+            markDirty(String(editedId));
+          } else {
+            // geoman fires gm:edit without the feature id in some versions —
+            // mark the currently-selected feature dirty as a best-effort fallback.
+            if (selected.length > 0) markDirty(selected[0]);
+          }
+        } catch (_err) { /* never break the edit flow */ }
+      }
     });
 
     // ── Save handler ─────────────────────────────────────────────────────────────
@@ -1472,6 +1660,10 @@
       if (inside === 0) { setStatus('cannot save: no listings inside the polygon (check geometry?)'); return; }
 
       status.textContent = 'saving…';
+      // Capture the feature id before POSTing so we can clearDirty on success
+      // (loadCommunities will re-stamp the slug, clearing the id from geoman's
+      // perspective, so we must clear before the reload).
+      var savedFeatureId = poly.id != null ? String(poly.id) : null;
       const res = await fetch('/api/community', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ slug: slug, name: name, regionSlug: region, geometry: poly.geometry }),
@@ -1484,6 +1676,9 @@
         document.getElementById('name').value   = '';
         document.getElementById('region').value = '';
         status.textContent = 'saved — ' + body.areaSqMi.toFixed(2) + ' sq mi, ' + body.vertexCount + ' verts (form cleared)';
+        // T12 — mark the saved feature clean before reloading (loadCommunities
+        // calls dirty.clear() internally via the isImportingFromDb guard).
+        if (savedFeatureId != null) clearDirty(savedFeatureId);
         // Reload communities so the saved shape appears in the list with its slug.
         await loadCommunities();
       } else {
